@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "RepaymentPosting",
+  "namespace": "com.bank.lending.v1",
+  "version": 1,
+  "doc": "A repayment posted against a loan account. One of the two streams Phase 0 WS-0.1.4 proves the backbone with. Source: cbs / repayment_events (config/sources/repayment_events.yaml).",
+  "fields": [
+    {"name": "event_id", "type": "string", "doc": "Producer-assigned idempotency key; consumers dedupe on it."},
+    {"name": "loan_id", "type": "string", "doc": "Normalised by lending_hub.identity.keys before any join."},
+    {"name": "account_id", "type": "string"},
+    {"name": "customer_id", "type": "string", "doc": "Tokenized before it reaches the feature store (SRS §11.4)."},
+    {"name": "amount_minor_units", "type": "long", "doc": "Integer minor units. Never a float: binary floating point cannot represent monetary decimals exactly, and the GL reconciliation is gated at 0.1%."},
+    {"name": "currency", "type": "string", "doc": "ISO 4217."},
+    {"name": "value_date", "type": {"type": "int", "logicalType": "date"}, "doc": "When the payment counts against the loan."},
+    {"name": "event_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "When the posting happened in the source system."},
+    {"name": "created_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "When the platform learned it. Mandatory: without it no point-in-time join is correct (WS-0.2.1)."},
+    {"name": "posting_type", "type": "string", "doc": "CBS posting code. The mapping to business meaning is a bank mapping, not an assumption."},
+    {"name": "reversal_of_event_id", "type": ["null", "string"], "default": null, "doc": "Set when this posting reverses an earlier one. Reversals arrive as new events; nothing is mutated in place."}
+  ]
+}

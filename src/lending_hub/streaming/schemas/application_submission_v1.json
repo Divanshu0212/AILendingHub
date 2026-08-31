@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "ApplicationSubmission",
+  "namespace": "com.bank.lending.v1",
+  "version": 1,
+  "doc": "A loan application submitted through any channel. Second of the two Phase 0 WS-0.1.4 streams. Source: los / repayment_events (config/sources/repayment_events.yaml).",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "application_id", "type": "string"},
+    {"name": "customer_id", "type": "string", "doc": "Tokenized before the feature store (SRS §11.4)."},
+    {"name": "channel", "type": "string", "doc": "branch | app | partner_lsp — per SRS §2.3."},
+    {"name": "product_code", "type": "string"},
+    {"name": "requested_amount_minor_units", "type": "long"},
+    {"name": "requested_tenor_months", "type": "int"},
+    {"name": "event_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "created_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "consent_id", "type": ["null", "string"], "default": null, "doc": "DPDP consent artifact reference where alternative data is collected (SRS §11.4)."}
+  ]
+}

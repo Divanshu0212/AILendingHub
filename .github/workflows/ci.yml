@@ -36,6 +36,19 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python tools/validate_source_registry.py
 
+  schemas:
+    name: "Stream schema compatibility (WS-0.1.4)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Backward compatibility means a consumer on the new schema can read data
+      # written with the old one. Checking it here fails the pull request instead
+      # of a consumer at 3am.
+      - run: python tools/check_schema_compatibility.py
+
   tests:
     name: "Test suite (python ${{ matrix.python }})"
     runs-on: ubuntu-latest
