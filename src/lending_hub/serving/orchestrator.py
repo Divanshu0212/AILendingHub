@@ -15,10 +15,20 @@ Two behaviours here are load-bearing rather than cosmetic:
   graceful degradation to policy-rule decisioning with the request queued for
   re-score. A 500 here would be an availability breach.
 
-Phase 0 ships no decisioning logic: the cutoffs, bands and rules are all
-`[POLICY]` from P1 onward. What ships is the path, the logging, and the fallback.
+Phase 0 shipped no decisioning logic: the cutoffs, bands and rules are all
+`[POLICY]` from P1 onward. What shipped was the path, the logging, and the
+fallback.
 
-Workstream: WS-0.2.4 · SRS §2.2, §2.3
+Phase 1 §5.2 adds the band configuration — and adds it as *config*, never as code
+constants. ``bands`` is therefore an injected :class:`~lending_hub.serving.bands.BandConfig`
+whose version is recorded on every decision. When it is absent, or ungrounded, or
+lacking dual-control approval, the orchestrator keeps the Phase 0 behaviour and
+refers every scored application to a human. That is not a degraded mode: it is
+what a platform with no approved decision boundary should do, and making it the
+default is what stops a missing config from being filled in with something
+plausible.
+
+Workstream: WS-0.2.4, Phase 1 §5.2 · SRS §2.2, §2.3
 """
 
 from __future__ import annotations
@@ -30,6 +40,9 @@ from datetime import UTC, datetime
 from typing import Callable, Sequence
 
 from lending_hub.decisionlog import Actor, DecisionRecord, ModelRef, Outcome, ReasonCode
+from lending_hub.definitions import Ungrounded
+
+from .bands import BandConfig, BandConfigError
 
 
 class ModelUnavailable(Exception):
@@ -85,6 +98,20 @@ class Orchestrator:
     policy_version: str = "policy-0.1.0-phase0-stub"
     model_ref: ModelRef | None = None
     features: Sequence[str] = ()
+    bands: BandConfig | None = None
+    """Phase 1 §5.2 band config. Absent, ungrounded or unapproved means refer."""
+
+    @property
+    def effective_policy_version(self) -> str:
+        """Policy version, including the band-config hash when one is in force.
+
+        Composed rather than stored so a config swapped between requests cannot
+        be logged under the previous version — the record has to name the bands
+        that actually decided, not the ones configured at start-up.
+        """
+        if self.bands is None:
+            return self.policy_version
+        return f"{self.policy_version}+bands:{self.bands.version()}"
 
     def decide(self, application: dict) -> DecisionResponse:
         started = time.perf_counter()
@@ -119,11 +146,30 @@ class Orchestrator:
             outcome, decided_by = Outcome.REFER, Actor.FALLBACK
             reason_codes = [ReasonCode("SYS_MODEL_UNAVAILABLE", source="platform")]
         else:
-            # Phase 0 ships no cutoffs — they are [POLICY] from P1. Everything the
-            # model scores is referred to a human, which is the only honest
-            # behaviour for a platform with no approved decision boundary.
             outcome, decided_by = Outcome.REFER, Actor.MODEL
             reason_codes = [ReasonCode("P0_NO_CUTOFF_CONFIGURED", source="platform")]
+            if self.bands is not None and "pd" in scores:
+                try:
+                    outcome = self.bands.outcome_for(scores["pd"])
+                    reason_codes = [
+                        ReasonCode(
+                            f"BAND_{outcome.value.upper()}",
+                            contribution=scores["pd"],
+                            source="policy_band",
+                        )
+                    ]
+                except Ungrounded:
+                    # The cutoffs are still [POLICY] (LH-204). Refer, and say which
+                    # of the two reasons applies rather than merging them.
+                    reason_codes = [
+                        ReasonCode("P1_CUTOFFS_NOT_RATIFIED", source="platform")
+                    ]
+                except BandConfigError:
+                    # A configured-but-unapprovable band set is a control failure,
+                    # not a scoring outcome, and it must not look like one.
+                    reason_codes = [
+                        ReasonCode("P1_BANDS_NOT_DUAL_APPROVED", source="platform")
+                    ]
 
         timings.total_ms = (time.perf_counter() - started) * 1000
         decision_id = application.get("decision_id") or str(uuid.uuid4())
@@ -140,7 +186,7 @@ class Orchestrator:
             models=[self.model_ref] if self.model_ref and not degraded else [],
             scores=scores,
             reason_codes=reason_codes,
-            policy_version=self.policy_version,
+            policy_version=self.effective_policy_version,
             rules_fired=[f"{r.rule_id}@{r.version}" for r in fired],
             consent_ids=application.get("consent_ids", []),
         )

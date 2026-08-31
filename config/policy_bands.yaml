@@ -1,0 +1,40 @@
+# Decision Orchestrator policy bands — Phase 1 §5.2.
+#
+# "Cutoffs and review-band edges are orchestrator *config* with dual-control
+# change approval — never code constants."
+#
+# That is a governance requirement with a technical consequence: a cutoff in code
+# cannot be changed under dual control, because changing it is a deployment, and
+# the approval that matters then is the one on the pull request. Here it is a
+# config artifact with its own approvals and its own version hash, and every
+# decision record names the version that decided it.
+#
+# Every band edge is a placeholder. Approve/decline cutoffs, review-band edges
+# and the canary percentage are all [POLICY: Credit Risk Committee] (Phase 1 §8
+# do-not-invent, ticket LH-204). Until they are supplied the orchestrator refers
+# everything to a human, which is the only honest behaviour for a platform with
+# no approved decision boundary.
+
+schema_version: "1.0"
+model: application_pd
+owner: Credit Risk Committee
+status: draft_pending_ratification
+ratification_ticket: LH-204
+
+# Probability of default. An applicant at or below `approve_below` is approved;
+# at or above `decline_above` is declined; between them is a human review band.
+cutoffs:
+  approve_below: "TBD[Credit Risk Committee, LH-204]"
+  decline_above: "TBD[Credit Risk Committee, LH-204]"
+
+# Phase 1 §5.2: challenger decisions applied to this share of traffic, mid-score
+# bands only, during canary.
+canary:
+  traffic_percentage: "TBD[Credit Risk Committee, LH-204]"
+  score_band_low: "TBD[Credit Risk Committee, LH-204]"
+  score_band_high: "TBD[Credit Risk Committee, LH-204]"
+
+# Dual control: a change takes effect only with two *distinct* approvers. An
+# empty list is the correct state for an unratified config — it is not a
+# formality waiting to be filled in.
+approvals: []
