@@ -66,6 +66,21 @@ jobs:
           PYTHONPATH: src
         run: python -m unittest discover -s tests -t . -v
 
+  reproducibility:
+    name: "Reproducibility triplet (WS-0.2.3)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Asserts both halves: the same triplet retrains to identical metrics, and
+      # changing any triplet element changes the model. Without the second half a
+      # constant function would pass.
+      - env:
+          PYTHONPATH: src
+        run: python -m lending_hub.mlops.reproducibility_test
+
   clean-clone:
     name: "Runs with no dependencies installed"
     runs-on: ubuntu-latest
