@@ -30,10 +30,25 @@ from .entity_resolution import (
     resolve,
 )
 
+from .velocity import (
+    DEFAULT_ALLOWED_LATENESS,
+    WINDOWS,
+    ApplicationEvent,
+    Dimension,
+    VelocityCounter,
+    VelocityError,
+    VelocityFeatures,
+    skew_check,
+)
+
 __all__ = [
+    "DEFAULT_ALLOWED_LATENESS",
     "GEOHASH_PRECISION",
     "MATCH_THRESHOLD",
+    "WINDOWS",
+    "ApplicationEvent",
     "ApplicationRecord",
+    "Dimension",
     "Edge",
     "EdgeType",
     "EntityGraph",
@@ -41,6 +56,9 @@ __all__ = [
     "MatchScore",
     "Node",
     "NodeType",
+    "VelocityCounter",
+    "VelocityError",
+    "VelocityFeatures",
     "build_graph",
     "candidate_pairs",
     "compare",
@@ -51,4 +69,5 @@ __all__ = [
     "normalise_name",
     "normalise_phone",
     "resolve",
+    "skew_check",
 ]
