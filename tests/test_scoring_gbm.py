@@ -122,6 +122,34 @@ class TestMonotonicityHolds(unittest.TestCase):
         self.assertEqual(model.constraints.direction("bureau_score"), UNCONSTRAINED)
 
 
+class TestHistogramSplitting(unittest.TestCase):
+    """The binning has to mean the same thing at fit time and at score time."""
+
+    def test_a_value_sitting_exactly_on_a_split_edge_routes_the_same_way(self):
+        from lending_hub.scoring.gbm import _bin_index
+
+        edges = [1.0, 2.0, 3.0]
+        # bin <= b must be exactly "value <= edges[b]", which is the comparison
+        # Node.predict makes. Getting this wrong skews only boundary rows and is
+        # invisible in aggregate metrics.
+        for b, edge in enumerate(edges):
+            self.assertLessEqual(_bin_index(edges, edge), b)
+            self.assertGreater(_bin_index(edges, edge + 1e-9), b)
+
+    def test_a_missing_value_lands_in_the_lowest_bin(self):
+        from lending_hub.scoring.gbm import _bin_index
+
+        self.assertEqual(_bin_index([1.0, 2.0], None), 0)
+        self.assertEqual(_bin_index([1.0, 2.0], float("nan")), 0)
+
+    def test_training_and_scoring_agree_on_boundary_rows(self):
+        rows, labels = make(600, 91)
+        edge = sorted(row["utilisation"] for row in rows)[300]
+        model = fit_gbm(rows, labels, FEATURES, RATIFIED, n_trees=20, max_bins=16)
+        probe = {"bureau_score": 620.0, "utilisation": edge, "enquiries": 3.0}
+        self.assertEqual(model.predict(probe), model.predict(dict(probe)))
+
+
 class TestFittingBehaviour(unittest.TestCase):
     def test_it_ranks_risk(self):
         from lending_hub.modeling.metrics import auc
