@@ -107,6 +107,18 @@ class SourceRecord:
     def entities(self) -> list[str]:
         return list(self.raw.get("entities", []))
 
+    @property
+    def point_in_time_unsafe(self) -> bool:
+        """Whether this source has declared it cannot support a point-in-time join.
+
+        Read by :mod:`lending_hub.scoring.splits`, which will only build a
+        non-temporal holdout for a source that has declared itself unsafe here.
+        That makes "this dataset has no clock" a registry fact with a written
+        reason rather than a modeller's assertion at split time.
+        """
+        pit = self.raw.get("point_in_time")
+        return bool(isinstance(pit, dict) and pit.get("point_in_time_unsafe") is True)
+
 
 def _get(doc: dict, dotted: str):
     node = doc
