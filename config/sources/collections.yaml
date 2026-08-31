@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: collections
+name: Collections and Recovery System
+kind: internal
+srs_ref: "SRS §2.1 (Case Management / Collections); Phase 0 §2 inputs"
+description: >
+  Collections actions, promise-to-pay outcomes, recovery postings and restructure
+  events. Third leg of the identity spine, and the source of the
+  distress-restructure signal in the Appendix A default definition.
+
+owner:
+  business: "TBD[Head of Collections, LH-120]"
+  technical: "TBD[Collections Platform Lead, LH-120]"
+  data_sharing_approval: "TBD[Head of Collections, LH-120]"
+
+extract:
+  mechanism: cdc
+  cadence: continuous
+  latency_target: "< 60 min into Bronze"
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only
+  tokenize_before_feature_store: true
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - customer_id
+  - loan_id
+  - case_id
+
+backfill:
+  required_years: 5
+  datasets:
+    - collections_actions
+    - recoveries
+    - restructures
+
+blocked_on:
+  - "LH-103 — which restructure reason codes count as distress (Appendix A trigger)"
+
+status: pending_approval

@@ -1,0 +1,38 @@
+schema_version: "1.0"
+id: kyc_documents_devices
+name: KYC, Documents and Device Telemetry
+kind: internal
+srs_ref: "SRS §2.1 (S7 KYC / Documents / Devices)"
+description: >
+  Identity documents, KYC records, document-forensics artifacts and device/session
+  telemetry. Feeds P1 fraud layers 1-2; in Phase 0 it is registered and ingested
+  only, with no fraud modelling.
+
+owner:
+  business: "TBD[Head of Fraud Risk, LH-120]"
+  technical: "TBD[KYC Platform Lead, LH-120]"
+  data_sharing_approval: "TBD[Head of Fraud Risk, LH-120]"
+
+extract:
+  mechanism: api
+  cadence: on_application
+  latency_target: "synchronous at application"
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only
+  tokenize_before_feature_store: true
+  note: >
+    Highest-sensitivity source in the registry — raw identity documents and
+    biometrics. Expect the DPO classification to restrict which columns may reach
+    the feature store at all, not merely require tokenization.
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - customer_id
+  - application_id
+  - device_id
+
+status: pending_approval

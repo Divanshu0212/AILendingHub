@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: soil_geo
+name: Soil and Cadastral Geodata (SoilGrids, Cadastral Maps)
+kind: public
+srs_ref: "SRS §2.1 (S6 Soil/Geo)"
+description: >
+  Soil property rasters and cadastral parcel boundaries used to resolve farm
+  polygons in P2. Registered in Phase 0; consumed from P2.
+
+owner:
+  business: "TBD[Head of Agri Credit, LH-120]"
+  technical: "TBD[Geospatial DS Lead, LH-120]"
+  data_sharing_approval: "TBD[Legal, LH-120]"
+
+extract:
+  mechanism: object_store
+  cadence: on_publication
+  latency_target: "not time-critical"
+  notes: >
+    Cadastral sources are state-by-state and not uniformly open; licensing per
+    source is a Legal question, unlike SoilGrids which is openly licensed.
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: exempt_public
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - plot_id
+  - parcel_id
+
+status: not_started

@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: los
+name: Loan Origination System
+kind: internal
+srs_ref: "SRS §2.3 (origination decision flow); Phase 0 §2 inputs"
+description: >
+  Application intake, underwriting workflow, decision outcomes and the
+  final-decision timestamp that Master Appendix A names as the application
+  observation point. Without it there is no point-in-time cutoff to join against.
+
+owner:
+  business: "TBD[Head of Credit Underwriting, LH-120]"
+  technical: "TBD[LOS Platform Lead, LH-120]"
+  data_sharing_approval: "TBD[Head of Credit Underwriting, LH-120]"
+
+extract:
+  mechanism: cdc
+  cadence: continuous
+  latency_target: "< 15 min into Bronze"
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only
+  tokenize_before_feature_store: true
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - customer_id
+  - application_id
+  - loan_id
+
+backfill:
+  required_years: 5
+  datasets:
+    - applications
+    - decisions
+    - underwriter_overrides
+  notes: >
+    Declined applications must be backfilled too. A training set built only on
+    booked loans carries the classic reject-inference gap into every P1 model.
+
+status: pending_approval

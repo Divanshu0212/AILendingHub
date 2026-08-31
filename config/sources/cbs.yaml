@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: cbs
+name: Core Banking System
+kind: internal
+srs_ref: "SRS §2.1 (S1 Core Banking / CBS)"
+description: >
+  System of record for accounts, balances, repayment postings, DPD ageing and
+  write-offs. Supplies the DPD series that Master Appendix A defines the target on,
+  so its ageing engine is authoritative for every model in the program.
+
+owner:
+  business: "TBD[Head of Retail Operations, LH-120]"
+  technical: "TBD[CBS Platform Lead, LH-120]"
+  data_sharing_approval: "TBD[Head of Retail Operations, LH-120]"
+
+extract:
+  mechanism: cdc
+  cadence: continuous
+  latency_target: "< 15 min into Bronze"
+  notes: >
+    CDC preferred over nightly batch because Master Appendix A moves DPD to a daily
+    cadence once P3 streaming is live; a batch-only extract would have to be rebuilt.
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only          # SRS §12 — personal data stays in-jurisdiction
+  tokenize_before_feature_store: true   # SRS §11.4 PII minimization
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+  minimum_note: >
+    Cannot go below the SRS CS-7 duty to reconstruct any decision for >= 8 years.
+
+entities:
+  - customer_id
+  - account_id
+  - loan_id
+
+backfill:
+  required_years: 5             # Phase 0 WS-0.1.5 — ">= 5 years (7+ where available)"
+  datasets:
+    - applications
+    - disbursals
+    - monthly_account_snapshots
+    - dpd_histories
+    - write_offs
+    - recoveries
+
+status: pending_approval

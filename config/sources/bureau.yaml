@@ -1,0 +1,41 @@
+schema_version: "1.0"
+id: bureau
+name: Credit Bureau Extracts (CIBIL / CRIF)
+kind: bureau
+srs_ref: "SRS §2.1 (S2 Credit Bureaus)"
+description: >
+  Bureau tradelines, enquiries and scores. Phase 0 WS-0.4 rebuilds the existing
+  bureau-score cutoff policy, so the historical pull must be the archived
+  as-of-decision response, not a fresh re-pull.
+
+owner:
+  business: "TBD[Head of Credit Policy, LH-120]"
+  technical: "TBD[Bureau Integration Lead, LH-120]"
+  data_sharing_approval: "TBD[Head of Credit Policy, LH-120]"
+
+extract:
+  mechanism: api
+  cadence: on_application_plus_monthly_refresh
+  latency_target: "synchronous at decision time"
+  notes: >
+    Archived raw bureau responses are the only point-in-time-safe source. Re-pulling
+    a bureau report today to build a 2023 training row injects future information
+    into the feature and is the single most common leakage defect in scorecard
+    rebuilds.
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only
+  tokenize_before_feature_store: true
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+  contractual_note: >
+    Bureau contracts usually cap retention independently of bank policy; the
+    binding period is the stricter of the two.
+
+entities:
+  - customer_id
+  - application_id
+
+status: pending_approval

@@ -1,0 +1,36 @@
+schema_version: "1.0"
+id: satellite
+name: Satellite Imagery (Sentinel-1/2, Landsat)
+kind: public
+srs_ref: "SRS §2.1 (S4 Satellite)"
+description: >
+  Open optical and SAR imagery for the P2 agri intelligence pipeline. Registered in
+  Phase 0 so the ingest contract and licensing are settled before P2 starts; no
+  imagery processing happens in Phase 0.
+
+owner:
+  business: "TBD[Head of Agri Credit, LH-120]"
+  technical: "TBD[Geospatial DS Lead, LH-120]"
+  data_sharing_approval: not_required_public_data
+
+extract:
+  mechanism: object_store
+  cadence: per_satellite_revisit
+  latency_target: "best effort; P2 defines the freshness gate"
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: exempt_public       # SRS §12 — public satellite/weather data exempt
+  note: >
+    Imagery alone is not personal data, but SRS §11.4 is explicit that a plot
+    polygon becomes personal data once linked to a borrower. The DPO classification
+    is therefore asked for the *linked* artifact, not the raw tile — which is why
+    this field is a placeholder on a public source.
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - plot_id
+
+status: not_started

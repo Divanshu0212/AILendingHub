@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: account_aggregator
+name: Account Aggregator — Bank Statement Data
+kind: consented
+srs_ref: "SRS §2.1 (S3 Account Aggregator / Bank Statements); SRS §11.4"
+description: >
+  Consent-driven bank statement data over the ReBIT AA specification. SRS §11.4
+  prefers AA over uploaded PDFs — it is both a richer feed and a fraud control,
+  since an AA pull cannot be doctored the way an uploaded statement can.
+
+owner:
+  business: "TBD[Head of Digital Lending, LH-120]"
+  technical: "TBD[AA Integration Lead, LH-120]"
+  data_sharing_approval: "TBD[DPO, LH-120]"
+
+extract:
+  mechanism: api
+  cadence: on_consent
+  latency_target: "synchronous at application"
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only
+  tokenize_before_feature_store: true
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+  consent_bound: true
+  note: >
+    DPDP purpose limitation applies: retention is bounded by the consent artifact,
+    not only by bank policy. Erasure requests must be honoured except where an RBI
+    retention duty overrides (SRS §11.4).
+
+consent:
+  artifact_required: true
+  schema: "lending_hub.privacy.consent"
+  wording: "TBD[Compliance, LH-112]"
+
+entities:
+  - customer_id
+  - consent_id
+
+status: pending_approval

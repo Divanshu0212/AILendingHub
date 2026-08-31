@@ -1,0 +1,41 @@
+schema_version: "1.0"
+id: repayment_events
+name: Repayment and Application Event Streams
+kind: internal
+srs_ref: "SRS §2.1 (S8 Repayment & Transaction Streams); SRS §2.2 real-time decisions"
+description: >
+  The two streams Phase 0 WS-0.1.4 proves the streaming backbone with — repayment
+  postings and application submissions — landed on Kafka with a schema registry and
+  materialised to online features via Flink.
+
+owner:
+  business: "TBD[Head of Retail Operations, LH-120]"
+  technical: "TBD[Streaming Platform Lead, LH-120]"
+  data_sharing_approval: "TBD[Head of Retail Operations, LH-120]"
+
+extract:
+  mechanism: stream
+  cadence: continuous
+  latency_target: "< 60 s source event to online feature (Phase 0 WS-0.1.4 gate)"
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: india_only
+  tokenize_before_feature_store: true
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - customer_id
+  - account_id
+  - loan_id
+  - application_id
+
+streams:
+  - topic: repayment.posting.v1
+    schema: src/lending_hub/streaming/schemas/repayment_posting_v1.json
+  - topic: application.submission.v1
+    schema: src/lending_hub/streaming/schemas/application_submission_v1.json
+
+status: pending_approval

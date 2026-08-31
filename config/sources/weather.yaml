@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: weather
+name: Weather and Climate Reanalysis (ERA5, CHIRPS, IMD)
+kind: public
+srs_ref: "SRS §2.1 (S5 Weather)"
+description: >
+  Gridded precipitation, temperature and reanalysis series for P2 climate-risk
+  features. Registered in Phase 0; consumed from P2.
+
+owner:
+  business: "TBD[Head of Agri Credit, LH-120]"
+  technical: "TBD[Geospatial DS Lead, LH-120]"
+  data_sharing_approval: not_required_public_data
+
+extract:
+  mechanism: api
+  cadence: daily
+  latency_target: "per provider publication lag"
+  notes: >
+    Reanalysis products are revised after first publication. Ingest must keep the
+    provider's version/vintage per grid-cell-day, or a point-in-time join will
+    silently pick up a value that did not exist at the observation point.
+
+classification:
+  pii: "TBD[DPO, LH-110]"
+  residency: exempt_public
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+entities:
+  - grid_cell_id
+
+status: not_started
