@@ -7,6 +7,7 @@ plugs into — see ADR-0003 and each module's ``ports`` note.
 Workstream: WS-1.1
 """
 
+from .binning import Bin, Binning, BinningError, fit_binning, information_value
 from .features import (
     IV_CEILING,
     IV_FLOOR,
@@ -27,6 +28,24 @@ from .features import (
     psi,
     screen_iv,
     screen_psi,
+)
+from .isotonic import (
+    Direction,
+    IsotonicCalibrator,
+    fit_isotonic,
+    fit_values,
+    pool_adjacent_violators,
+)
+from .scorecard import (
+    PDO,
+    SCORE_ANCHOR,
+    Characteristic,
+    Reason,
+    ScaleAnchor,
+    Scorecard,
+    ScorecardError,
+    fit_scorecard,
+    negative_coefficients,
 )
 from .splits import (
     MINIMUM_BADS_FOR_CHALLENGER,
@@ -54,17 +73,25 @@ from .target import (
 
 __all__ = [
     "IV_CEILING",
+    "PDO",
     "IV_FLOOR",
     "MINIMUM_BADS_FOR_CHALLENGER",
     "PROTECTED_ATTRIBUTES",
     "PSI_ACT",
     "PSI_ALERT",
+    "SCORE_ANCHOR",
     "PHASE_1_EXCLUSIONS",
     "Application",
+    "Bin",
+    "Binning",
+    "BinningError",
+    "Characteristic",
+    "Direction",
     "Exclusion",
     "FeatureCatalogue",
     "FeatureError",
     "FeatureGroup",
+    "IsotonicCalibrator",
     "LabelProvenance",
     "NullPolicy",
     "PointInTimeRule",
@@ -75,6 +102,10 @@ __all__ = [
     "RandomSplitForbidden",
     "SplitError",
     "SplitManifest",
+    "Reason",
+    "ScaleAnchor",
+    "Scorecard",
+    "ScorecardError",
     "ScoringFeature",
     "ScreenVerdict",
     "Splits",
@@ -85,8 +116,15 @@ __all__ = [
     "UnenforceableExclusion",
     "application_scorecard_catalogue",
     "build_target_table",
+    "fit_binning",
+    "fit_isotonic",
+    "fit_scorecard",
+    "fit_values",
     "holdout_without_time_axis",
+    "information_value",
     "manifest",
+    "negative_coefficients",
+    "pool_adjacent_violators",
     "psi",
     "screen_iv",
     "screen_psi",
