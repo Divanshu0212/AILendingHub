@@ -81,6 +81,38 @@ FIELDS: dict[str, int] = {
     "zb_upb": 45,
 }
 
+#: Columns knowable at origination. An application scorecard may use these and
+#: nothing else — every one is fixed before the loan exists, so no as-of filter
+#: can make them leak.
+ORIGINATION_FEATURES = (
+    "credit_score_b",
+    "oltv",
+    "ocltv",
+    "dti",
+    "orig_rate",
+    "orig_term",
+    "num_borrowers",
+    "num_units",
+    "orig_upb",
+    "first_time_buyer",
+    "purpose",
+    "property_type",
+    "occupancy",
+    "channel",
+    "state",
+)
+
+#: Columns a naive pipeline picks up by joining the performance table and taking
+#: the most recent row per loan. Every one post-dates the credit decision.
+#: ``mod_flag`` is the worst of them: a loan is modified *because* it is in
+#: distress, so it is close to a copy of the target wearing a different name.
+LATEST_ROW_FEATURES = (
+    "mod_flag",
+    "loan_age",
+    "current_upb",
+    "curr_rate",
+)
+
 #: Value sets each column must be drawn from, for :func:`verify_layout`.
 _LAYOUT_SIGNATURE = {
     "channel": {"R", "C", "B"},
@@ -226,6 +258,16 @@ class LoanOutcome:
     orig_upb_minor_units: int = 0
     credit_score: int | None = None
     state: str = ""
+
+    #: Attributes known at origination — the only ones an application scorecard
+    #: may use. Captured from the loan's first in-window row.
+    origination_features: dict = field(default_factory=dict)
+
+    #: Attributes read from the loan's *latest* row. These post-date the
+    #: decision and exist here solely so the leakage experiment can demonstrate
+    #: what a naive "join the table, take the latest row" pipeline picks up.
+    #: They must never reach a production feature set.
+    latest_row_features: dict = field(default_factory=dict)
 
     #: Months the window should contain — imported, never retyped (Master §2
     #: rule 6). Overridden per run when analysing a longer horizon.
@@ -387,6 +429,16 @@ def build_outcomes(
 
         if period >= outcome.window_end:
             continue
+
+        if not outcome.origination_features:
+            outcome.origination_features = {
+                name: get(row, name) for name in ORIGINATION_FEATURES
+            }
+
+        # Overwritten every row, so it ends up holding the latest in-window row.
+        outcome.latest_row_features = {
+            name: get(row, name) for name in LATEST_ROW_FEATURES
+        }
 
         outcome.months_observed += 1
 
