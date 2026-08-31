@@ -9,6 +9,34 @@
 | Squads | Credit DS (R), Fraud DS (R), Platform (C), Model Risk (A) |
 | Governing contract | `00_MASTER_Implementation_Guide.md` §2–§4 — binding |
 
+> **Implementation addendum (2026-09-01).** Phase 1 is being built in this
+> repository. Nothing in this document has been edited — Master §1 requires
+> conflicts to be raised as tickets, not resolved silently by an implementer.
+> Where the code does something other than what a step below says, it says so at
+> the point of use and stamps the difference into its own output.
+>
+> - [Phase_1_FINDINGS.md](Phase_1_FINDINGS.md) — twelve findings against this
+>   document. The four to read first: the score scale is not computable (§4 Step 3
+>   fixes PDO and nothing fixes the anchor), calibration is fitted on the set the
+>   model was selected on (§4 Steps 4 and 5 share the validation split), "largest
+>   negative point contribution" is the wrong reason-code rule, and §4 Step 8
+>   schedules parcelling in the paragraph that forbids it.
+> - [docs/phase1/STATUS.md](../docs/phase1/STATUS.md) — §6 checklist traceability:
+>   which artifact satisfies each item, on which track, and its honest state.
+> - [docs/phase1/blocking_tickets.md](../docs/phase1/blocking_tickets.md) — ten
+>   `[POLICY]` values this phase is waiting on, four of them not on the §8 list.
+> - [docs/phase1/model_cards/](../docs/phase1/model_cards/) — both models, with
+>   what they may and may not be used for (Master §2 rule 5).
+> - [docs/adr/0010-scored-product-and-track-p-standin.md](../docs/adr/0010-scored-product-and-track-p-standin.md)
+>   — why §1's "one retail product" is a registered placeholder, and what the phase
+>   is built against meanwhile.
+> - [docs/adr/0011-entity-resolution-library.md](../docs/adr/0011-entity-resolution-library.md)
+>   — ADR-011 as §4 WS-1.2 Step 1 requires.
+>
+> `make trackp-p1` runs all of WS-1.1 against 60,000 real applications;
+> `make gate1` assembles the §7 evidence pack. Neither produces gate evidence —
+> see [ADR-0004](../docs/adr/0004-public-reference-data-track.md).
+
 **Objective.** For **one retail product** (highest-volume unsecured product; decision recorded as **ADR-010**), ship: (a) a calibrated PD model — WOE scorecard champion + monotonic LightGBM challenger — with reason codes; (b) fraud Layers 1–2 (supervised GBM + anomaly detection) with entity resolution and velocity features; both live behind the Decision Orchestrator with human-review bands.
 
 ---
