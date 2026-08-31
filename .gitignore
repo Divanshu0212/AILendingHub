@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local platform state (Track A runs write here; never committed)
+.localstack/
+data/bronze/
+data/silver/
+data/gold/
+data/_snapshots/
+mlruns/
+*.db
+*.sqlite3
+
+# Reports produced by audit/reconciliation scripts (regenerate, don't commit)
+reports/*.json
+reports/*.html
+!reports/.gitkeep
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,4 @@
+# Minimum to run every Phase 0 check locally.
+# The core test suite needs none of these (stdlib unittest); PyYAML is required
+# only by the source-registry and retention-config validators.
+PyYAML>=6.0
