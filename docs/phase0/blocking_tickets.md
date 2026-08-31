@@ -21,6 +21,7 @@ Phase 0 is waiting on the bank rather than on engineering.
 | LH-130 | Data Governance Council | Identity-spine survivorship | Attribute-level exceptions to system-of-record precedence — e.g. whether a collections-updated contact address supersedes the CBS address. Phase 0 §8 puts survivorship exceptions on the do-not-invent list. | open |
 | LH-140 | Security Architecture | PII tokenization service | The production tokenization key and its KMS/HSM custody, rotation and re-tokenization procedure. Rotating the key changes every token, so the rotation plan has to say what happens to already-tokenized history — a key rotated without one silently breaks every join in the feature store. | open |
 | LH-150 | Finance Controller | GL reconciliation (WS-0.1.5) | The product/balance-type to GL-account mapping. Phase 0 §8 puts GL mapping rules on the do-not-invent list, and a reconciliation built on a guessed mapping produces agreement that means nothing. | open |
+| LH-160 | Model Risk / Board | WS-0.3.1 governance | Ratification of the SR 11-7-aligned model-risk policy: model inventory, validation independence, model tiering (customer-affecting = Tier 1). The promotion gate is built and waiting for its thresholds; the policy is constituted by ratification, not by a draft in a repo. | open |
 
 ## Why LH-103 exists
 
