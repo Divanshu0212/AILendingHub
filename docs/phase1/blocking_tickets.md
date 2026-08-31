@@ -17,6 +17,7 @@ Each one below is a stop, not a gap in the engineering.
 | Ticket | Owner | Blocks | What is needed | Status |
 |---|---|---|---|---|
 | LH-201 | Product Head + Credit Risk Head | ADR-0010; every WS-1.1 step on Track B | Which retail product P1 scores. Phase 1 §1 says "highest-volume unsecured", which is a `[DATA]` fact about this bank's book and is not computable until LH-120 lands. The choice sets the bad rate, and therefore whether the ≥ 1,500-bads entry test passes and whether the challenger is in scope at all. | open |
+| LH-202 | Credit Risk Head | WS-1.1 Step 4 (challenger `monotone_constraints`); every feature in the catalogue | The ratified monotonicity direction list: for each feature, whether PD must be non-increasing or non-decreasing in it. Phase 1 §8 do-not-invent. A direction read off the training fit is not a constraint — it is a restatement of the fit, and it removes the only thing the constraint was there to provide. | open |
 
 ## Why this register starts empty
 
