@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: fannie_mae_sf_performance
+name: Fannie Mae Single-Family Loan Performance (Track P)
+kind: public
+srs_ref: "SRS §2.1 (S1 analogue — external reference data); ADR-0004"
+description: >
+  US conforming single-family mortgages, one row per loan per reporting month,
+  with origination attributes repeated on every row. Registered as Track P
+  reference data (ADR-0004): real loans with real month-end delinquency
+  histories, but not this bank's portfolio, so nothing computed from it is
+  Phase 0 gate evidence. Supplied vintages: 2007Q1 and 2019Q1.
+
+owner:
+  business: "Data Platform Lead"
+  technical: "Data Platform Lead"
+  data_sharing_approval: not_required_public_data
+
+extract:
+  mechanism: object_store
+  cadence: quarterly_publication
+  latency_target: "not time-critical; bulk download"
+  notes: >
+    Despite the .csv extension the Data Dynamics export is pipe-delimited with no
+    header row, 113 fields. The column map is derived empirically by
+    lending_hub.sources.fanniemae and re-verified against every file before use —
+    an index one position out reads a plausible wrong column and every downstream
+    number would be confidently wrong.
+
+classification:
+  pii: not_personal_data_as_published
+  residency: exempt_public
+  note: >
+    Loan-level but de-identified at source: no names, no addresses, geography
+    truncated to state, MSA and 3-digit ZIP. Not personal data as published,
+    which is why this field is answered here rather than deferred to the DPO —
+    unlike the bank sources, there is no linked borrower to classify.
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+  note: >
+    Redistribution is governed by Fannie Mae's Terms and Conditions, so the files
+    are gitignored rather than committed.
+
+point_in_time:
+  event_timestamp: act_period
+  created_timestamp: publication_period
+  point_in_time_unsafe: true
+  unsafe_reason: >
+    The extract carries no ingestion timestamp. ACT_PERIOD is event time only;
+    knowability has to be reconstructed from which quarterly release first
+    contained the row, which is a derived value, not a supplied one. Until that
+    derivation is implemented and grounded against Fannie Mae's published release
+    calendar, any historical join over this source is point-in-time unsafe and
+    every model using it records the limitation on its card.
+
+entities:
+  - loan_id
+
+backfill:
+  required_years: 0
+  datasets:
+    - monthly_account_snapshots
+    - dpd_histories
+    - write_offs
+
+status: onboarded

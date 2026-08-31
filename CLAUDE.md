@@ -68,6 +68,9 @@ Phase 0 deliverable is built on **two tracks against one interface**:
 - **Track A — local reference implementation.** Runs on a laptop, stdlib-only, on
   synthetic fixtures in `tests/fixtures/`. Proves the *code paths*: joins,
   point-in-time correctness, serving path, reproducibility, audit arithmetic.
+- **Track P — public reference data** (ADR-0004). Real external datasets in
+  `datasets/` (gitignored). Proves the code survives real-world messiness. Real
+  data, but not *this bank's* data.
 - **Track B — bank deployment.** Same interfaces, real backends (Delta/Iceberg, Kafka,
   Feast, MLflow, Airflow). Swapped in via the `ports.py` adapter in each package.
 
@@ -99,14 +102,16 @@ src/lending_hub/
   privacy/                   tokenization, consent artifacts, retention (WS-0.3.3)
   decisionlog/               decision-log schema + replay (Master §3.3)
   serving/                   orchestrator stub, load test, parity harness (WS-0.2.4, WS-0.4)
+  sources/                   Track P dataset adapters (ADR-0004)
 
 tools/                       CI gates: check_grounding, validate_source_registry,
                              check_schema_compatibility, gate_report
 config/sources/              one YAML per SRS §2.1 source
 config/retention.yaml        per-table retention (every period pending on LH-111)
-docs/adr/                    architecture decision records (0001-0003)
+docs/adr/                    architecture decision records (0001-0004)
 docs/governance/             model card / validation / monitoring templates (WS-0.3.2)
-docs/phase0/                 STATUS, DATA_SOURCING, blocking_tickets
+docs/phase0/                 STATUS, DATA_SOURCING, TRACK_P_FINDINGS, blocking_tickets
+datasets/                    real external data — gitignored, never committed
 tests/fixtures/              the ONLY place synthetic data may live (Master §2 rule 3)
 reports/                     generated gate output — regenerate, never commit
 ```
@@ -130,7 +135,7 @@ No install step is needed for the core checks.
 ```bash
 make help          # list every target
 make check         # grounding + registry + tests — run this before every commit
-make test          # stdlib unittest suite (233 tests)
+make test          # stdlib unittest suite (266 tests)
 make gate          # run every gate script and assemble reports/phase0_gate.md
 ```
 

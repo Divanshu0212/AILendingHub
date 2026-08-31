@@ -3,10 +3,16 @@
 Maps every item on the Phase 0 §6 deliverables checklist to the artifact that
 satisfies it, the track it runs on (ADR-0003), and its honest state.
 
-**Read the track column before quoting any number.** A Track A result is evidence
-about the code; only Track B counts as gate evidence.
+**Read the track column before quoting any number.** Track A is evidence about
+the code, Track P is evidence that the code survives real data
+([ADR-0004](../adr/0004-public-reference-data-track.md)); only **Track B** counts
+as gate evidence.
 
-Last updated: 2026-08-31 (findings applied; SRS v1.1, Master v1.1).
+Real public reference data has arrived (Fannie Mae 2007Q1/2019Q1, Home Credit).
+What it did to the platform — including three defects it exposed — is in
+[TRACK_P_FINDINGS.md](TRACK_P_FINDINGS.md).
+
+Last updated: 2026-09-01 (findings applied; SRS v1.1, Master v1.1; Track P data onboarded).
 
 ## Deliverables checklist
 
@@ -22,7 +28,7 @@ Last updated: 2026-08-31 (findings applied; SRS v1.1, Master v1.1).
 | 8 | Serving skeleton load-test report | [serving/](../../src/lending_hub/serving/) · `make loadtest` | A | **partial** — orchestrator + load test built; Track A bounds platform overhead only, not the gate |
 | 9 | Ratified model-risk policy; templates merged | [docs/governance/](../governance/) | — | **partial** — all three templates merged; policy ratification is LH-160 |
 | 10 | Consent schema + tokenization; retention config | [privacy/](../../src/lending_hub/privacy/) · [config/retention.yaml](../../config/retention.yaml) | A | **partial** — all three built; every retention period and PII class pending (LH-110, LH-111, LH-140) |
-| 11 | Definitions package v1 tagged and ratified | [definitions/](../../src/lending_hub/definitions/) | A+B | **partial** — v1 implemented, fingerprinted, test-pinned; Risk ratification outstanding; 2 terms pending (LH-101, LH-102) |
+| 11 | Definitions package v1 tagged and ratified | [definitions/](../../src/lending_hub/definitions/) | A+P+B | **partial** — v1.1 implemented, fingerprinted, test-pinned, and now exercised on 28.5M real loan-months (Track P); Risk ratification outstanding; 3 terms unresolved (LH-101, LH-102, LH-103) |
 | 12 | Legacy scorecard rebuilt; ≥ 99.9% parity | [serving/parity.py](../../src/lending_hub/serving/parity.py) · `make parity` | A | **partial** — comparator + discrepancy classification built and passing batch-vs-serving; the gate needs legacy outputs (LH-120) |
 
 ## The four numeric gates (Phase 0 §7)

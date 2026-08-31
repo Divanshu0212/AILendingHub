@@ -8,6 +8,12 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
+# Real datasets (Master §2 rule 3 keeps synthetic data in tests/fixtures/; this is
+# the opposite problem — real source extracts are large and are not ours to
+# redistribute, so they live here and never enter git).
+datasets/
+data/raw/
+
 # Local platform state (Track A runs write here; never committed)
 .localstack/
 data/bronze/

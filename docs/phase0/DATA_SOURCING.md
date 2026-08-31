@@ -1,15 +1,92 @@
 # Data inventory — what is synthetic, and what real data replaces it
 
-Every byte of data in this repository is synthetic and confined to
-`tests/fixtures/`, per Master §2 rule 3. Nothing here has been near a bank.
+Three kinds of data now exist in this repository, and the distinction is
+load-bearing (ADR-0003, [ADR-0004](../adr/0004-public-reference-data-track.md)):
 
-This document exists so that swapping in real data is a mechanical task rather
-than an archaeology project. It has three parts: **what is fake right now**,
-**what real data replaces each piece**, and **exactly how to plug it in**.
+| Track | What | Where | Gate evidence |
+|---|---|---|---|
+| **A** | Synthetic fixtures | `tests/fixtures/` | No |
+| **P** | Real public reference data | `datasets/` (gitignored) | **No** |
+| **B** | This bank's own data | — none yet | **Yes** |
+
+This document covers all three: what is synthetic, what real data has arrived and
+how far it goes, and what is still missing.
+
+## 0. Status of the datasets supplied (2026-09-01)
+
+| Dataset | Verdict |
+|---|---|
+| **Fannie Mae** 2007Q1 + 2019Q1 | **In use.** Adapter built, 28.5M rows profiled, Appendix A labels produced |
+| **Home Credit** | **Partially usable.** Four files missing, including the one that mattered |
+| **PKDD'99** | **Not usable as supplied.** See below — this one needs a decision |
+
+### Fannie Mae — working
+
+Both vintages parse and profile. Adapter: `lending_hub.sources.fanniemae`.
+
+```bash
+python -m lending_hub.sources.profile --path "datasets/Fannie Mae/2019Q1.csv" \
+    --vintage 2019Q1 --out reports/trackP_fanniemae_2019Q1.json
+```
+
+Format note: despite the `.csv` extension the export is **pipe-delimited, no
+header, 113 fields**, one row per loan per reporting month. The column map was
+derived by profiling value distributions rather than transcribed from a
+remembered layout, and `verify_layout()` re-checks it against every file before
+any number is trusted — an index one position out reads a plausible wrong column
+and every downstream figure would be confidently wrong with nothing to notice.
+
+The delinquency status maps onto Appendix A with no tuning at all: Fannie reports
+*months* delinquent in 30-day steps, so status `03` lands exactly on the default
+threshold and `01`-`02` land exactly inside the indeterminate band. That
+alignment is the reason this dataset is worth 8 GB of disk.
+
+### Home Credit — partially usable
+
+Present: `application_train`, `application_test`, `bureau`, `POS_CASH_balance`
+(which carries a real `SK_DPD`, up to 2,672 days).
+
+Missing: `previous_application.csv`, `installments_payments.csv`,
+`bureau_balance.csv`, `credit_card_balance.csv`.
+
+`previous_application.csv` is the one that mattered. It carries the
+Approved/Refused/Canceled statuses — the declined applications that make reject
+inference exercisable, which was the whole reason to prefer this dataset for the
+LOS role. Without it, Home Credit cannot stand in for LOS. Worth re-downloading
+if you still have the Kaggle page open.
+
+### PKDD'99 — not usable, and worth understanding why
+
+Only two files arrived, `order_b.csv` and `trans_b.csv`, and neither is a raw
+PKDD table. Both are **pre-aggregated feature tables** with columns like
+`alltime_sum_trans_amount_by_account_id`, `1yr_mean_trans_amount_by_account_id`
+and `trans_ratio_98_97`. The eight raw tables (`account`, `client`, `loan`,
+`disp`, `card`, `district`, and the real `trans`/`order`) are absent.
+
+Two problems, and the second is the serious one:
+
+1. **No raw rows, no dates.** Without per-transaction timestamps there is nothing
+   to replay as a stream and no identity spine to build — the tables it would
+   join are not here.
+2. **The aggregates are leakage by construction.** `alltime_sum_...` is computed
+   over each account's entire history with no observation point. Joined to an
+   application, it carries information from *after* the decision. That is exactly
+   the defect finding B1 exists to prevent, and the platform's own point-in-time
+   join would have no way to detect it, because the leakage is baked into the
+   column before the join ever runs.
+
+So these files cannot be used as features under Master §2 without a written
+exception. If you want PKDD in the mix, the raw dataset is at
+https://sorry.vse.cz/~berka/challenge/pkdd1999/ — the `data_berka` archive with
+all eight tables. Otherwise Fannie Mae already covers what PKDD would have.
 
 ---
 
-## 1. Everything synthetic in this repository
+## 1. What is synthetic, and what real data replaces it
+
+---
+
+### 1.1 Everything synthetic in this repository
 
 | # | Where | What it is | Rows | What it stands in for |
 |---|---|---|---|---|
@@ -19,7 +96,8 @@ than an archaeology project. It has three parts: **what is fake right now**,
 | 4 | `lending_hub.serving.loadtest._fixture_harness` | Generated tokens + one feature | 2000 | Serving load-test traffic |
 | 5 | `lending_hub.serving.parity._track_a_harness` | Generated sample scored two ways | 1000 | The frozen 12-month WS-0.4 sample |
 | 6 | `lending_hub.mlops.reproducibility_test._dataset` | Seeded two-feature classification set | 400 | A tagged lakehouse training snapshot |
-| 7 | In-test literals across `tests/` | Small hand-written cases | — | Nothing; they test logic, not data |
+| 7 | [tests/fixtures/fanniemae/](../../tests/fixtures/fanniemae/) | Six loans in Fannie's 113-field format | 62 | One per Appendix A label path the adapter must get right |
+| 8 | In-test literals across `tests/` | Small hand-written cases | — | Nothing; they test logic, not data |
 
 **These are not a miniature portfolio.** The identity fixtures in particular are
 built to fail: they carry one instance of every root cause the join audit can

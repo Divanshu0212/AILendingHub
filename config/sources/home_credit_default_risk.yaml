@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: home_credit_default_risk
+name: Home Credit Default Risk (Track P)
+kind: public
+srs_ref: "SRS §2.1 (S2/S9 analogue — external reference data); ADR-0004"
+description: >
+  Consumer-credit applications with bureau records and monthly POS/cash balances.
+  Registered as Track P reference data (ADR-0004). Supplied partially — see
+  gaps below.
+
+owner:
+  business: "Data Platform Lead"
+  technical: "Data Platform Lead"
+  data_sharing_approval: not_required_public_data
+
+extract:
+  mechanism: object_store
+  cadence: static_snapshot
+  latency_target: "not time-critical"
+
+classification:
+  pii: not_personal_data_as_published
+  residency: exempt_public
+  note: >
+    De-identified at source; identifiers are surrogate keys (SK_ID_CURR,
+    SK_ID_BUREAU) with no re-identification path in the published files.
+
+retention:
+  period: "TBD[DPO + Compliance, LH-111]"
+
+point_in_time:
+  event_timestamp: days_offset_columns
+  created_timestamp: none_supplied
+  point_in_time_unsafe: true
+  unsafe_reason: >
+    All time columns are relative day offsets from an unstated per-application
+    reference date (DAYS_CREDIT, DAYS_DECISION, MONTHS_BALANCE), so there is no
+    absolute timeline and no ingestion timestamp. Structure and joins are
+    exercisable; point-in-time correctness is not. bureau.DAYS_CREDIT_UPDATE is
+    the closest thing to a knowability signal and is itself an offset.
+
+entities:
+  - customer_id
+  - bureau_record_id
+
+gaps:
+  missing_files:
+    - previous_application.csv
+    - installments_payments.csv
+    - bureau_balance.csv
+    - credit_card_balance.csv
+  impact: >
+    previous_application.csv is the one that matters: it carries the
+    Approved/Refused/Canceled statuses that make declined applications — and
+    therefore reject inference — exercisable. Without it this source cannot
+    stand in for LOS.
+
+status: onboarded

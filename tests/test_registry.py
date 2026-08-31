@@ -50,6 +50,9 @@ def doc(**overrides):
 
 _MISSING = object()
 
+#: Real external reference data (ADR-0004), registered but not bank sources.
+TRACK_P_SOURCES = {"fannie_mae_sf_performance", "home_credit_default_risk"}
+
 
 class TestValidDocument(unittest.TestCase):
     def test_accepts_a_complete_entry(self):
@@ -126,7 +129,7 @@ class TestRealRegistry(unittest.TestCase):
     def test_committed_registry_is_valid(self):
         records, errors = load_registry("config/sources")
         self.assertEqual([str(e) for e in errors], [])
-        self.assertGreaterEqual(len(records), 10)
+        self.assertGreaterEqual(len(records), 12)
 
     def test_identity_spine_sources_are_registered(self):
         records, _ = load_registry("config/sources")
@@ -145,18 +148,41 @@ class TestRealRegistry(unittest.TestCase):
             "soil_geo",               # S6
             "kyc_documents_devices",  # S7
             "repayment_events",       # S8
-            "los",                    # Phase 0 §2 inputs (not in SRS §2.1 — see LH-121)
-            "collections",            # Phase 0 §2 inputs (not in SRS §2.1 — see LH-121)
+            "los",                    # SRS §2.1 S9 (added in SRS v1.1)
+            "collections",            # SRS §2.1 S10 (added in SRS v1.1)
         }
         self.assertEqual(expected - ids, set())
 
-    def test_policy_fields_are_all_still_pending(self):
+    def test_bank_source_policy_fields_are_all_still_pending(self):
         # Documents the true state of Phase 0: no [POLICY] value has been supplied
-        # yet. When one arrives this test changes, which is the point — it makes
-        # policy progress visible in the diff.
+        # for any bank source. When one arrives this test changes, which is the
+        # point — it makes policy progress visible in the diff.
         records, _ = load_registry("config/sources")
-        pending = unresolved_policy_fields(records)
-        self.assertEqual(len(pending), 2 * len(records))
+        bank = [r for r in records if r.id not in TRACK_P_SOURCES]
+        pending = unresolved_policy_fields(bank)
+        self.assertEqual(len(pending), 2 * len(bank))
+
+    def test_track_p_sources_classify_pii_rather_than_deferring_it(self):
+        # These are de-identified as published, with no linked borrower to
+        # classify, so answering is correct here — deferring to the DPO would be
+        # process theatre. Retention still defers, because redistribution terms
+        # are a real question.
+        records, _ = load_registry("config/sources")
+        for record in records:
+            if record.id in TRACK_P_SOURCES:
+                with self.subTest(source=record.id):
+                    self.assertEqual(record.unresolved, ("retention.period",))
+
+    def test_track_p_sources_are_declared_point_in_time_unsafe(self):
+        # Neither ships an ingestion timestamp, so honest declaration beats a
+        # reconstructed one presented as native (SRS §11.1).
+        records, _ = load_registry("config/sources")
+        for record in records:
+            if record.id in TRACK_P_SOURCES:
+                with self.subTest(source=record.id):
+                    self.assertIs(
+                        record.raw["point_in_time"].get("point_in_time_unsafe"), True
+                    )
 
 
 if __name__ == "__main__":
@@ -228,9 +254,16 @@ class TestCommittedRegistryPointInTime(unittest.TestCase):
                     pit.get("created_timestamp") or pit.get("point_in_time_unsafe") is True
                 )
 
-    def test_only_soil_geo_is_declared_point_in_time_unsafe(self):
+    def test_point_in_time_unsafe_sources_are_exactly_the_declared_ones(self):
+        # soil_geo: state portals republish without versioning. The two Track P
+        # datasets: neither ships an ingestion timestamp, so knowability would
+        # have to be reconstructed, and a reconstruction presented as native is
+        # the leakage this whole rule exists to prevent (SRS §11.1).
         records, _ = load_registry("config/sources")
         unsafe = {
             r.id for r in records if r.raw["point_in_time"].get("point_in_time_unsafe") is True
         }
-        self.assertEqual(unsafe, {"soil_geo"})
+        self.assertEqual(
+            unsafe,
+            {"soil_geo", "fannie_mae_sf_performance", "home_credit_default_risk"},
+        )
