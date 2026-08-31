@@ -38,21 +38,35 @@ def auc(labels: list[int], scores: list[float]) -> float | None:
 
 
 def ks(labels: list[int], scores: list[float]) -> float | None:
-    """Kolmogorov-Smirnov separation between the good and bad score curves."""
+    """Kolmogorov-Smirnov separation between the good and bad score curves.
+
+    Ties are evaluated only at the end of each tie group. ``sorted(zip(scores,
+    labels))`` orders equal scores by label, which walks every negative of a tie
+    group past every positive and reports the separation a *strict* ordering
+    would have given — inflating KS on exactly the models most likely to tie, such
+    as a shallow tree with few distinct leaf values. The cumulative curves are
+    only comparable where the score actually changes.
+    """
     positives = sum(labels)
     negatives = len(labels) - positives
     if positives == 0 or negatives == 0:
         return None
 
-    paired = sorted(zip(scores, labels))
+    order = sorted(range(len(scores)), key=lambda i: scores[i])
     cum_pos = cum_neg = 0
     best = 0.0
-    for _, y in paired:
-        if y == 1:
-            cum_pos += 1
-        else:
-            cum_neg += 1
+    index = 0
+    while index < len(order):
+        stop = index
+        while stop + 1 < len(order) and scores[order[stop + 1]] == scores[order[index]]:
+            stop += 1
+        for position in range(index, stop + 1):
+            if labels[order[position]] == 1:
+                cum_pos += 1
+            else:
+                cum_neg += 1
         best = max(best, abs(cum_pos / positives - cum_neg / negatives))
+        index = stop + 1
     return best
 
 
@@ -79,11 +93,21 @@ def calibration(labels: list[int], scores: list[float], bins: int = 10) -> list[
     """Predicted versus observed default rate by score decile."""
     if not labels:
         return []
-    paired = sorted(zip(scores, labels))
+    # Sorted on the score alone, and tie groups are kept whole. Sorting the
+    # (score, label) tuple lets the outcome pick the bin whenever scores tie, so a
+    # model predicting one constant score shows a decile table running from 0% to
+    # 100% observed — perfect discrimination out of none.
+    order = sorted(range(len(scores)), key=lambda i: scores[i])
+    paired = [(scores[i], labels[i]) for i in order]
     size = max(1, len(paired) // bins)
     out: list[CalibrationBin] = []
-    for start in range(0, len(paired), size):
-        chunk = paired[start : start + size]
+    start = 0
+    while start < len(paired):
+        stop = min(start + size, len(paired))
+        while stop < len(paired) and paired[stop][0] == paired[stop - 1][0]:
+            stop += 1
+        chunk = paired[start:stop]
+        start = stop
         if not chunk:
             continue
         out.append(

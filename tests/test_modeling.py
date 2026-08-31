@@ -9,6 +9,7 @@ a P1 deliverable.
 import unittest
 
 from lending_hub.modeling import LogisticModel, Standardiser, auc, calibration, ks, log_loss, train
+from lending_hub.modeling import metrics
 from lending_hub.modeling.dataset import Design, _num, align
 
 
@@ -151,3 +152,36 @@ class TestCalibration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTiesDoNotFlatterTheMetrics(unittest.TestCase):
+    """Regression tests for a defect found while building WS-1.1 Step 5.
+
+    Both functions sorted ``(score, label)`` tuples, which lets the *outcome*
+    order rows whenever scores tie. Every negative of a tie group then walked past
+    every positive, and the metric reported what a strict ordering would have
+    given. It flatters exactly the models most likely to tie — shallow trees, and
+    anything predicting a constant.
+    """
+
+    def test_a_constant_score_has_no_separation(self):
+        labels = [1] * 100 + [0] * 100
+        self.assertAlmostEqual(metrics.ks(labels, [0.5] * 200), 0.0)
+
+    def test_a_constant_score_gives_one_calibration_bin(self):
+        labels = [1] * 100 + [0] * 100
+        table = metrics.calibration(labels, [0.5] * 200, bins=10)
+        self.assertEqual(len(table), 1)
+        self.assertAlmostEqual(table[0].observed, 0.5)
+
+    def test_ks_matches_auc_ordering_on_a_tied_model(self):
+        # Two leaf values, half the population in each. KS is bounded by the real
+        # separation between the two groups, not by the row order inside them.
+        labels = [1] * 30 + [0] * 70 + [1] * 10 + [0] * 90
+        scores = [0.6] * 100 + [0.2] * 100
+        self.assertAlmostEqual(metrics.ks(labels, scores), abs(30 / 40 - 70 / 160))
+
+    def test_untied_scores_are_unaffected(self):
+        labels = [0, 0, 1, 1]
+        scores = [0.1, 0.2, 0.3, 0.4]
+        self.assertAlmostEqual(metrics.ks(labels, scores), 1.0)
