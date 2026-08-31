@@ -1,0 +1,69 @@
+# Per-table retention configuration (Phase 0 WS-0.3.3).
+#
+# Every period here is [POLICY: DPO + Compliance] and none has been supplied, so
+# every one is a typed placeholder against LH-111. The loader refuses to default:
+# too short destroys audit evidence, too long is a DPDP violation, and there is no
+# safe middle to guess.
+#
+# The unresolved question that blocks LH-111 is not "how many years". It is the
+# collision ADR-0001 surfaces: SRS CS-7 requires a decision to be reconstructable
+# for 8 years, DPDP gives the data principal an erasure right, and an Iceberg
+# snapshot tagged for reproducibility preserves rows an erasure request covers.
+# Someone has to write down which wins, per table.
+
+schema_version: "1.0"
+
+tables:
+  decision_log:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: audit
+    carries_decisions: true
+    erasable_on_request: false
+    note: >
+      SRS CS-7 floor is 8 years. The loader rejects anything lower for a table
+      flagged carries_decisions, so this one cannot be misconfigured downwards.
+
+  silver_applications:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: regulatory
+    carries_decisions: true
+    erasable_on_request: false
+
+  silver_account_snapshots:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: regulatory
+    carries_decisions: false
+    erasable_on_request: false
+
+  silver_bureau_responses:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: regulatory
+    carries_decisions: false
+    erasable_on_request: false
+    note: >
+      Bureau contracts usually cap retention independently of bank policy; the
+      binding period is the stricter of the two.
+
+  silver_account_aggregator:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: consent
+    carries_decisions: false
+    erasable_on_request: true
+    note: >
+      Consent-bound under DPDP purpose limitation. Erasure requests must be
+      honoured except where an RBI retention duty overrides (SRS §11.4).
+
+  silver_kyc_documents:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: regulatory
+    carries_decisions: false
+    erasable_on_request: false
+
+  feature_store_offline:
+    period_years: "TBD[DPO + Compliance, LH-111]"
+    basis: audit
+    carries_decisions: false
+    erasable_on_request: false
+    note: >
+      Must outlive any model trained on it, or the model becomes irreproducible
+      and its validation cannot be repeated (Master §3.3 spot-audit).
