@@ -16,6 +16,7 @@ Each one below is a stop, not a gap in the engineering.
 
 | Ticket | Owner | Blocks | What is needed | Status |
 |---|---|---|---|---|
+| LH-201 | Product Head + Credit Risk Head | ADR-0010; every WS-1.1 step on Track B | Which retail product P1 scores. Phase 1 §1 says "highest-volume unsecured", which is a `[DATA]` fact about this bank's book and is not computable until LH-120 lands. The choice sets the bad rate, and therefore whether the ≥ 1,500-bads entry test passes and whether the challenger is in scope at all. | open |
 
 ## Why this register starts empty
 
