@@ -16,12 +16,13 @@ that's a bug in the repo, not in your machine.
 
 ## Picking up work
 
-1. Open [docs/phase0/STATUS.md](docs/phase0/STATUS.md). It maps every Phase 0 checklist
-   item to the artifact that satisfies it, the track (A/B) it runs on, and its state.
+1. Open [docs/phase1/STATUS.md](docs/phase1/STATUS.md) — the current phase. It maps every
+   Phase 1 checklist item to the artifact that satisfies it, the track (A/P/B) it runs
+   on, and its state. Phase 0's is [here](docs/phase0/STATUS.md).
 2. Take an item that is `not started`, or unblock one in `blocked` by chasing its
    `[POLICY]` owner.
-3. Load the Master guide + `Phase_0_Foundations.md`. Do not work from memory of the SRS —
-   the numbers matter.
+3. Load the Master guide + the one phase file you are working. Do not work from memory
+   of the SRS — the numbers matter.
 
 ## Before every commit
 
@@ -35,7 +36,14 @@ This runs three gates:
 |---|---|
 | `make grounding` | Master §2 — no ungrounded value, no malformed `TBD`, no unregistered ticket, no synthetic data outside `tests/fixtures/` |
 | `make registry`  | Every `config/sources/*.yaml` validates against the source-registry schema |
-| `make test`      | The unit suite |
+| `make test`      | The unit suite — 727 tests, stdlib only, about 7 seconds |
+
+Two more you will want when touching Phase 1:
+
+| Command | What it does |
+|---|---|
+| `make gate1` | Assembles the Phase 1 §7 evidence pack into `reports/phase1_gate.md` |
+| `make trackp-p1` | Runs the whole of WS-1.1 against real applications. Needs `datasets/` — see [DATA_SOURCING](docs/phase0/DATA_SOURCING.md). Everything else runs on a clean clone |
 
 ## Commit format
 
@@ -64,10 +72,17 @@ Do **not** guess. Even once. The whole point of the grounding contract is that a
 threshold looks exactly like a real one six months later.
 
 1. Write `TBD[<owner role>, <ticket-id>]` at the point of use.
-2. Add a row to [docs/phase0/blocking_tickets.md](docs/phase0/blocking_tickets.md) —
-   `make grounding` fails on any `TBD` that isn't registered there.
-3. Keep building everything the missing value does not block. A blocked number rarely
-   blocks the code path around it.
+2. Add a row to **your phase's** register —
+   [P0](docs/phase0/blocking_tickets.md), [P1](docs/phase1/blocking_tickets.md).
+   `make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
+   `TBD` registered in none of them.
+3. Make the code **raise** where the value would be read, rather than defaulting.
+   `Scorecard.points()` raising `Ungrounded` is worth more than a plausible score,
+   because a plausible score reaches a customer letter and nothing downstream can
+   tell it apart from a real one.
+4. Keep building everything the missing value does not block. A blocked number rarely
+   blocks the code path around it — Phase 1 has ten open tickets and every workstream
+   built.
 
 ## Adding a dependency
 
@@ -75,6 +90,23 @@ Default answer: don't. The core packages are stdlib-only on purpose (ADR-0003) s
 suite runs anywhere with no install. If you need a real backend (Delta Lake, Kafka, Feast,
 MLflow), it goes behind the `ports.py` interface in that package and into the
 `platform` extra in `pyproject.toml` — never imported at module top level in core code.
+
+## Porting a library
+
+The core packages are stdlib-only, so every algorithm the phase files name is a **port**
+behind the interface the real library will occupy. Master §2 rule 2 allows this — "use
+that library, or port it with unit tests reproducing the library's outputs on fixture
+data" — and it comes with two obligations that are easy to skip:
+
+1. **State what you did not port.** The GBM implements histogram splits and the
+   regularised gain and has no GOSS or EFB; the binning is PAVA rather than OptBinning's
+   MIP; SHAP is exact enumeration rather than TreeSHAP's polynomial algorithm. Each of
+   those sentences is in the module docstring, because a port that claims to be the
+   library is a port nobody re-checks.
+2. **Test properties, not numbers.** Assert monotonicity, local accuracy, determinism
+   from the seed, bin contiguity — the things a Track B swap must preserve. A test
+   pinned to your port's exact cut points will fail on the library it is a port of, and
+   the person who deletes it will not know which of the two was right.
 
 ## Definitions
 

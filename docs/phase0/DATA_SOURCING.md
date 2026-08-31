@@ -17,7 +17,7 @@ how far it goes, and what is still missing.
 | Dataset | Verdict |
 |---|---|
 | **Fannie Mae** 2007Q1 + 2019Q1 | **In use.** Adapter built, 28.5M rows profiled, Appendix A labels produced |
-| **Home Credit** | **Partially usable.** Four files missing, including the one that mattered |
+| **Home Credit** | **In use for Phase 1.** Four files missing, including the one that mattered |
 | **PKDD'99** | **Not usable as supplied.** See below — this one needs a decision |
 
 ### Fannie Mae — working
@@ -54,6 +54,27 @@ Approved/Refused/Canceled statuses — the declined applications that make rejec
 inference exercisable, which was the whole reason to prefer this dataset for the
 LOS role. Without it, Home Credit cannot stand in for LOS. Worth re-downloading
 if you still have the Kaggle page open.
+
+**What Phase 1 does with it anyway.** `application_train.csv` alone is enough for
+the WS-1.1 scorecard: 307,511 unsecured consumer applications, an 8.0% bad rate,
+and — uniquely among the three datasets — gender, age and region, without which a
+fairness harness has nothing to run on. [ADR-0010](../adr/0010-scored-product-and-track-p-standin.md)
+records why Phase 1 uses this source for the scorecard and Fannie Mae for the
+out-of-time vintage discipline, rather than forcing one dataset to do both.
+
+Two limitations follow the data everywhere it goes, and both are stamped into the
+output rather than left in this document:
+
+- **`TARGET` is not Appendix A.** It is the publisher's own payment-difficulty
+  flag, with the publisher's window and thresholds, and the DPD history that would
+  let Appendix A be applied instead is not published. Every target table built from
+  it is `LabelProvenance.VENDOR` and reports `appendix_a_aligned: false`.
+- **Reject inference is not exercisable.** No declined applications exist here, so
+  the run ships a reject-inference *memo* stating the selection-bias limitation —
+  which is precisely what Phase 1 §4 Step 8 asks for when the correction cannot be
+  made.
+
+Adapter: `lending_hub.sources.homecredit`. Run with `make trackp-p1`.
 
 ### PKDD'99 — not usable, and worth understanding why
 
