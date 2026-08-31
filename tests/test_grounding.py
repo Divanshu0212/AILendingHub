@@ -153,6 +153,14 @@ class TestG6WorkstreamCitations(unittest.TestCase):
         found = g.check_workstream_citations(files(("src/lending_hub/x.py", "x = 1\n")))
         self.assertIn("G6", rules(found))
 
+    def test_cross_cutting_module_may_cite_a_contract_clause(self):
+        # Decision logging implements Master §3.3, not a numbered workstream, and
+        # is no less grounded for it.
+        found = g.check_workstream_citations(
+            files(("src/lending_hub/x.py", '"""Log.\n\nWorkstream: Master §3.3\n"""\n'))
+        )
+        self.assertEqual(rules(found), [])
+
     def test_cited_module_passes(self):
         found = g.check_workstream_citations(
             files(("src/lending_hub/x.py", '"""Does something.\n\nWorkstream: WS-0.1.3\n"""\n'))

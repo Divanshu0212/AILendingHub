@@ -15,7 +15,7 @@ G4  Appendix A definitions are not retyped outside the definitions package
     (Master §2 rule 6) — a second copy of "DPD >= 90" is a future divergence
     between scoring, provisioning and EWS.
 G5  Synthetic data lives only under ``tests/fixtures/`` (Master §2 rule 3).
-G6  Every platform module cites the workstream it implements.
+G6  Every platform module cites the workstream or contract clause it implements.
 
 Exit codes: 0 clean, 1 violations found.
 """
@@ -95,7 +95,11 @@ DEFINITION_SCAN_ROOTS = ("src/", "tools/", "scripts/", "config/")
 DATA_SUFFIXES = {".csv", ".parquet", ".jsonl", ".ndjson", ".tsv", ".avro"}
 SYNTHETIC_HINT = re.compile(r"synthetic|fixture|sample|mock|dummy|fake|seed[_-]?data", re.I)
 
-WORKSTREAM_CITATION = re.compile(r"WS-\d")
+#: A module must say which part of the contract it implements. That is usually a
+#: numbered workstream, but cross-cutting components (decision logging, the
+#: shipping ladder) implement a Master or SRS clause instead and are no less
+#: grounded for it.
+WORKSTREAM_CITATION = re.compile(r"WS-\d|§\s?\d")
 DOCSTRING_EXEMPT = {"src/lending_hub/__init__.py"}
 
 
@@ -297,7 +301,8 @@ def check_workstream_citations(files) -> list[Finding]:
         elif not WORKSTREAM_CITATION.search(doc):
             findings.append(
                 Finding("G6", rel, 1,
-                        "module docstring does not cite its workstream (e.g. 'WS-0.1.3')")
+                        "module docstring cites no workstream or contract clause "
+                        "(e.g. 'WS-0.1.3' or 'Master §3.3')")
             )
     return findings
 
