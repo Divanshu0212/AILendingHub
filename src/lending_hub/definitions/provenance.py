@@ -64,7 +64,7 @@ class Pending:
 
     @classmethod
     def parse(cls, text: str) -> Pending | None:
-        """Parse a ``TBD[owner, TICKET-1]`` string, or return None if malformed."""
+        """Parse a ``TBD[<owner>, <TICKET-N>]`` string, or return None if malformed."""
         match = TBD_PATTERN.fullmatch(text.strip())
         if match is None:
             return None

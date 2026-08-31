@@ -1,0 +1,72 @@
+name: CI
+
+# Phase 0 gates. Every job here maps to a rule the Master guide states in prose;
+# the point of the workflow is that the rules stop depending on anyone's memory.
+on:
+  push:
+    branches: [main, "release/**", "gate/**"]
+  pull_request:
+
+jobs:
+  grounding:
+    name: "Master §2 grounding rules"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Enforce grounding rules
+        run: python tools/check_grounding.py
+
+      # Master §2 rule 4: a TBD may never reach a release branch. On release/**
+      # and gate/** the checker escalates every surviving placeholder to a failure.
+      - name: Release-branch placeholder gate
+        if: startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/gate/')
+        run: python tools/check_grounding.py --release
+
+  registry:
+    name: "Source registry schema (WS-0.1.1)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements-dev.txt
+      - run: python tools/validate_source_registry.py
+
+  tests:
+    name: "Test suite (python ${{ matrix.python }})"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements-dev.txt
+      - name: Run tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -t . -v
+
+  clean-clone:
+    name: "Runs with no dependencies installed"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # The core packages are stdlib-only by design (ADR-0003) so a new
+      # contributor can clone and run the suite before installing anything. This
+      # job is what stops that promise from quietly decaying: no pip install step.
+      - name: Grounding check with a bare interpreter
+        run: python tools/check_grounding.py
+      - name: Definitions and platform tests with a bare interpreter
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -t . -v

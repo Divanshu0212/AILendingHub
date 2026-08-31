@@ -203,7 +203,7 @@ def validate_document(doc: object, source_file: str) -> tuple[SourceRecord | Non
             if Pending.parse(value) is None:
                 err(
                     policy_field,
-                    f"malformed placeholder {value!r}; expected TBD[owner, TICKET-1]",
+                    f"malformed placeholder {value!r}; expected TBD[<owner>, <TICKET-N>]",
                 )
             else:
                 unresolved.append(policy_field)

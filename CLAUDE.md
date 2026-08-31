@@ -45,7 +45,7 @@ because it survives review.
 Mechanically:
 
 - Unknowns are written **`TBD[owner, ticket-id]`** in code, config, and docs.
-  Example: `MIN_JOIN_RATE = "TBD[Data Platform Lead, LH-104]"`.
+  Example: `pii_class = "TBD[DPO, LH-110]"`.
 - `make grounding` scans the tree and **fails the build** if a `TBD` reaches a release
   branch, or if a `TBD` is malformed (missing owner or ticket). This is
   [tools/check_grounding.py](tools/check_grounding.py) — it is the executable form of
