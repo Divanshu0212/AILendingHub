@@ -1,0 +1,7 @@
+application_id,loan_id,customer_id,decision,decided_at
+AP-3001,LN-1001,CU-5001,approved,2025-02-09
+AP-3002,LN-1002,CU-5002,approved,2025-03-01
+AP-3003,LN-1003,CU-5003,approved,2025-05-15
+AP-3004,LN-1004,CU-5004,approved,2025-07-28
+AP-3005,LN-3001,CU-9999,approved,2025-07-31
+AP-3006,LN-8888,CU-5010,declined,2025-08-01

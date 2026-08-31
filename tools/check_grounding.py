@@ -67,6 +67,11 @@ PLACEHOLDER_CHECK_SKIP_PREFIXES = ("tests/",)
 G1_EXEMPT_SUFFIXES = {".md"}
 G1_EXEMPT_NAMES = {"Makefile"}
 
+#: Formats where a `#` starts a comment. Comments are prose for the same reason
+#: docstrings are, so G1 reads only the value side of the line. G2 still reads the
+#: whole line: a ticket cited in a comment is still a commitment to a real ticket.
+HASH_COMMENT_SUFFIXES = {".yaml", ".yml", ".toml", ".sh", ".ini", ".cfg"}
+
 #: Appendix A values, in the shapes they get accidentally retyped as.
 DEFINITION_LEAKS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("default DPD threshold", re.compile(r"\bdpd\b[^\n]{0,24}?[<>!=]=?\s*90\b", re.I)),
@@ -212,6 +217,11 @@ def check_placeholders(files, tickets: set[str], release: bool) -> list[Finding]
 
         if path.suffix == ".py":
             candidates = _python_value_strings(text)
+        elif path.suffix in HASH_COMMENT_SUFFIXES:
+            candidates = [
+                (lineno, line.split("#", 1)[0])
+                for lineno, line in enumerate(text.splitlines(), 1)
+            ]
         else:
             candidates = list(enumerate(text.splitlines(), 1))
 

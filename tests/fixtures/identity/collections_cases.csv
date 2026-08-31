@@ -1,0 +1,4 @@
+case_id,loan_id,customer_id,opened_on,status
+CS-9001,LN-7777,CU-5099,2025-06-01,open
+CS-9002,LN-1002,CU-5002,2025-06-14,open
+CS-9003,LN-1003,CU-5003,2025-07-02,closed

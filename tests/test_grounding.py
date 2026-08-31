@@ -173,3 +173,26 @@ class TestRepositoryIsClean(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCommentsAreProse(unittest.TestCase):
+    """A `#` comment explains; it does not configure. Same reasoning as docstrings."""
+
+    def test_yaml_comment_is_not_a_placeholder(self):
+        found = g.check_placeholders(
+            files(("config/sources/x.yaml", "# leave TBD until the DPO replies\nk: v\n")),
+            set(), False,
+        )
+        self.assertEqual(rules(found), [])
+
+    def test_yaml_value_is_still_checked_on_a_commented_line(self):
+        found = g.check_placeholders(
+            files(("config/sources/x.yaml", "pii: TBD  # chase the DPO\n")), set(), False
+        )
+        self.assertIn("G1", rules(found))
+
+    def test_ticket_cited_in_a_comment_must_still_exist(self):
+        found = g.check_placeholders(
+            files(("config/sources/x.yaml", "# blocked by TBD[DPO, LH-999]\n")), set(), False
+        )
+        self.assertIn("G2", rules(found))

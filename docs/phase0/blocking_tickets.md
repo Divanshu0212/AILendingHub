@@ -17,6 +17,8 @@ Phase 0 is waiting on the bank rather than on engineering.
 | LH-112 | Compliance | Account Aggregator consent artifact | Consent wording for alternative-data collection under DPDP purpose limitation. | open |
 | LH-120 | Named source owners | Phase 0 entry criteria | Written data-sharing approvals and named business/technical owners for CBS, LOS, collections, bureau, AA, KYC. Phase 0 §3 lists these as *entry* criteria — the phase is formally not startable until they land. | open |
 | LH-121 | Program (doc conflict) | Source registry completeness | SRS §2.1 lists eight sources and does not include LOS or collections, but Phase 0 §2 requires both as inputs and WS-0.1.3 builds the identity spine across CBS-LOS-collections. Registered both; SRS §2.1 needs the two rows added. Raised per Master §1 precedence (conflicts become tickets, never silent fixes). | open |
+| LH-122 | Program (doc correction) | WS-0.1.3 join-rate gate | Phase 0 WS-0.1.3 sets the gate as ">= 99.5% of active loans join across the three systems". A healthy loan has no collections record, so that metric measures the delinquency rate, not data quality. Implemented as three separately-mandatory directions (loan→application, collections→loan, customer consistency); the phase doc needs the same correction. | open |
+| LH-130 | Data Governance Council | Identity-spine survivorship | Attribute-level exceptions to system-of-record precedence — e.g. whether a collections-updated contact address supersedes the CBS address. Phase 0 §8 puts survivorship exceptions on the do-not-invent list. | open |
 
 ## Why LH-103 exists
 
