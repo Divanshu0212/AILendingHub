@@ -89,6 +89,97 @@ If you want to exercise the geospatial path before bank data arrives, these are
 the ones to start with — they are real data, so they are not synthetic under
 Master §2 rule 3, and they can populate a genuine Bronze layer today.
 
+### 2.3 Recommended public datasets — download these
+
+No bank attached, so these are the stand-ins that let the platform run on **real
+data with real time dimensions**. Real data is not synthetic under Master §2
+rule 3, so it can populate a genuine Bronze layer — but it is not *this bank's*
+data, so anything computed from it is still labelled for what it is.
+
+Start with the first two. All links are the official sources; several need a free
+account.
+
+#### Tier 1 — start here
+
+| Dataset | Link | Size | Stands in for |
+|---|---|---|---|
+| **PKDD'99 Financial (Berka)** | https://sorry.vse.cz/~berka/challenge/pkdd1999/ | ~15 MB | CBS + LOS + a transaction stream |
+| **Home Credit Default Risk** | https://www.kaggle.com/competitions/home-credit-default-risk/data | ~700 MB | LOS + bureau + collections |
+
+**PKDD'99** is real Czech bank data with eight related tables — `account`,
+`client`, `disp`, `loan`, `trans`, `order`, `card`, `district` — and genuine
+absolute dates. It is tiny, which is the point: it is the fastest way to wire the
+identity spine end to end against something that actually has referential
+integrity problems. `trans` (1M rows) can be replayed as the repayment stream.
+
+**Home Credit** maps onto the origination side unusually well:
+
+| File | Maps to |
+|---|---|
+| `application_train.csv` | LOS applications + target |
+| `previous_application.csv` | **Prior applications with `NAME_CONTRACT_STATUS` ∈ Approved / Refused / Canceled** — real declines, so reject inference is exercisable |
+| `bureau.csv`, `bureau_balance.csv` | Bureau source, with monthly balances |
+| `installments_payments.csv` | Repayment postings |
+| `POS_CASH_balance.csv`, `credit_card_balance.csv` | Monthly account snapshots |
+
+Its one real weakness: timestamps are **relative day offsets** (`DAYS_DECISION`,
+`DAYS_BIRTH` as negative integers), not absolute dates. Good for structure and
+joins, weak for genuine point-in-time work — which is why Tier 2 matters.
+
+#### Tier 2 — for real point-in-time work
+
+| Dataset | Link | Size | Stands in for |
+|---|---|---|---|
+| **Freddie Mac Single-Family Loan-Level** | https://www.freddiemac.com/research/datasets/sf-loan-level-dataset | GBs (per-year files) | CBS monthly snapshots + DPD + dispositions |
+| **Fannie Mae Single-Family Loan Performance** | https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk-transfer/fannie-mae-single-family-loan-performance-data | GBs (per-quarter files) | Same |
+
+Both need a free registration. Take **one or two years first**, not the full
+history — the whole archive is tens of GB and nothing here needs it.
+
+These are the best available fit for the platform's hardest requirement. Each has
+an *origination* file plus a *monthly performance* file carrying a reporting
+period, a current delinquency status, and a zero-balance code (prepayment, short
+sale, REO — the write-off analogues). That gives you:
+
+- Genuine **month-end snapshots** → Appendix A's DPD cadence and the behavioural
+  observation point, not a simulation of them.
+- A real **12-month outcome window** with real defaults.
+- And the one thing no other public dataset offers: because each monthly file is
+  *published* on a known later date, the file's publication period is a
+  legitimate `created_timestamp`. That makes finding **B1** — the two-timestamp
+  point-in-time join — exercisable against real ingestion lag rather than against
+  a fixture. It is the single most valuable thing you can download for this
+  project.
+
+#### Tier 3 — P2 geospatial, no approval needed
+
+| Source | Link | Account |
+|---|---|---|
+| Sentinel-1/2 | https://dataspace.copernicus.eu | free |
+| Landsat | https://earthexplorer.usgs.gov | free |
+| ERA5 reanalysis | https://cds.climate.copernicus.eu | free (`cdsapi` client) |
+| CHIRPS rainfall | https://www.chc.ucsb.edu/data/chirps | none |
+| SoilGrids | https://soilgrids.org | none |
+| IMD gridded data | https://www.imdpune.gov.in | varies |
+| India open data (crop, rainfall) | https://data.gov.in | free |
+
+Not needed for Phase 0. Download when P2 starts.
+
+#### What these still will not unblock
+
+Be clear-eyed about this:
+
+| Gate | Status with public data |
+|---|---|
+| Join rate (WS-0.1.3) | **Exercisable** — PKDD'99 and Home Credit both have multi-table joins with genuine key defects |
+| Stream freshness (WS-0.1.4) | **Exercisable** — replay PKDD'99 `trans` or Home Credit `installments_payments` through Kafka |
+| Point-in-time correctness (WS-0.2.1) | **Exercisable** with Freddie/Fannie monthly publication dates |
+| GL reconciliation (WS-0.1.5) | **Still blocked.** No public dataset ships an independent general ledger, and reconciling a dataset against an aggregate derived from itself proves nothing |
+| Scorecard parity (WS-0.4) | **Still blocked.** There is no legacy scorecard to rebuild. The Track A batch-vs-serving comparator remains the substitute |
+
+Two of the four numeric gates stay blocked on a real bank. That is not a gap in
+the download list — it is what those two gates are *for*.
+
 ### 2.3 If you do not have a bank at all
 
 Two honest options, and one anti-pattern:
