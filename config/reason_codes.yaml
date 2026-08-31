@@ -1,0 +1,73 @@
+# Reason-code dictionary — Phase 1 §4 WS-1.1 Step 6.
+#
+# This file is DATA, not code. Phase 1 requires the mapping table to be
+# "editable by legal", and the whole point is that changing a customer-facing
+# sentence must not require a model release. The code that consumes it is
+# lending_hub.scoring.reasons; nothing in src/ contains a reason sentence.
+#
+# Every `wording` is a placeholder because reason-code wording is
+# [POLICY: Compliance] (Phase 1 §8 do-not-invent, ticket LH-203). Rendering a
+# placeholder raises: an adverse-action letter carrying a sentence nobody
+# approved is a regulatory finding, not a rough edge, and a plausible draft
+# sentence is indistinguishable from an approved one six months later.
+#
+# `feature` must name a registered feature; `direction` says which end of the
+# feature is adverse, so the mapping can be checked against the ratified
+# monotonicity list (LH-202) rather than trusted.
+
+schema_version: "1.0"
+model: application_pd
+owner: Compliance
+status: draft_pending_ratification
+ratification_ticket: LH-203
+
+codes:
+  - code: CS_BUREAU_ENQUIRIES_HIGH
+    feature: bureau_enquiries_recent
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_BUREAU_UTILISATION_HIGH
+    feature: bureau_utilisation
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_BUREAU_DELINQUENCY_PRESENT
+    feature: bureau_worst_delinquency
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_BUREAU_FILE_THIN
+    feature: bureau_file_age_months
+    direction: adverse_when_low
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_INCOME_LOW_FOR_REQUEST
+    feature: declared_income
+    direction: adverse_when_low
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_OBLIGATIONS_HIGH
+    feature: existing_obligations
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_TENURE_LONG
+    feature: requested_tenure_months
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_AA_INCOME_IRREGULAR
+    feature: aa_income_regularity
+    direction: adverse_when_low
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_AA_BALANCE_VOLATILE
+    feature: aa_balance_volatility
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
+
+  - code: CS_AA_BOUNCES_PRESENT
+    feature: aa_bounce_count
+    direction: adverse_when_high
+    wording: "TBD[Compliance, LH-203]"
