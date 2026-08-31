@@ -9,6 +9,20 @@
 | Squads | Data platform (R), Model Risk (governance), DPO/Compliance |
 | Governing contract | `00_MASTER_Implementation_Guide.md` §2 (grounding rules), §3 (protocols), §4 (definitions) — binding |
 
+> **Implementation addendum (2026-08-31).** Phase 0 is being built in this
+> repository. Nothing in this document has been edited — Master §1 requires
+> conflicts to be raised as tickets, not resolved silently by an implementer.
+>
+> - [Phase_0_FINDINGS.md](Phase_0_FINDINGS.md) — findings against this document,
+>   including two corrections (the join-rate gate and the default definition) and
+>   the point-in-time contract gap.
+> - [docs/phase0/STATUS.md](../docs/phase0/STATUS.md) — checklist traceability:
+>   which artifact satisfies each item and its honest state.
+> - [docs/phase0/blocking_tickets.md](../docs/phase0/blocking_tickets.md) — every
+>   `[POLICY]` value the phase is waiting on.
+> - [docs/adr/0003-two-track-execution-model.md](../docs/adr/0003-two-track-execution-model.md)
+>   — how the phase proceeds while its §3 entry criteria are unmet.
+
 **Objective.** Stand up the platform every later phase depends on — lakehouse, feature store, streaming backbone, model registry, governance scaffolding — and **prove** it by rebuilding one existing scorecard with bit-for-bit reproducibility. Phase 0 ships no new ML on purpose: it ships trust in the plumbing.
 
 ---

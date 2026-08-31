@@ -100,13 +100,26 @@ src/lending_hub/
   decisionlog/               decision-log schema + replay (Master §3.3)
   serving/                   orchestrator stub, load test, parity harness (WS-0.2.4, WS-0.4)
 
-tools/                       CI enforcement: grounding, registry, schema compatibility
+tools/                       CI gates: check_grounding, validate_source_registry,
+                             check_schema_compatibility, gate_report
 config/sources/              one YAML per SRS §2.1 source
-docs/adr/                    architecture decision records
+config/retention.yaml        per-table retention (every period pending on LH-111)
+docs/adr/                    architecture decision records (0001-0003)
 docs/governance/             model card / validation / monitoring templates (WS-0.3.2)
-docs/phase0/                 status, traceability, blocking-ticket register
+docs/phase0/                 STATUS, DATA_SOURCING, blocking_tickets
 tests/fixtures/              the ONLY place synthetic data may live (Master §2 rule 3)
+reports/                     generated gate output — regenerate, never commit
 ```
+
+### Start here
+
+| You want to | Read |
+|---|---|
+| Know what is done and what is blocked | [docs/phase0/STATUS.md](docs/phase0/STATUS.md) |
+| Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
+| Know what data is fake and what real data replaces it | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) |
+| Know why the phase docs were not followed literally | [Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) |
+| Know what is waiting on a committee | [docs/phase0/blocking_tickets.md](docs/phase0/blocking_tickets.md) |
 
 ---
 
@@ -117,9 +130,13 @@ No install step is needed for the core checks.
 ```bash
 make help          # list every target
 make check         # grounding + registry + tests — run this before every commit
-make test          # stdlib unittest suite
-make gate          # full Phase 0 evidence pack into reports/
+make test          # stdlib unittest suite (233 tests)
+make gate          # run every gate script and assemble reports/phase0_gate.md
 ```
+
+Individual gates: `make audit-joins` (WS-0.1.3), `make reconcile` (WS-0.1.5),
+`make schemas` (WS-0.1.4), `make repro` (WS-0.2.3), `make loadtest` (WS-0.2.4),
+`make parity` (WS-0.4).
 
 Only `PyYAML` is required beyond the standard library (`pip install -r requirements-dev.txt`),
 and only for the YAML config validators. If you find yourself adding a dependency to the

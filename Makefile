@@ -50,5 +50,10 @@ parity:  ## WS-0.4 parity harness (batch path vs serving path)
 	$(PY) -m lending_hub.serving.parity --out reports/parity.json
 
 .PHONY: gate
-gate: check audit-joins reconcile repro loadtest parity  ## Full Phase 0 gate evidence pack
+gate: check schemas  ## Run every gate script and assemble the evidence pack
+	-$(PY) -m lending_hub.identity.audit --out reports/join_rate_audit.json
+	-$(PY) -m lending_hub.lakehouse.reconcile --out reports/gl_reconciliation.json
+	-$(PY) -m lending_hub.mlops.reproducibility_test
+	-$(PY) -m lending_hub.serving.loadtest --out reports/loadtest.json
+	-$(PY) -m lending_hub.serving.parity --out reports/parity.json
 	$(PY) tools/gate_report.py --out reports/phase0_gate.md
