@@ -25,28 +25,33 @@ def rules(findings):
     return sorted(f.rule for f in findings)
 
 
+def reg(*tickets):
+    """A ticket register: id -> the phase file that declares it."""
+    return {ticket: "docs/phase0/blocking_tickets.md" for ticket in tickets}
+
+
 class TestG1MalformedPlaceholders(unittest.TestCase):
     def test_bare_tbd_in_config_fails(self):
         found = g.check_placeholders(
-            files(("config/sources/x.yaml", "retention:\n  period: TBD\n")), set(), False
+            files(("config/sources/x.yaml", "retention:\n  period: TBD\n")), reg(), False
         )
         self.assertIn("G1", rules(found))
 
     def test_placeholder_without_ticket_fails(self):
         found = g.check_placeholders(
-            files(("config/sources/x.yaml", 'pii: "TBD[DPO]"\n')), set(), False
+            files(("config/sources/x.yaml", 'pii: "TBD[DPO]"\n')), reg(), False
         )
         self.assertIn("G1", rules(found))
 
     def test_well_formed_placeholder_passes(self):
         found = g.check_placeholders(
-            files(("config/sources/x.yaml", 'pii: "TBD[DPO, LH-110]"\n')), {"LH-110"}, False
+            files(("config/sources/x.yaml", 'pii: "TBD[DPO, LH-110]"\n')), reg("LH-110"), False
         )
         self.assertEqual(rules(found), [])
 
     def test_python_string_value_is_checked(self):
         found = g.check_placeholders(
-            files(("src/lending_hub/x.py", 'THRESHOLD = "TBD"\n')), set(), False
+            files(("src/lending_hub/x.py", 'THRESHOLD = "TBD"\n')), reg(), False
         )
         self.assertIn("G1", rules(found))
 
@@ -55,20 +60,20 @@ class TestG1MalformedPlaceholders(unittest.TestCase):
         # deleting the explanations to get a green build.
         found = g.check_placeholders(
             files(("src/lending_hub/x.py", '"""Write TBD when a value is missing."""\n')),
-            set(), False,
+            reg(), False,
         )
         self.assertEqual(rules(found), [])
 
     def test_fstring_building_a_placeholder_is_not_a_placeholder(self):
         found = g.check_placeholders(
             files(("src/lending_hub/x.py", 'def r(o, t):\n    return f"TBD[{o}, {t}]"\n')),
-            set(), False,
+            reg(), False,
         )
         self.assertEqual(rules(found), [])
 
     def test_markdown_prose_is_exempt_from_g1(self):
         found = g.check_placeholders(
-            files(("docs/notes.md", "Write TBD when you do not know.\n")), set(), False
+            files(("docs/notes.md", "Write TBD when you do not know.\n")), reg(), False
         )
         self.assertEqual(rules(found), [])
 
@@ -76,13 +81,13 @@ class TestG1MalformedPlaceholders(unittest.TestCase):
 class TestG2TicketRegistration(unittest.TestCase):
     def test_unregistered_ticket_fails_anywhere_including_docs(self):
         found = g.check_placeholders(
-            files(("docs/notes.md", "value is TBD[DPO, LH-999]\n")), {"LH-110"}, False
+            files(("docs/notes.md", "value is TBD[DPO, LH-999]\n")), reg("LH-110"), False
         )
         self.assertIn("G2", rules(found))
 
     def test_registered_ticket_passes(self):
         found = g.check_placeholders(
-            files(("docs/notes.md", "value is TBD[DPO, LH-110]\n")), {"LH-110"}, False
+            files(("docs/notes.md", "value is TBD[DPO, LH-110]\n")), reg("LH-110"), False
         )
         self.assertEqual(rules(found), [])
 
@@ -91,20 +96,41 @@ class TestG2TicketRegistration(unittest.TestCase):
         # this the register fills with false "stale ticket" notes.
         found = g.check_placeholders(
             files(("src/lending_hub/x.py", 'p = Pending(owner="Fraud Head", ticket="LH-101")\n')),
-            {"LH-101"}, False,
+            reg("LH-101"), False,
         )
         self.assertEqual(rules(found), [])
 
     def test_uncited_ticket_is_a_note_not_a_failure(self):
-        found = g.check_placeholders(files(("docs/notes.md", "nothing here\n")), {"LH-121"}, False)
+        found = g.check_placeholders(files(("docs/notes.md", "nothing here\n")), reg("LH-121"), False)
         self.assertEqual(rules(found), ["G2-info"])
+
+
+class TestTicketRegisters(unittest.TestCase):
+    """Every phase declares its own tickets; G2 has to read all of them."""
+
+    def test_every_phase_register_is_read(self):
+        registers = {path.name for path in g.ticket_registers()}
+        self.assertEqual(registers, {"blocking_tickets.md"})
+        phases = {path.parent.name for path in g.ticket_registers()}
+        self.assertIn("phase0", phases)
+        self.assertIn("phase1", phases)
+
+    def test_a_ticket_reports_the_register_that_declares_it(self):
+        # The "stale ticket" note has to name the right file, or chasing it sends
+        # a P1 owner into the Phase 0 register.
+        found = g.check_placeholders(
+            files(("docs/notes.md", "nothing here\n")),
+            {"LH-201": "docs/phase1/blocking_tickets.md"},
+            False,
+        )
+        self.assertEqual([f.path for f in found], ["docs/phase1/blocking_tickets.md"])
 
 
 class TestG3ReleaseMode(unittest.TestCase):
     def test_release_mode_rejects_even_a_valid_placeholder(self):
         entry = files(("config/sources/x.yaml", 'pii: "TBD[DPO, LH-110]"\n'))
-        self.assertEqual(rules(g.check_placeholders(entry, {"LH-110"}, False)), [])
-        self.assertIn("G3", rules(g.check_placeholders(entry, {"LH-110"}, True)))
+        self.assertEqual(rules(g.check_placeholders(entry, reg("LH-110"), False)), [])
+        self.assertIn("G3", rules(g.check_placeholders(entry, reg("LH-110"), True)))
 
 
 class TestG4DefinitionLeaks(unittest.TestCase):
@@ -189,18 +215,18 @@ class TestCommentsAreProse(unittest.TestCase):
     def test_yaml_comment_is_not_a_placeholder(self):
         found = g.check_placeholders(
             files(("config/sources/x.yaml", "# leave TBD until the DPO replies\nk: v\n")),
-            set(), False,
+            reg(), False,
         )
         self.assertEqual(rules(found), [])
 
     def test_yaml_value_is_still_checked_on_a_commented_line(self):
         found = g.check_placeholders(
-            files(("config/sources/x.yaml", "pii: TBD  # chase the DPO\n")), set(), False
+            files(("config/sources/x.yaml", "pii: TBD  # chase the DPO\n")), reg(), False
         )
         self.assertIn("G1", rules(found))
 
     def test_ticket_cited_in_a_comment_must_still_exist(self):
         found = g.check_placeholders(
-            files(("config/sources/x.yaml", "# blocked by TBD[DPO, LH-999]\n")), set(), False
+            files(("config/sources/x.yaml", "# blocked by TBD[DPO, LH-999]\n")), reg(), False
         )
         self.assertIn("G2", rules(found))

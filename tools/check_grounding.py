@@ -9,7 +9,8 @@ Checks
 ------
 G1  Every ``TBD`` is well formed: ``TBD[<owner>, <TICKET-N>]``. A bare ``TBD`` reads as
     handled while belonging to nobody, which is worse than a missing value.
-G2  Every ``TBD`` ticket id is registered in docs/phase0/blocking_tickets.md.
+G2  Every ``TBD`` ticket id is registered in a phase's blocking-ticket register
+    (``docs/phase*/blocking_tickets.md``).
 G3  On a release branch, no ``TBD`` survives at all (Master §2 rule 4).
 G4  Appendix A definitions are not retyped outside the definitions package
     (Master §2 rule 6) — a second copy of "DPD >= 90" is a future divergence
@@ -39,7 +40,11 @@ SKIP_DIRS = {
 TEXT_SUFFIXES = {".py", ".md", ".yaml", ".yml", ".toml", ".json", ".cfg", ".sh", ".ini"}
 TEXT_NAMES = {"Makefile", "Dockerfile"}
 
-TICKET_REGISTER = REPO / "docs/phase0/blocking_tickets.md"
+#: Every phase keeps its own blocking-ticket register. G2 reads all of them: a
+#: P1 placeholder cites a P1 ticket, and hard-coding Phase 0's register would
+#: have forced P1 tickets into Phase 0's file — where nobody running a Phase 0
+#: gate review would expect to find them.
+TICKET_REGISTER_GLOB = "docs/phase*/blocking_tickets.md"
 
 WELL_FORMED_TBD = re.compile(r"TBD\[[^,\]]+,\s*[A-Z]{2,}-\d+\]")
 ANY_TBD = re.compile(r"TBD(?:\[[^\]]*\])?")
@@ -134,11 +139,24 @@ def read(path: pathlib.Path) -> str | None:
         return None
 
 
-def registered_tickets() -> set[str]:
-    if not TICKET_REGISTER.exists():
-        return set()
-    text = TICKET_REGISTER.read_text(encoding="utf-8")
-    return set(re.findall(r"^\|\s*([A-Z]{2,}-\d+)\s*\|", text, re.M))
+def ticket_registers() -> list[pathlib.Path]:
+    return sorted(REPO.glob(TICKET_REGISTER_GLOB))
+
+
+def registered_tickets() -> dict[str, str]:
+    """Ticket id -> the register that declares it.
+
+    A ticket declared in two registers is not an error worth a rule of its own:
+    the later register simply wins for reporting purposes, and both files say the
+    same thing about who owns it.
+    """
+    found: dict[str, str] = {}
+    for register in ticket_registers():
+        text = register.read_text(encoding="utf-8")
+        rel = str(register.relative_to(REPO))
+        for ticket in re.findall(r"^\|\s*([A-Z]{2,}-\d+)\s*\|", text, re.M):
+            found[ticket] = rel
+    return found
 
 
 def _python_value_strings(text: str) -> list[tuple[int, str]]:
@@ -187,7 +205,7 @@ def _cited_tickets(text: str) -> set[str]:
     return set(re.findall(r'ticket\s*=\s*["\']([A-Z]{2,}-\d+)["\']', text))
 
 
-def check_placeholders(files, tickets: set[str], release: bool) -> list[Finding]:
+def check_placeholders(files, tickets: dict[str, str], release: bool) -> list[Finding]:
     findings: list[Finding] = []
     used: set[str] = set()
 
@@ -206,8 +224,8 @@ def check_placeholders(files, tickets: set[str], release: bool) -> list[Finding]
                 if ticket not in tickets:
                     findings.append(
                         Finding("G2", rel, lineno,
-                                f"{token} cites {ticket}, which is not in "
-                                "docs/phase0/blocking_tickets.md")
+                                f"{token} cites {ticket}, which is in no "
+                                f"{TICKET_REGISTER_GLOB} register")
                     )
                 if release:
                     findings.append(
@@ -240,9 +258,9 @@ def check_placeholders(files, tickets: set[str], release: bool) -> list[Finding]
                             "TBD[<owner>, <TICKET-N>]")
                 )
 
-    for ticket in sorted(tickets - used):
+    for ticket in sorted(set(tickets) - used):
         findings.append(
-            Finding("G2-info", str(TICKET_REGISTER.relative_to(REPO)), None,
+            Finding("G2-info", tickets[ticket], None,
                     f"{ticket} is registered but nothing cites it "
                     "(expected for process tickets; stale otherwise)")
         )

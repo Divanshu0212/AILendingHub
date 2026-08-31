@@ -1,0 +1,25 @@
+# Phase 1 — Blocking ticket register
+
+Every `TBD[owner, ticket-id]` placeholder raised by Phase 1 work appears here.
+`make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
+placeholder that appears in none of them.
+
+Phase 0's register is [docs/phase0/blocking_tickets.md](../phase0/blocking_tickets.md);
+several of its tickets (LH-101 confirmed-fraud taxonomy, LH-103 default-code sets,
+LH-120 data-sharing approvals) block Phase 1 as hard as they block Phase 0, and
+are not repeated here.
+
+Phase 1 §8 puts these on the do-not-invent list: approve/decline cutoffs ·
+review-band edges · canary % · monotonicity direction list · reason-code wording ·
+fairness action thresholds · fraud alert budget · step-up friction tolerance.
+Each one below is a stop, not a gap in the engineering.
+
+| Ticket | Owner | Blocks | What is needed | Status |
+|---|---|---|---|---|
+
+## Why this register starts empty
+
+It does not stay empty. It is committed ahead of the placeholders it will hold so
+that the first Phase 1 `TBD` has somewhere to land — `make grounding` fails a
+placeholder that cites an unregistered ticket, and the fix for that failure must
+never be "delete the placeholder".
