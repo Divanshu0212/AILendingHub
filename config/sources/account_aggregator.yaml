@@ -36,6 +36,10 @@ consent:
   schema: "lending_hub.privacy.consent"
   wording: "TBD[Compliance, LH-112]"
 
+point_in_time:
+  event_timestamp: transaction_date
+  created_timestamp: aa_fetch_completed_at
+
 entities:
   - customer_id
   - consent_id

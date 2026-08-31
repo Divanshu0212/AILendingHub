@@ -26,6 +26,16 @@ classification:
 retention:
   period: "TBD[DPO + Compliance, LH-111]"
 
+point_in_time:
+  event_timestamp: survey_date
+  created_timestamp: ingested_at
+  point_in_time_unsafe: true
+  unsafe_reason: >
+    Cadastral and soil products frequently carry no reliable survey date, and
+    state portals republish without versioning. Treated as slowly-changing
+    reference data; any P2 model using it records the limitation on its model
+    card.
+
 entities:
   - plot_id
   - parcel_id

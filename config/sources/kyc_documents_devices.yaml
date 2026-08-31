@@ -30,6 +30,10 @@ classification:
 retention:
   period: "TBD[DPO + Compliance, LH-111]"
 
+point_in_time:
+  event_timestamp: captured_at
+  created_timestamp: ingested_at
+
 entities:
   - customer_id
   - application_id

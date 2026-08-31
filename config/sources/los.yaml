@@ -31,6 +31,12 @@ entities:
   - application_id
   - loan_id
 
+point_in_time:
+  event_timestamp: decision_timestamp
+  created_timestamp: cdc_commit_timestamp
+  note: >
+    decision_timestamp is also the Appendix A application observation point.
+
 backfill:
   required_years: 5
   datasets:

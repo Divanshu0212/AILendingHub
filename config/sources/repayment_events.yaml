@@ -26,6 +26,13 @@ classification:
 retention:
   period: "TBD[DPO + Compliance, LH-111]"
 
+point_in_time:
+  event_timestamp: event_timestamp
+  created_timestamp: created_timestamp
+  note: >
+    Both are mandatory fields on the stream schemas themselves — see
+    src/lending_hub/streaming/schemas/.
+
 entities:
   - customer_id
   - account_id

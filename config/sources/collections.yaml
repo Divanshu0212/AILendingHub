@@ -31,6 +31,10 @@ entities:
   - loan_id
   - case_id
 
+point_in_time:
+  event_timestamp: action_timestamp
+  created_timestamp: cdc_commit_timestamp
+
 backfill:
   required_years: 5
   datasets:

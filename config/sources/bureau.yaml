@@ -34,6 +34,14 @@ retention:
     Bureau contracts usually cap retention independently of bank policy; the
     binding period is the stricter of the two.
 
+point_in_time:
+  event_timestamp: bureau_report_date
+  created_timestamp: response_received_at
+  note: >
+    The gap between these two is exactly the leakage window. A report dated the
+    3rd that arrived on the 20th was not knowable on the 10th, and archived
+    responses are the only source that preserves both timestamps.
+
 entities:
   - customer_id
   - application_id

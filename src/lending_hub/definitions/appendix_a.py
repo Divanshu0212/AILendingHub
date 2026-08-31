@@ -24,8 +24,13 @@ from enum import Enum
 
 from .provenance import Grounded, Pending, Source
 
-DEFINITIONS_VERSION = "v1"
-"""Appendix A version. Bumped only by Model Risk Committee decision."""
+DEFINITIONS_VERSION = "v1.1"
+"""Appendix A version. Bumped only by Model Risk Committee decision.
+
+v1.0 -> v1.1: the *Default / Bad* row now records that its three non-DPD arms
+depend on `[POLICY]` source-system code sets. A clarification, not a semantic
+change — no loan's label moves — and no model was affected because none existed.
+"""
 
 _MASTER = "00_MASTER_Implementation_Guide.md §4 Appendix A"
 
@@ -281,6 +286,19 @@ class DefinitionEntry:
     text: str
     binding: Grounded | Pending
     tags: tuple[str, ...] = field(default_factory=tuple)
+    depends_on: tuple[Pending, ...] = field(default_factory=tuple)
+    """`[POLICY]` values this definition needs before it is fully computable.
+
+    Distinct from an unresolved ``binding``. *Default / Bad* has a grounded
+    binding — the DPD threshold is `[SPEC]` — while three of its four arms remain
+    uncomputable until the bank supplies the code sets that identify them. A term
+    that is partly computable is not a resolved term, and collapsing the two
+    would let it read as settled.
+    """
+
+    @property
+    def unresolved(self) -> bool:
+        return isinstance(self.binding, Pending) or bool(self.depends_on)
 
 
 REGISTER: tuple[DefinitionEntry, ...] = (
@@ -295,9 +313,11 @@ REGISTER: tuple[DefinitionEntry, ...] = (
         "Default / Bad",
         "max DPD >= threshold within the outcome window, OR write-off, OR "
         "fraud-confirmed, OR restructure-due-to-distress; IFRS-9 / Ind AS 109 "
-        "credit-impaired aligned",
+        "credit-impaired aligned. The DPD arm is computable as stated; the other "
+        "three need bank code-set mappings [POLICY]",
         DEFAULT_DPD_THRESHOLD_DAYS,
         ("scoring", "provisioning", "ews"),
+        (WRITE_OFF_CODES, DISTRESS_RESTRUCTURE_CODES, CONFIRMED_FRAUD_DISPOSITION_CODES),
     ),
     DefinitionEntry(
         "Outcome window",
@@ -342,8 +362,14 @@ REGISTER: tuple[DefinitionEntry, ...] = (
 
 
 def pending_definitions() -> tuple[DefinitionEntry, ...]:
-    """Appendix A rows still waiting on a `[POLICY]` owner."""
-    return tuple(e for e in REGISTER if isinstance(e.binding, Pending))
+    """Appendix A rows still waiting on a `[POLICY]` owner.
+
+    Includes rows whose *binding* is grounded but which depend on an ungrounded
+    policy value — *Default / Bad* is the case that matters, and treating it as
+    resolved because its threshold is known is exactly the mistake that lets an
+    uncomputable target definition reach P1 unnoticed.
+    """
+    return tuple(e for e in REGISTER if e.unresolved)
 
 
 def fingerprint() -> str:
@@ -360,6 +386,7 @@ def fingerprint() -> str:
             "text": e.text,
             "binding": str(e.binding),
             "tags": list(e.tags),
+            "depends_on": [str(d) for d in e.depends_on],
         }
         for e in REGISTER
     ]

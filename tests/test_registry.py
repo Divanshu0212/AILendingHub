@@ -27,6 +27,7 @@ VALID = {
     "owner": {"business": "Head of Retail Ops", "technical": "CBS Lead"},
     "extract": {"mechanism": "cdc", "cadence": "continuous"},
     "classification": {"pii": "TBD[DPO, LH-110]", "residency": "india_only"},
+    "point_in_time": {"event_timestamp": "posted_at", "created_timestamp": "cdc_at"},
     "retention": {"period": "TBD[DPO + Compliance, LH-111]"},
     "entities": ["customer_id", "loan_id"],
     "status": "pending_approval",
@@ -160,3 +161,76 @@ class TestRealRegistry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPointInTimeBlock(unittest.TestCase):
+    """WS-0.1.1 / SRS §11.1: a source must be point-in-time declarable.
+
+    This is the field extract teams drop because it looks redundant, and without
+    it every historical join over the source leaks.
+    """
+
+    def pit_doc(self, **pit):
+        d = copy.deepcopy(VALID)
+        d["point_in_time"] = pit
+        return d
+
+    def test_missing_block_is_rejected(self):
+        d = copy.deepcopy(VALID)
+        d.pop("point_in_time", None)
+        record, errors = validate_document(d, "x.yaml")
+        self.assertIsNone(record)
+        self.assertIn("point_in_time", [e.path for e in errors])
+
+    def test_both_timestamps_accepted(self):
+        _, errors = validate_document(
+            self.pit_doc(event_timestamp="posted_at", created_timestamp="cdc_at"), "x.yaml"
+        )
+        self.assertEqual(errors, [])
+
+    def test_missing_created_timestamp_is_rejected(self):
+        # Silence is not allowed: a source is either point-in-time safe or
+        # explicitly declared unsafe.
+        _, errors = validate_document(self.pit_doc(event_timestamp="posted_at"), "x.yaml")
+        self.assertIn("point_in_time.created_timestamp", [e.path for e in errors])
+
+    def test_unsafe_must_be_declared_with_a_reason(self):
+        _, errors = validate_document(
+            self.pit_doc(event_timestamp="d", point_in_time_unsafe=True), "x.yaml"
+        )
+        self.assertIn("point_in_time.unsafe_reason", [e.path for e in errors])
+
+    def test_unsafe_with_a_reason_is_accepted(self):
+        _, errors = validate_document(
+            self.pit_doc(
+                event_timestamp="d", point_in_time_unsafe=True,
+                unsafe_reason="state portals republish without versioning",
+            ),
+            "x.yaml",
+        )
+        self.assertEqual(errors, [])
+
+
+class TestCommittedRegistryPointInTime(unittest.TestCase):
+    def setUp(self):
+        try:
+            import yaml  # noqa: F401
+        except ModuleNotFoundError:
+            self.skipTest("PyYAML not installed")
+
+    def test_every_source_declares_its_point_in_time_position(self):
+        records, _ = load_registry("config/sources")
+        for record in records:
+            with self.subTest(source=record.id):
+                pit = record.raw["point_in_time"]
+                self.assertTrue(pit.get("event_timestamp"))
+                self.assertTrue(
+                    pit.get("created_timestamp") or pit.get("point_in_time_unsafe") is True
+                )
+
+    def test_only_soil_geo_is_declared_point_in_time_unsafe(self):
+        records, _ = load_registry("config/sources")
+        unsafe = {
+            r.id for r in records if r.raw["point_in_time"].get("point_in_time_unsafe") is True
+        }
+        self.assertEqual(unsafe, {"soil_geo"})

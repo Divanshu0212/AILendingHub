@@ -27,6 +27,14 @@ classification:
 retention:
   period: "TBD[DPO + Compliance, LH-111]"
 
+point_in_time:
+  event_timestamp: observation_date
+  created_timestamp: product_published_at
+  note: >
+    Reanalysis products are revised after first publication, so the vintage must
+    be kept per grid-cell-day. Without it a point-in-time join silently picks up
+    a revised value that did not exist at the observation point.
+
 entities:
   - grid_cell_id
 

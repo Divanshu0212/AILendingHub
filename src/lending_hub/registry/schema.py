@@ -66,6 +66,7 @@ REQUIRED_TOP_LEVEL = (
     "classification",
     "retention",
     "entities",
+    "point_in_time",
     "status",
 )
 
@@ -182,6 +183,34 @@ def validate_document(doc: object, source_file: str) -> tuple[SourceRecord | Non
 
     if not doc.get("srs_ref"):
         err("srs_ref", "cite the SRS clause this source is drawn from")
+
+    # Point-in-time safety (SRS §11.1, Phase 0 WS-0.1.1). A source must name the
+    # column carrying `created_timestamp` — when the platform *learned* each fact —
+    # or declare itself point-in-time unsafe. Silence is not allowed: this is the
+    # field extract teams drop because it looks redundant, and without it every
+    # historical join over the source leaks.
+    pit = doc.get("point_in_time")
+    if pit is not None:
+        if not isinstance(pit, dict):
+            err("point_in_time", "must be a mapping")
+        else:
+            if not pit.get("event_timestamp"):
+                err("point_in_time.event_timestamp", "name the column carrying when the fact became true")
+            created = pit.get("created_timestamp")
+            unsafe = pit.get("point_in_time_unsafe")
+            if not created and unsafe is not True:
+                err(
+                    "point_in_time.created_timestamp",
+                    "name the column carrying when the platform learned the fact, or set "
+                    "point_in_time_unsafe: true with a reason. A source with neither "
+                    "cannot be joined point-in-time correctly (SRS §11.1)",
+                )
+            if unsafe is True and not pit.get("unsafe_reason"):
+                err(
+                    "point_in_time.unsafe_reason",
+                    "a point-in-time unsafe source must say why, so downstream models "
+                    "can record the limitation on their model cards",
+                )
 
     # Residency is not [POLICY]: SRS §12 states it ("all personal data within India;
     # satellite/weather public data exempt"), so it is [SPEC] and must be filled in

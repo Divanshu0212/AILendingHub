@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| Document version | 1.0 |
-| Date | 31 August 2026 |
+| Document version | 1.1 |
+| Date | 31 August 2026 (v1.1 — see Change log) |
 | Status | Draft for review |
 | Audience | Bank engineering, data science, risk, compliance, and product teams |
 | Scope | Functional requirements + deep algorithm design for every module, with public algorithm/paper references |
@@ -62,6 +62,8 @@ flowchart TB
         S6[Soil/Geo: SoilGrids, Cadastral Maps]
         S7[KYC / Documents / Devices]
         S8[Repayment & Transaction Streams]
+        S9[Loan Origination / LOS]
+        S10[Collections & Recovery]
     end
 
     subgraph Platform["Data & ML Platform"]
@@ -97,6 +99,20 @@ flowchart TB
     L3 --> V3
     V1 --> V2
 ```
+
+**Source inventory (S1–S10).** S9 (loan origination) and S10 (collections) were
+added in v1.1: the origination system holds the final-decision timestamp that
+Appendix A names as the application observation point, and collections holds the
+distress-restructure signal in the default definition. Both are joined by the
+Phase 0 identity spine (WS-0.1.3), so omitting them from this inventory left the
+spine's three join legs partly unregistered.
+
+**Point-in-time discipline (applies to every source above).** Each source must
+supply two timestamps per record: when the fact became true (`event_timestamp`)
+and when the platform learned it (`created_timestamp`). Features are joined on
+both. A value dated before an observation point but ingested after it was not
+knowable at decision time, and training on it is leakage that offline metrics
+cannot detect. See §11.1 and Phase 0 WS-0.2.1.
 
 ### 2.2 Key architectural decisions
 
@@ -617,7 +633,8 @@ Capture rate (% of eventual 90+ defaulters flagged ≥ 60 days prior), precision
 
 ### 11.1 MLOps & platform
 
-- **Reproducibility:** every model = code commit + data snapshot + config, registered in MLflow; features versioned in the feature store (Feast); training pipelines as DAGs (Airflow/Dagster).
+- **Reproducibility:** every model = code commit + data snapshot + config, registered in MLflow; features versioned in the feature store (Feast); training pipelines as DAGs (Airflow/Dagster). The triplet must *determine* the artifact: the reproducibility test asserts both that the same triplet retrains to identical metrics **and** that changing any one element changes them. Determinism alone is satisfied by a pipeline that ignores its config.
+- **Point-in-time correctness:** every feature record carries `event_timestamp` (when the fact became true) and `created_timestamp` (when the platform learned it), and historical joins filter on **both**. A value dated before the observation point but ingested after it was not knowable at decision time; training on it produces lift that no offline metric can distinguish from skill and that disappears in shadow. Sources that cannot supply `created_timestamp` are point-in-time unsafe and must be declared as such in the source registry.
 - **Deployment:** shadow → canary → champion; automatic rollback on PSI/calibration breach; model server with feature-fetch p99 < 100 ms.
 - **Retraining cadence:** scoring/fraud monthly–quarterly with governance sign-off; embeddings/GNN nightly batch scores; RAG corpus continuous with document-effective-date discipline.
 
@@ -643,6 +660,7 @@ Fairness metrics and mitigation as in §4.3.3 applied to **every customer-affect
 - India **DPDP Act 2023**: purpose-limited consent for alternative data (AA, telco, location); consent artifacts stored with the decision record; data-principal rights (access, erasure where not overridden by RBI retention duties).
 - Account Aggregator framework (ReBIT specs) for bank-statement data — consent-driven, tamper-proof, preferred over uploaded PDFs (also a fraud control, §5.3.4).
 - PII minimization in the ML platform: tokenized identifiers in the feature store; satellite plot polygons treated as personal data once linked to a borrower.
+- **Retention/erasure conflict (unresolved, `[POLICY: DPO + Compliance]`).** CS-7 requires any decision to be reconstructable for ≥ 8 years, and lakehouse time travel is what makes that physically possible — but a snapshot retained for reproducibility preserves rows a data-principal erasure request covers. Which duty overrides must be settled **per table, in writing, before Silver is loaded**: retrofitting row-level erasure into an existing tagged snapshot history is materially harder than designing for it. This is a legal position, not an engineering choice.
 
 ### 11.5 Security
 
@@ -750,6 +768,15 @@ Officer-facing before customer-facing, shadow before live, one product before ma
 51. RBI — *Digital Lending Directions, 2025* — issued on [rbi.org.in](https://www.rbi.org.in); analyses: [Vinod Kothari Consultants](https://vinodkothari.com/2025/05/digital-lending-directions-largely-a-consolidation-new-rules-on-multi-lender-platforms-and-lending-apps/) · [Argus overview](https://www.argus-p.com/updates/updates/rbi-digital-lending-directions-2025-an-overview/)
 52. Mitchell et al. — *Model Cards for Model Reporting*, FAT* 2019 — [arXiv:1810.03993](https://arxiv.org/abs/1810.03993)
 53. EU — *AI Act (Reg. 2024/1689)* — [EUR-Lex](https://eur-lex.europa.eu/eli/reg/2024/1689/oj); NIST — *AI RMF* — [link](https://www.nist.gov/itl/ai-risk-management-framework)
+
+---
+
+## Change log
+
+| Version | Date | Change |
+|---|---|---|
+| 1.1 | 31 Aug 2026 | Applied Phase 0 implementation findings ([Phase_0_FINDINGS.md](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md)): added S9 (LOS) and S10 (collections) to the §2.1 source inventory, which the Phase 0 identity spine joins but which the inventory omitted; stated the two-timestamp point-in-time rule in §2.1 and §11.1; strengthened the §11.1 reproducibility requirement so the triplet must determine the artifact; named the unresolved CS-7 / DPDP erasure conflict in §11.4. |
+| 1.0 | 31 Aug 2026 | Initial draft. |
 
 ---
 

@@ -8,6 +8,7 @@ from datetime import date
 
 from lending_hub.definitions import (
     AGRI_SEASON_CALENDAR,
+    DEFINITIONS_VERSION,
     CONFIRMED_FRAUD_DISPOSITION_CODES,
     DEFAULT_DPD_THRESHOLD_DAYS,
     REGISTER,
@@ -172,11 +173,24 @@ class TestRegister(unittest.TestCase):
         }
         self.assertEqual({entry.term for entry in REGISTER}, expected)
 
-    def test_pending_terms_are_exactly_the_policy_ones(self):
+    def test_pending_terms_include_partly_computable_ones(self):
+        # Default / Bad has a grounded binding (the DPD threshold is [SPEC]) but
+        # three of its four arms need bank code sets. Treating it as resolved
+        # because the threshold is known is how an uncomputable target definition
+        # reaches P1 unnoticed.
         self.assertEqual(
             {entry.term for entry in pending_definitions()},
-            {"Confirmed fraud", "Agri season"},
+            {"Confirmed fraud", "Agri season", "Default / Bad"},
         )
+
+    def test_default_bad_binding_is_grounded_but_the_term_is_not_resolved(self):
+        entry = next(e for e in REGISTER if e.term == "Default / Bad")
+        self.assertIs(entry.binding.source, Source.SPEC)
+        self.assertTrue(entry.unresolved)
+        self.assertEqual(len(entry.depends_on), 3)
+
+    def test_appendix_a_version_is_recorded(self):
+        self.assertEqual(DEFINITIONS_VERSION, "v1.1")
 
     def test_fingerprint_is_stable_and_versioned(self):
         # Pinned so that any edit to Appendix A fails here first and forces the
@@ -185,7 +199,7 @@ class TestRegister(unittest.TestCase):
         self.assertEqual(fingerprint(), fingerprint())
 
 
-FROZEN_FINGERPRINT = "3e3ee82e78f7043a"
+FROZEN_FINGERPRINT = "4ead11219554b5f2"
 """Appendix A v1 content hash. Changing Appendix A changes this, which fails
 TestRegister and forces the Master §4 impact analysis to be acknowledged
 explicitly rather than slipping through as a green build."""

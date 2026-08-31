@@ -1,9 +1,30 @@
 # Phase 0 — implementation findings against the phase documents
 
 Produced while building Phase 0. Master §1 is explicit that "conflicts are raised
-as tickets, never resolved silently by an implementer", so nothing here has been
-edited into `Phase_0_Foundations.md`; each finding is either a ticket or a
-recommendation for the document owner.
+as tickets, never resolved silently by an implementer" — so these were first
+raised as findings and left unapplied. **The document owner has since accepted
+them and they are now applied**, which is the route Master §1 reserves the change
+for.
+
+## Status of each finding
+
+| # | Finding | Applied in |
+|---|---|---|
+| A1 | Join-rate gate measures the delinquency rate | Phase 0 WS-0.1.3 rewritten to three separately mandatory directions (LH-122 resolved) |
+| A2 | Default definition's non-DPD arms are uncomputable | Master Appendix A **v1.1** marks all three `[POLICY]`; `pending_definitions()` now reports *Default / Bad* as unresolved (LH-103 still open on the bank) |
+| A3 | SRS §2.1 omits LOS and collections | SRS **v1.1** adds S9 and S10 (LH-121 resolved) |
+| A4 | Duration inconsistency | Master phase index reads "3–4 mo (Months 1–4)" |
+| B1 | Point-in-time contract omits `created_timestamp` | SRS §2.1 + §11.1 and Phase 0 WS-0.1.1 + WS-0.2.1; `point_in_time` is now a **required** source-registry block, CI-validated, with all 10 sources declaring their position |
+| B2 | Reproducibility test passes trivially | Phase 0 WS-0.2.3 now requires both halves; SRS §11.1 restated |
+| B3 | CS-7 / DPDP erasure collision unaddressed | SRS §11.4 and Phase 0 WS-0.3.3 name it as a blocking sub-item to settle before Silver is loaded (LH-111) |
+| B4 | Empty-denominator case unstated | Phase 0 §7: "an unmeasurable gate is a fail, not a pass" |
+| B5 | Rule 4 assumes a CI nobody defines | Master §2 rule 4 names `tools/check_grounding.py` and what it enforces |
+| B6 | No path if entry criteria do not land | Phase 0 §3 gains the two-track path and states the phase cannot be exited on Track A |
+| B7 | Monetary precision unstated | Phase 0 WS-0.1.5 requires integer minor units and fails the run on an unmapped product |
+| C1–C3 | Judgement calls | Unchanged — recorded below for the owner to overrule |
+
+The narrative below is kept as written, because *why* each finding exists is the
+part that survives longer than the edit.
 
 **The documents held up well.** Almost everything in Phase 0 was buildable as
 written, the grounding contract is the strongest part of the set, and the

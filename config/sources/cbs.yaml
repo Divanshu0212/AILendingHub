@@ -36,6 +36,14 @@ entities:
   - account_id
   - loan_id
 
+point_in_time:
+  event_timestamp: posting_timestamp
+  created_timestamp: cdc_commit_timestamp
+  note: >
+    CDC commit time is the honest created_timestamp for a streamed source: it is
+    when the row became visible to the platform, not when the source clock says
+    it happened.
+
 backfill:
   required_years: 5             # Phase 0 WS-0.1.5 — ">= 5 years (7+ where available)"
   datasets:

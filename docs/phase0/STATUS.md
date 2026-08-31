@@ -6,7 +6,7 @@ satisfies it, the track it runs on (ADR-0003), and its honest state.
 **Read the track column before quoting any number.** A Track A result is evidence
 about the code; only Track B counts as gate evidence.
 
-Last updated: 2026-08-31.
+Last updated: 2026-08-31 (findings applied; SRS v1.1, Master v1.1).
 
 ## Deliverables checklist
 
@@ -66,11 +66,14 @@ before it does.
 
 Per Master §1, conflicts become tickets rather than silent fixes.
 
-| Ticket | Finding |
-|---|---|
-| LH-121 | SRS §2.1 omits LOS and collections, but Phase 0 §2 requires both and WS-0.1.3 joins across all three |
-| LH-122 | The WS-0.1.3 join metric as written measures the delinquency rate, because a healthy loan has no collections record |
-| LH-103 | Appendix A names write-off and distress restructure as default triggers but never says which CBS codes carry those meanings |
+All twelve findings have been accepted by the document owner and applied — SRS
+**v1.1**, Master **v1.1** (Appendix A v1.1), Phase 0 updated in place.
+
+| Ticket | Finding | State |
+|---|---|---|
+| LH-121 | SRS §2.1 omitted LOS and collections | resolved — SRS v1.1 |
+| LH-122 | The WS-0.1.3 join metric measured the delinquency rate | resolved — WS-0.1.3 rewritten |
+| LH-103 | Appendix A named write-off and distress restructure as default triggers without saying which CBS codes carry those meanings | doc fixed (marked `[POLICY]`); still open on the bank for the code sets |
 
 See [Phase_0_FINDINGS.md](../../Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) for
 the full set, including the ones that did not become tickets.

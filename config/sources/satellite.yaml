@@ -30,6 +30,14 @@ classification:
 retention:
   period: "TBD[DPO + Compliance, LH-111]"
 
+point_in_time:
+  event_timestamp: acquisition_datetime
+  created_timestamp: tile_published_at
+  note: >
+    Publication lags acquisition by hours to days depending on processing level;
+    a P2 feature joined on acquisition time alone would use imagery that had not
+    been published at the decision point.
+
 entities:
   - plot_id
 
