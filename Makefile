@@ -49,6 +49,10 @@ loadtest:  ## Serving-path load test (WS-0.2.4, p99 feature < 100ms / score < 50
 parity:  ## WS-0.4 parity harness (batch path vs serving path)
 	$(PY) -m lending_hub.serving.parity --out reports/parity.json
 
+.PHONY: trackp-p1
+trackp-p1:  ## Run WS-1.1 end to end on Track P data (needs datasets/, see DATA_SOURCING)
+	$(PY) -m lending_hub.scoring.experiment --out reports/trackP_p1_home_credit.json
+
 .PHONY: gate
 gate: check schemas  ## Run every gate script and assemble the evidence pack
 	-$(PY) -m lending_hub.identity.audit --out reports/join_rate_audit.json
