@@ -8,6 +8,16 @@ Workstream: WS-1.1
 """
 
 from .binning import Bin, Binning, BinningError, fit_binning, information_value
+from .gbm import (
+    DECREASING,
+    INCREASING,
+    UNCONSTRAINED,
+    GBM,
+    GBMError,
+    MonotoneConstraints,
+    Node,
+    fit_gbm,
+)
 from .features import (
     IV_CEILING,
     IV_FLOOR,
@@ -72,6 +82,10 @@ from .target import (
 )
 
 __all__ = [
+    "DECREASING",
+    "GBM",
+    "GBMError",
+    "INCREASING",
     "IV_CEILING",
     "PDO",
     "IV_FLOOR",
@@ -80,6 +94,7 @@ __all__ = [
     "PSI_ACT",
     "PSI_ALERT",
     "SCORE_ANCHOR",
+    "UNCONSTRAINED",
     "PHASE_1_EXCLUSIONS",
     "Application",
     "Bin",
@@ -92,6 +107,8 @@ __all__ = [
     "FeatureError",
     "FeatureGroup",
     "IsotonicCalibrator",
+    "MonotoneConstraints",
+    "Node",
     "LabelProvenance",
     "NullPolicy",
     "PointInTimeRule",
@@ -117,6 +134,7 @@ __all__ = [
     "application_scorecard_catalogue",
     "build_target_table",
     "fit_binning",
+    "fit_gbm",
     "fit_isotonic",
     "fit_scorecard",
     "fit_values",
