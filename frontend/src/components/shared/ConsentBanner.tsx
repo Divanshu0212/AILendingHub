@@ -76,14 +76,14 @@ export function ConsentBanner({
 
       {document.ratified ? (
         <div className="mt-4 flex items-start gap-3">
+          {/* WCAG 2.2 AA 2.5.8 target size: the 24px minimum is met by the
+              surrounding label's padding, not by the box itself. */}
           <input
             id={inputId}
             type="checkbox"
             checked={checked}
             onChange={(e) => setChecked(e.target.checked)}
             className="mt-1 h-5 w-5 shrink-0"
-            // WCAG 2.2 AA 2.5.8 target size: 24px minimum is met by the
-            // surrounding label's padding, not by the box alone.
           />
           <label htmlFor={inputId} className="cursor-pointer py-1 text-sm text-neutral-900">
             {/* The consent sentence is part of the ratified document body above.

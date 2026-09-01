@@ -21,6 +21,19 @@
 >   No axe-core run, no screen-reader pass, no contrast check. WCAG 2.2 AA is the
 >   target this was written toward; nothing here is evidence it is met.
 >
+> **What *was* checked**, by hand-written Python scripts rather than a
+> toolchain, across all 34 source files: every relative import path resolves to
+> a file that exists; every named import corresponds to an actual export in the
+> module it names; braces, parens and brackets balance in every file; and every
+> JSX element opens and closes. Those four passes found and fixed three real
+> defects — a `rank={index + 1}` that turned out to be a genuine correctness
+> finding (P7-F6), an `attributedPaths: [""]` that would have passed the
+> attribution guard vacuously, and a `//` comment inside a JSX attribute list.
+>
+> That is a much weaker guarantee than a compiler. It says nothing about types,
+> nothing about React semantics, nothing about whether any of it renders. Type
+> errors are near-certain.
+>
 > Treat this directory as a design document that happens to be written in
 > TypeScript. The first job of anyone picking it up is in
 > [Getting it to run](#getting-it-to-run) — expect to fix errors, not to
