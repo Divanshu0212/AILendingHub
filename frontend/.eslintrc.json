@@ -1,0 +1,17 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-restricted-globals": ["error", "Intl"],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression[callee.object.name='Math']",
+        "message": "Phase 7 §8: the frontend computes nothing. No Math.* in the UI layer - every number comes from a gateway response. If you need a derived figure, add it to the API contract."
+      },
+      {
+        "selector": "MemberExpression[property.name='toFixed']",
+        "message": "Phase 7 §8: formatting a raw number client-side implies the frontend chose its precision. Render the backend's preformatted display string instead."
+      }
+    ]
+  }
+}
