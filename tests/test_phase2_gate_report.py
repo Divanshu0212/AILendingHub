@@ -89,7 +89,7 @@ class TestTicketsAndCards(unittest.TestCase):
         self.assertEqual(tickets["LH-401"], "Agri Credit Head")
 
     def test_every_registered_phase_two_ticket_is_open(self):
-        self.assertEqual(len(pack._open_tickets()), 12)
+        self.assertEqual(len(pack._open_tickets()), 13)
 
     def test_all_three_model_cards_exist(self):
         names = {name for name, _ in pack._model_cards()}

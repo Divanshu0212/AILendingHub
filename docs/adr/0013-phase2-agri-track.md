@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (Track A scope) · Blocked (Track P and Track B scope) |
+| Status | Accepted (Track A scope) · **Amended 2026-09-01** (Track P scope, see §Amendment) · Blocked (Track B scope) |
 | Date | 2026-09-01 |
 | Decider | Geospatial DS Lead (Track A) · Model Risk (Track B) |
 | Workstream | WS-2.1, WS-2.2, WS-2.3, WS-2.4 |
@@ -96,12 +96,52 @@ Stated plainly, because a phase whose gaps are implicit reads as complete:
 
 | Not built | Why | Ticket |
 |---|---|---|
-| Model A (SAM/U-Net fine-tune) | No imagery, no GPS-walk labels. The IoU gate, watershed post-processing contract and area-mismatch fraud flag **are** built | LH-407 |
+| Model A (SAM/U-Net fine-tune) | No GPS-walk labels for the bank's book. The IoU gate, watershed post-processing contract and area-mismatch fraud flag **are** built. **Amended**: a Track P benchmark is now available (Fields of The World, ~10k Indian polygons) — see the Amendment | LH-407 |
 | Model B (Presto fine-tune) | No imagery, no ground-truth crop labels, no ratified class set. The RF baseline, calibration, abstention rule and the +5 macro-F1 comparison **are** built | LH-404, LH-406 |
 | Model C (histogram-CNN/LSTM + GP) | No imagery, no government yield series joined to districts. The **auditable fallback regression is built first**, as §4 instructs, and the P50/P25/P10 contract with it | LH-406 |
 | Ingestion DAGs | Airflow is Track B (ADR-0002). The **completeness monitors** and source contracts are built | LH-120 |
 | PostGIS plot registry | The registry logic is built in memory against `agri.ports`; PostGIS is the Track B backend | LH-120 |
 | Underwriter evidence UI | No rendering surface exists anywhere in this repository — the same gap Phase 3 recorded for its dashboards. Adoption telemetry is meaningless without it | — |
+
+## Amendment (2026-09-01) — one blocker was a sourcing gap, not a structural one
+
+A dataset search conducted after the build found that **this ADR overstated the
+Track P position for Model A**, and that its imagery argument was framed in the
+wrong unit. Full detail and verification in
+[docs/phase2/DATA_SOURCING.md](../phase2/DATA_SOURCING.md); the corrections are:
+
+1. **Field boundaries exist.** [Fields of The
+   World](https://fieldsofthe.world/) publishes ~10,000 hand-delineated Indian
+   smallholder field polygons as a single 7.8 MB CC-BY-4.0 GeoParquet, columns
+   `id`/`area`/`geometry`/`determination_datetime`, bbox 68.8-96.2°E by
+   9.2-34.5°N. Downloaded and inspected. Model A's gate needs 100 held-out
+   polygons and this is a hundred times that, so **a Track P benchmark for Model
+   A is now possible.** It is not the GPS-walk set: these are photo-interpreted,
+   which Phase 2 §8 does not admit as a plot boundary, so LH-407 stands for the
+   bank's own book and a `PlotSource.PHOTO_INTERPRETED` member would be needed.
+
+2. **The imagery argument used the wrong unit.** This ADR said a scene stack "is
+   measured in terabytes". True of raw L2A, and irrelevant: nothing in `agri/`
+   consumes a scene. `SceneSource` returns per-plot reductions, and those come
+   from CropHarvest's 68 MB pre-extracted feature archive, the Sentinel Hub
+   Statistical API, or Earth Engine `reduceRegions` — kilobytes per plot. The
+   real binding constraint on the index pipeline is **LH-102**, because without a
+   crop calendar there is no season window to reduce over.
+
+3. **Two blockers were confirmed, one of them by measurement.** CropHarvest is
+   named in the phase file and does not solve Model B: of 95,186 global labels,
+   2,597 fall inside India's bounding box and **34 carry a crop type** across
+   seven crops. Against a §7 criterion of macro-F1 ≥ 0.85 on five majority crops
+   per zone, that is not a small sample, it is no sample. And no public
+   loan-level agri credit outcome data exists anywhere — RBI publishes
+   aggregates only — so LH-406 is confirmed structural.
+
+**The decision below is unchanged and so is the gate.** All six exit criteria
+remain not measurable, because each depends on LH-406 or LH-102 and neither
+moved. What changed is the *reason* Model A is blocked, and conflating a
+sourcing gap with a structural one is precisely the error the not-measured /
+not-measurable distinction exists to prevent — so recording it here matters more
+than it changes.
 
 ## Consequences
 

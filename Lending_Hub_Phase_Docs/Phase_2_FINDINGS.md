@@ -6,6 +6,8 @@ unapplied** — the SRS, the Master and the Phase 2 file are unchanged pending t
 document owner's decision, exactly as the Phase 1 and Phase 3 findings were.
 
 **Phase 2 is the best-written phase file in the set, and the least buildable.**
+(One qualification added after a post-build dataset search — see D3, which
+corrects my own overstatement of the second half.)
 Those are unrelated facts and both are worth stating. Its instructions are
 unusually well judged — "never geocode a village centroid and store it as a
 plot", "build the auditable fallback first", "Presto ships only if ≥ +5 macro-F1
@@ -39,6 +41,7 @@ a value.
 | P2-F11 | **Point-in-time for imagery is a publication-date problem**, not an acquisition-date one, and §4 says "point-in-time imagery only" without saying which | Correction | — |
 | P2-F12 | The **agronomic signal and the geographic disparity are the same measurement** — SRS §11.3's analysis cannot separate them, and should not pretend to | Structural | LH-410 |
 | P2-F13 | **The whole phase is not measurable**, and that is a different gate state from "not measured" for all six criteria at once | Structural | LH-406, LH-102 |
+| P2-F14 | **A correction to my own work**: Model A's blocker was a sourcing gap presented as a structural one, and the imagery argument used the wrong unit | Correction to my own work | **LH-413 (new)** |
 
 ---
 
@@ -285,6 +288,56 @@ were missing are registered with owners. The right conclusion is narrower:
 **Phase 2 should not be taken to a Gate Review until LH-406 and LH-102 land**, and
 saying so once at the top of the pack is more useful than discovering it six rows
 down.
+
+---
+
+### D3 (P2-F14). A correction to my own work: I asserted absence without searching
+
+[ADR-0013](../docs/adr/0013-phase2-agri-track.md) as originally written listed
+three blockers for Phase 2 — no imagery, no agri portfolio, no crop calendar —
+and concluded that none was approximable, so Phase 2 gets no Track P at all.
+A dataset search run afterwards found that **one of the three was wrong and the
+imagery argument was framed in the wrong unit.** Recorded in full in
+[docs/phase2/DATA_SOURCING.md](../docs/phase2/DATA_SOURCING.md).
+
+**Field boundaries exist and are Indian.** [Fields of The
+World](https://fieldsofthe.world/) publishes ~10,000 hand-delineated Indian
+smallholder field polygons as a single 7.8 MB CC-BY-4.0 GeoParquet — verified by
+downloading it: columns `id`/`area`/`geometry`/`determination_datetime`, EPSG:4326,
+bounding box 68.8-96.2°E by 9.2-34.5°N, which is India end to end. Model A's gate
+needs 100 held-out polygons and this is a hundred times that. It is not the
+GPS-walk set — these are photo-interpreted, which Phase 2 §8 does not admit as a
+plot boundary — so it is a **benchmark**, not a registry source, and adopting it
+needs a fourth `PlotSource` member and a ruling on whether §8's prohibition
+covers benchmark use. That is **LH-413**.
+
+**The imagery argument used the wrong unit.** ADR-0013 said a Phase 2 scene stack
+"is measured in terabytes". True of raw L2A scenes, and beside the point: nothing
+in `agri/` consumes a scene. `SceneSource` returns per-plot reductions, and those
+come from CropHarvest's 68 MB pre-extracted feature archive, the Sentinel Hub
+Statistical API, or Earth Engine `reduceRegions` — kilobytes per plot. The real
+binding constraint on the index pipeline is LH-102, because without a crop
+calendar there is no season window to reduce over. That was always the finding;
+storage was never it.
+
+**Two blockers were confirmed, and one of them is now measured rather than
+asserted.** CropHarvest is the dataset the phase file names for crop labels. Of
+its 95,186 global labels, 2,597 fall inside India's bounding box and **34 carry a
+crop type** — rice 15, cotton 8, maize 5, groundnut 2, millet 2, cassava 1,
+sunflower 1. Against §7's "macro-F1 ≥ 0.85 on the five majority crops per zone",
+across fifteen agro-climatic zones, that is not a small sample. Counting it is
+worth more than the assertion it replaces, because 34 is a number somebody can
+check and "no ground truth exists" is not.
+
+**Why this belongs in a findings document rather than a quiet edit.** The gate
+does not move — all six criteria still depend on LH-406 or LH-102, and neither
+changed. But the error has the same shape as the one this phase's gate reporting
+exists to prevent. Reporting "not measurable" when the truth is "not measured"
+puts a structural fact and a scheduling item in one column, and the second never
+gets escalated. Asserting "no data exists" when the truth is "I did not look" is
+that same error one level up, and it is the more expensive version: a structural
+blocker gets escalated to a committee, while a sourcing gap that has been
+misfiled as structural gets escalated to nobody and sits for a year.
 
 ---
 

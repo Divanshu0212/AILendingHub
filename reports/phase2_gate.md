@@ -1,6 +1,6 @@
 # Phase 2 — gate evidence pack
 
-Generated 2026-09-01T17:42:01.140840+00:00 by `tools/phase2_gate_report.py`.
+Generated 2026-09-01T18:07:54.534334+00:00 by `tools/phase2_gate_report.py`.
 
 **Phase 2 has no Track P.** Phase 1 and Phase 3 each had real public
 data standing in for the bank's, so their numbers — never gate evidence —
@@ -25,6 +25,31 @@ contains evidence.
 | 6 | Geographic disparate-impact memo filed | WS-2.4 / SRS §11.3 | — | **not measurable** — needs both the agri features on a real book (LH-406) and the ratified geographic comparison units and disparity bar (LH-410). The measurement code is built and refuses to reach a verdict without them |
 
 **Track B evidence: 0 of 6. Not measurable: 6 of 6.**
+
+## Where the data would come from
+
+[docs/phase2/DATA_SOURCING.md](../docs/phase2/DATA_SOURCING.md) sets out,
+for each blocker, what public data exists and what a bank collects instead.
+Its findings, each verified by downloading or requesting the resource:
+
+* **Model A's boundary blocker is a sourcing gap, not a structural one.**
+  ~10,000 hand-delineated Indian field polygons are published under
+  CC-BY-4.0 as a single 7.8 MB file — a hundred times what the IoU gate
+  needs. They are photo-interpreted rather than walked, so they are a
+  benchmark and not a registry source (LH-413).
+* **Model B's is structural, and now measured.** CropHarvest — the dataset
+  the phase file names — carries 95,186 labels of which **34 are
+  crop-typed inside India**, across seven crops, against a criterion
+  asking for five majority crops per zone.
+* **Model C's district yields exist** (ICRISAT DLD, 1966-2015/16, 20
+  crops), behind a form-driven portal rather than a URL.
+* **LH-406 is confirmed structural.** RBI publishes agri NPA aggregates
+  only; no loan-level agri credit outcomes are public anywhere. Inside a
+  bank this is a data-*access* problem under LH-120, not a collection one.
+
+None of this moves a criterion, because every one depends on LH-406 or
+LH-102. It moves the *reason* three of them are blocked, which is the
+distinction this pack exists to keep straight.
 
 ## Why every criterion, and not just some
 
@@ -84,9 +109,10 @@ an unbuilt model has nothing to validate.
 | LH-409 | Model Risk + Geospatial DS |
 | LH-411 | Credit Policy + Agri Credit Head |
 | LH-412 | Agri Credit Head + Credit Policy |
+| LH-413 | Credit Policy + Geospatial DS |
 | LH-410 | Fair Lending + Agri Credit Head |
 
-12 open. Five are Phase 2 §8 do-not-invent values.
+13 open. Five are Phase 2 §8 do-not-invent values.
 **Five were found by building** and are on no §8 list — LH-407 (the
 GPS-walk label set nobody scheduled), LH-408 (the mandi price window,
 as distinct from the feed), LH-409 (where an abstaining model's cases

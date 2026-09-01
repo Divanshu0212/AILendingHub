@@ -24,8 +24,8 @@ grounding contract cuts:
 |---|---|---|
 | SPI/SPEI, NDVI/EVI, backscatter, cloud masking, plot geometry, IoU + its gate, RF baseline, temperature scaling, fallback yield regression, P50/P25/P10 contract, the three feature formulas, the three backtest harnesses | Model A (SAM/U-Net), Model B (Presto), Model C (histogram-CNN + GP), ingestion DAGs, PostGIS, the evidence UI | No imagery exists in this repository, and no agri book with outcomes. Both are ticketed, neither is engineering work |
 
-Twelve Phase 2 tickets are open ([register](blocking_tickets.md)), LH-401 to
-LH-412. Five are the Phase 2 §8 do-not-invent values. **Five were found by
+Thirteen Phase 2 tickets are open ([register](blocking_tickets.md)), LH-401 to
+LH-413. Five are the Phase 2 §8 do-not-invent values. **Five were found by
 building** and are on no §8 list — LH-407 (the GPS-walk label set nobody
 scheduled), LH-408 (the mandi price *window*, as opposed to the feed), LH-409
 (where an abstaining model's cases actually go), LH-411 (the function combining
@@ -33,8 +33,9 @@ LandQualityIndex's six named inputs), LH-412 (which crop season a default
 belongs to). LH-410 (the geographic comparison units) was likewise not on the
 list.
 
-`make gate2` assembles the pack. There is no `make trackp-p2`, and there will
-not be one.
+`make gate2` assembles the pack. There is still no `make trackp-p2` — but after
+the amendment above, a Model-A-only one is now buildable rather than impossible.
+[DATA_SOURCING.md](DATA_SOURCING.md) has what it would consume.
 
 ## Deliverables checklist (Phase 2 §6)
 
