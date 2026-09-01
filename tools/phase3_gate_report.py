@@ -128,8 +128,12 @@ def _criterion_state(name: str, run: dict | None) -> tuple[str, str]:
             if uplift is not None else f"{value:.4f} (Track P)"
         )
         detail = (
-            "not gate evidence — Track P is US conforming mortgages, not this "
-            "bank's book (ADR-0012)"
+            "**not decidable at this event count** — the same configuration "
+            "produced an uplift of +0.075 at one sample size and −0.119 at "
+            "another, a sign change of 0.19 against a criterion stated at +0.02 "
+            "(Phase 3 finding D6). Read the number above as one draw, not as a "
+            "result. Not gate evidence either way: Track P is US conforming "
+            "mortgages, not this bank's book (ADR-0012)"
         )
         caveat = challenger.get("caveat", "")
         if caveat:

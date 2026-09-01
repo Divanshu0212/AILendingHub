@@ -29,6 +29,18 @@ What this does not port
   that matters is the cumulative incidence, which
   :mod:`lending_hub.portfolio.competing` handles.
 
+On cost
+-------
+:func:`harrell_c` and :func:`time_dependent_auc` are **O(n²)**: both compare
+every pair. That is fine for the tens of thousands of subjects a Track P run or
+a validation sample carries, and it is not fine for a whole book — a million
+accounts is 10¹² comparisons. The O(n log n) formulation (sort by risk, count
+inversions with a Fenwick tree) is the standard fix and is what a Track B
+implementation should use. It is not here because the sampling a validation
+sample already involves makes the quadratic version adequate, and because an
+inversion-counting concordance is materially harder to read than the definition
+it implements.
+
 Reference: Graf, Schmoor, Sauerbrei & Schumacher, "Assessment and comparison of
 prognostic classification schemes for survival data", *Statistics in Medicine*
 18(17-18), 1999. Uno et al., *Statistics in Medicine* 30(10), 2011.

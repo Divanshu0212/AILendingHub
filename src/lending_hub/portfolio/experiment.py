@@ -44,6 +44,12 @@ SPLIT_SNAPSHOT = "2012-12-31"
 #: observation point*.
 METRIC_HORIZONS = (12, 24, 36, 48)
 
+#: Months on book beyond which no account-month enters the risk set. The
+#: challenger never sees a month past this, so survival metrics censor subjects
+#: here too — grading a model on events at month 200 when it was fitted to
+#: months 0-60 measures extrapolation, not discrimination.
+FITTED_HORIZON = 60
+
 #: Months on book at which survival metrics are taken.
 #:
 #: Not zero, and the reason is a finding rather than a tuning choice. A
@@ -63,6 +69,32 @@ OBSERVATION_MONTH = 12
 COX_MAX_ROWS = 120_000
 
 COX_FEATURES = ("max_dpd_12m", "orig_oltv", "orig_credit_score", "orig_dti")
+
+#: Challenger hyperparameters.
+#:
+#: ``feature_fraction`` is here for a reason specific to this problem. A
+#: discrete-time hazard model is asked "does this account default *this
+#: month*", and the most informative answer is nearly always the most recent
+#: arrears reading. Left unconstrained the trees spend themselves on
+#: ``dpd_now`` and ``max_dpd_3m`` — 61 of the first 100 splits on a fitted
+#: model — and those are zero for about 99% of accounts at any snapshot,
+#: because delinquency is rare. The model then discriminates well inside the
+#: delinquent tail and barely at all across the population, which is what a
+#: portfolio ranking needs. Column subsampling forces each split to consider
+#: features with broader coverage.
+#:
+#: **Do not read these as tuned values.** A grid at one sample size preferred
+#: this configuration by a wide margin and the preference did not survive a
+#: larger sample; the run report carries the measured uplift, and the spread
+#: behind it is Phase 3 finding D6. ``scale_pos_weight`` is deliberately
+#: absent — the standard handling for a rare event made the model *worse than
+#: random* at every size tried.
+CHALLENGER_PARAMS = {
+    "n_trees": 200,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "feature_fraction": 0.5,
+}
 
 #: Covariates whose admissibility in a Cox model is *tested* rather than
 #: asserted, with the hypothesis each is tested against. :func:`_cox_exclusions`
@@ -179,10 +211,7 @@ def run(path: str, output: str, *, sample_rate: float, row_limit: int | None) ->
     # ------------------------------------------------------------ WS-3.1/2,3,4
     print("building the risk set ...")
     hazard_rows = panel.hazard()
-    hazard_rows = [
-        r for r in hazard_rows
-        if r.months_on_book <= OBSERVATION_MONTH + max(METRIC_HORIZONS)
-    ]
+    hazard_rows = [r for r in hazard_rows if r.months_on_book <= FITTED_HORIZON]
     features_for_hazard = _attach_hazard_features(panel, hazard_rows)
     print(f"  {len(hazard_rows):,} account-months at risk")
 
@@ -212,13 +241,13 @@ def run(path: str, output: str, *, sample_rate: float, row_limit: int | None) ->
         reason="Track P experiment; behavioural directions unratified (LH-310)")
     hazard_model = hazard.fit_hazard(
         hazard_rows, features_for_hazard, hazard_constraints,
-        n_trees=60, max_depth=4, learning_rate=0.1)
+        **CHALLENGER_PARAMS)
     report["hazard"] = hazard_model.to_dict()
 
     print("fitting competing risks ...")
     cr = competing.fit_competing_risks(
         hazard_rows, features_for_hazard, hazard_constraints,
-        n_trees=40, max_depth=3, learning_rate=0.15)
+        n_trees=60, max_depth=3, learning_rate=0.1, feature_fraction=0.5)
     report["competing_risks"] = cr.to_dict()
 
     observed = competing.observed_incidence(panel, horizon=max(METRIC_HORIZONS))
@@ -369,15 +398,26 @@ def _survival_metrics(panel, hazard_model, cox_model) -> dict:
 
         last = spell.months[-1]
         end = last.months_on_book
+        event = spell.event is Event.DEFAULT
         if spell.event is not None and spell.event_month is not None:
             end = last.months_on_book + months_between(
                 last.snapshot, spell.event_month)
+
+        # Censor administratively at the horizon the model was fitted to. A
+        # default at month 200 is a real default and a fair test of nothing:
+        # the challenger's risk set stops at FITTED_HORIZON, so beyond it the
+        # comparison measures extrapolation rather than discrimination — and it
+        # measures it asymmetrically, because the Cox reference's proportional
+        # form extrapolates a duration it never saw more gracefully than a tree
+        # ensemble does.
+        if end > FITTED_HORIZON:
+            end, event = FITTED_HORIZON, False
+
         elapsed = end - observed_at.months_on_book
         if elapsed < 0:
             continue
 
-        subjects.append(survival.Subject(
-            time=elapsed, event=spell.event is Event.DEFAULT))
+        subjects.append(survival.Subject(time=elapsed, event=event))
 
         features = beh.trailing_features(spell, index)
         curve = hazard_model.curve(
@@ -409,13 +449,16 @@ def _survival_metrics(panel, hazard_model, cox_model) -> dict:
 
     return {
         "observation_month": OBSERVATION_MONTH,
+        "censored_at_month": FITTED_HORIZON,
         "note": (
             "both models are scored on the same subjects, at the same month on "
             "book, over the same forward time axis — the only comparison Phase 3 "
             "§7's 'C-index >= Cox + 0.02' can be formed from. Scored at "
             "origination instead, the challenger returns an exactly constant "
             "risk (every arrears feature is zero for every loan), which reads as "
-            "a broken model rather than as a question its features cannot answer."
+            "a broken model rather than as a question its features cannot "
+            "answer. Subjects are censored at the horizon the challenger was "
+            "fitted to, so neither model is graded on months it never saw."
         ),
         "subjects": len(subjects),
         "concordance_challenger": challenger.to_dict(),
@@ -425,6 +468,7 @@ def _survival_metrics(panel, hazard_model, cox_model) -> dict:
             "not gate evidence (Track P); the +0.02 uplift and the 0.75 absolute "
             "bar are Phase 3 §7 criteria against this bank's book"
         ),
+        "challenger_params": dict(CHALLENGER_PARAMS),
         "time_dependent_auc": [
             {"months_beyond_observation": t,
              "auc": round(v, 6) if v is not None else None}

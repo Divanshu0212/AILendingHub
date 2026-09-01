@@ -34,7 +34,8 @@ appear in the same column.
 | Competing risks are decisive on a prepayment-heavy book: 60-month CIF of default **0.115** against a naive **0.169** — a **47% relative overstatement** | `observed_incidence` |
 | The **LGD loss basis flips the sign of the LTV effect** (`oltv` −0.76 net of credit enhancement, **+2.55** gross) — a value nobody specified, now LH-311 | `lgd.by_basis`, `lgd.credit_enhancement_finding` |
 | **85% of accounts cannot be staged at all**, and 0 are Stage 1 | `staging` |
-| Cox ties at 0.66 on a monthly panel; Efron and Breslow disagree materially | `cox`, `cox_tie_sensitivity` |
+| Cox ties at ~0.85 on a monthly panel; Efron and Breslow disagree materially | `cox`, `cox_tie_sensitivity` |
+| The §7 challenger-vs-Cox uplift **changed sign** between sample sizes (+0.075 at 0.8%, −0.119 at 2.0%) — the criterion is not measurable to the precision it is stated at | `survival_metrics`; finding D6 |
 | Current DPD **separates** a Cox model at monthly granularity | `cox_excluded_covariates` |
 | A behavioural Gini and an origination C-index are not comparable — the ablation shows why | `behavioural_pd.ablation_without_arrears_features` |
 
@@ -60,7 +61,7 @@ Generated live by `make gate3` into `reports/phase3_gate.md`. Summary:
 
 | # | Criterion | State |
 |---|---|---|
-| 1 | Hazard C-index ≥ Cox + 0.02 and ≥ 0.75 | not evaluable — the two are not scored on a common out-of-time sample |
+| 1 | Hazard C-index ≥ Cox + 0.02 and ≥ 0.75 | formable and reported, but **not decidable** — the uplift's sampling spread is an order of magnitude wider than the +0.02 bar (finding D6). Not gate evidence |
 | 2 | PD calibration by grade within ±15% | not evaluable — grades need the bands LH-204 has not ratified |
 | 3 | LGD MAE ≤ incumbent | **not measurable** — there is no incumbent |
 | 4 | Dashboard freshness over 30 consecutive days | not evaluable — needs a live streaming surface |

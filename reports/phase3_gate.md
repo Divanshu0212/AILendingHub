@@ -1,6 +1,6 @@
 # Phase 3 — gate evidence pack
 
-Generated 2026-09-01T12:00:38.883253+00:00 by `tools/phase3_gate_report.py`.
+Generated 2026-09-01T12:35:23.358593+00:00 by `tools/phase3_gate_report.py`.
 
 Per ADR-0003 and ADR-0004, **only Track B numbers are gate evidence.**
 Track P results below prove the code paths against real mortgage
@@ -10,7 +10,7 @@ performance data and say nothing about this bank's portfolio.
 
 | # | Criterion | Workstream | Track | Measured | State |
 |---|---|---|---|---|---|
-| 1 | Hazard GBM C-index ≥ Cox + 0.02 and ≥ 0.75 absolute | WS-3.1 Step 3 | P | 0.5000 (Track P) | not evaluable — the Cox reference and the hazard challenger are not scored on a common out-of-time sample here, so the +0.02 uplift cannot be formed; also: 84% of subjects are censored; Harrell's C is biased upward at this level (Uno et al. 2011). Read it as an upper bound and compare only against other Harrell's C values on the same censoring pattern. |
+| 1 | Hazard GBM C-index ≥ Cox + 0.02 and ≥ 0.75 absolute | WS-3.1 Step 3 | P | C 0.5517 vs Cox 0.6708, uplift -0.1191 (Track P) | **not decidable at this event count** — the same configuration produced an uplift of +0.075 at one sample size and −0.119 at another, a sign change of 0.19 against a criterion stated at +0.02 (Phase 3 finding D6). Read the number above as one draw, not as a result. Not gate evidence either way: Track P is US conforming mortgages, not this bank's book (ADR-0012). Also: 87% of subjects are censored; Harrell's C is biased upward at this level (Uno et al. 2011). Read it as an upper bound and compare only against other Harrell's C values on the same censoring pattern. |
 | 2 | PD calibration by grade within ±15% relative on backtest years | WS-3.1 Step 1 | P | out-of-time Gini 91.89 (Track P) | not evaluable — the criterion is calibration by *grade*, and grades need the score bands that LH-204 has not ratified |
 | 3 | LGD MAE ≤ incumbent | WS-3.1 Step 5 | — | — | **not measurable** — there is no incumbent LGD model to compare against, and the comparison is against this bank's provisioning model (LH-120) |
 | 4 | Dashboard freshness SLO met over 30 consecutive days | WS-3.2 Step 1 | P | 0.0s on one batch pass | not evaluable — the criterion is 30 *consecutive days* of a live streaming surface; a batch computation cannot produce it |
@@ -47,11 +47,11 @@ prepayment as censoring overstates lifetime default:
 
 | Quantity | Value |
 |---|---|
-| Cumulative incidence of default at 60m | 0.1256 |
-| Cumulative incidence of prepayment | 0.5008 |
-| Naive figure ignoring competition | 0.1827 |
-| Overstatement | 0.0571 |
-| Relative overstatement | 45.4% |
+| Cumulative incidence of default at 48m | 0.1018 |
+| Cumulative incidence of prepayment | 0.4171 |
+| Naive figure ignoring competition | 0.1355 |
+| Overstatement | 0.0338 |
+| Relative overstatement | 33.2% |
 
 **The LGD loss basis decides the sign of the LTV effect (LH-311).**
 
@@ -105,7 +105,7 @@ Full register: [docs/phase3/blocking_tickets.md](../docs/phase3/blocking_tickets
 
 ## Track P run (not gate evidence)
 
-Seeded run, 343.1s. Reproduce with `make trackp-p3`.
+Seeded run, 404.7s. Reproduce with `make trackp-p3`.
 Every limitation is listed in the run report's `panel.limitations`
 block — Fannie's zero-balance code conflates prepayment with maturity,
 there is no revolving product, and these are US conforming mortgages
