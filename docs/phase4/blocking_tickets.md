@@ -1,0 +1,30 @@
+# Phase 4 — Blocking ticket register
+
+Every `TBD[owner, ticket-id]` placeholder raised by Phase 4 work appears here.
+`make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
+placeholder that appears in none of them.
+
+Earlier registers: [Phase 0](../phase0/blocking_tickets.md) ·
+[Phase 1](../phase1/blocking_tickets.md) · [Phase 2](../phase2/blocking_tickets.md) ·
+[Phase 3](../phase3/blocking_tickets.md). Several of those still block Phase 4 —
+**LH-204** (score bands) is why no offer has a risk grade to price against,
+**LH-301** (SICR) is what the red-flag stream feeds, and **LH-120** is why there
+is no case-management system to route an alert into.
+
+Phase 4 §9 puts these on the do-not-invent list: alert budgets & precision
+floors · action library & SLAs · exploration percentage · FOIR/DSCR/LTV caps ·
+pricing components · natural-calamity relief treatment. Each one below is a
+stop, not a gap in the engineering.
+
+| Ticket | Owner | Blocks | What is needed | Status |
+|---|---|---|---|---|
+| LH-501 | Collections Head | `ews.signals` ship gate; `ews.routing` auto-retirement | The **per-signal precision floor** and the **alert budget**. Phase 4 §4 Step 1 makes precision-or-no-ship the anti-alert-fatigue contract and §4 Step 5 auto-retires any signal whose rolling 90-day precision falls below the floor — but the floor itself is `[POLICY]`. The budget separately sets the percentile at which the PD-velocity trigger fires (§4 Step 2), so it is not one number but the shape of the whole alert stream. Distinct from LH-206, which is Phase 1's *fraud* alert budget: same units, different desk, different capacity. | open |
+| LH-502 | Collections Head | `ews.routing` recommended action; every Red alert | The **action library and its SLAs**: the set of interventions an officer may be told to take, and how long they have. Phase 4 §9 do-not-invent. An alert with no action is a notification, and §1 is explicit that every automated action has an owner, an SLA and a captured outcome — none of which exists without this. | open |
+| LH-503 | Credit Risk Committee | `reco.bandit` exploration cell; P6 off-policy evaluation | The **exploration percentage** — what share of eligible traffic receives a randomised arm. Phase 4 §5 Step 4 says 1-2% `[POLICY: Credit Risk Committee]`, which is an illustration and not a ratification. It is the parameter that decides how fast the bandit learns and how many customers receive a deliberately sub-optimal offer, so it is a customer-impact decision rather than a tuning knob. | open |
+| LH-504 | Credit Policy | `reco.feasible`; every offer the engine produces | The **FOIR, DSCR, LTV and tenor caps** per product. Phase 4 §5 Step 1 marks them `[POLICY: Credit Policy]` and §9 forbids inventing them. The DSCR figure the phase file quotes (1.25) is inside a worked formula, not a ratified cap, and reading an illustration as a policy is exactly the failure the grounding contract exists to prevent. | open |
+| LH-505 | ALCO | `reco.pricing`; every rate quoted | The **ALM pricing components**: cost of funds, opex allocation, capital charge and hurdle margin, plus the floors and ceilings RBI fair-practice norms impose. Phase 4 §5 Step 2 says these come from ALM tables and are "**never hard-coded**". They move monthly, so this is a *feed*, not a one-time value — a pricing service that reads a constant is wrong within a quarter even if the constant was right on the day. | open |
+| LH-506 | Credit Policy + Compliance | Agri restructuring campaigns; `reco.suitability` drought path | The **natural-calamity relief treatment** under RBI norms: what a district calamity declaration does to repayment obligations, DPD ageing and the default label. Also on Phase 2's list as LH-405 — repeated here because Phase 4 is where it becomes an *action* rather than a labelling question, and §4 Step 4 routes district-wide events to portfolio restructuring rather than individual collection pressure. | open |
+| LH-507 | Collections Head + Operations | `ews.routing` fatigue guardrails | The **per-officer daily alert cap**. Phase 4 §4 Step 5 requires the guardrail without stating the number, and it is not derivable from the alert budget: the budget is a portfolio-level rate and the cap is a per-person workload, so a book that is fine in aggregate can still bury one officer covering a stressed district. Found by building. | open |
+| LH-508 | Credit Risk Committee + Collections Head | `ews.routing` two-key rule; tier definitions | The **confirmation thresholds behind the two-key rule**. Phase 4 §4 Step 3 defines Red as "change-point + negative direction + PD-velocity confirmation", which names three conditions and quantifies none of them: how negative a direction counts, and what PD-velocity percentile confirms. Found by building — the rule reads as a specification until code has to evaluate it. | open |
+| LH-509 | Model Risk + Credit Risk Committee | `reco.bandit` reward definition; P6 uplift learning | The **reward blend**. Phase 4 §5 Step 4 says reward is "take-up blended with a seasoning risk-adjusted value proxy (delayed-reward correction)" — which names two components and neither the blend weight nor the seasoning horizon. This is the single most consequential unspecified value in the phase: a bandit rewarded on take-up alone learns to offer the largest loan the feasible set permits to the customers most likely to accept it, which is a mis-selling engine with good metrics. Found by building. | open |
+| LH-510 | Collections Head + Data Platform | `ews.backtest`; the §8 exit criteria; the take-up model | The **24 months of alert dispositions and offer/campaign logs** Phase 4 §3 lists as an entry criterion. Not a policy value but a data-availability stop: without dispositions no signal has a measured precision (so §4 Step 1's ship gate cannot be evaluated for any signal at all), and without offer logs there is no take-up model to rank with. Blocked upstream by LH-120. | open |
