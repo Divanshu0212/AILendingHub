@@ -53,9 +53,17 @@ parity:  ## WS-0.4 parity harness (batch path vs serving path)
 trackp-p1:  ## Run WS-1.1 end to end on Track P data (needs datasets/, see DATA_SOURCING)
 	$(PY) -m lending_hub.scoring.experiment --out reports/trackP_p1_home_credit.json
 
+.PHONY: trackp-p3
+trackp-p3:  ## Run WS-3.1/3.2 end to end on Track P data (needs datasets/, see DATA_SOURCING)
+	$(PY) -m lending_hub.portfolio.experiment --output reports/trackP_p3_fannie_mae.json
+
 .PHONY: gate1
 gate1:  ## Assemble the Phase 1 gate evidence pack (Phase 1 §7)
 	$(PY) tools/phase1_gate_report.py --out reports/phase1_gate.md
+
+.PHONY: gate3
+gate3:  ## Assemble the Phase 3 gate evidence pack (Phase 3 §7)
+	$(PY) tools/phase3_gate_report.py --output reports/phase3_gate.md
 
 .PHONY: gate
 gate: check schemas  ## Run every gate script and assemble the evidence pack
@@ -66,3 +74,4 @@ gate: check schemas  ## Run every gate script and assemble the evidence pack
 	-$(PY) -m lending_hub.serving.parity --out reports/parity.json
 	$(PY) tools/gate_report.py --out reports/phase0_gate.md
 	$(PY) tools/phase1_gate_report.py --out reports/phase1_gate.md
+	$(PY) tools/phase3_gate_report.py --output reports/phase3_gate.md

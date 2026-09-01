@@ -176,6 +176,49 @@ class FitTests(unittest.TestCase):
             self.assertIn("converge", why)
 
 
+class RiskSetTests(unittest.TestCase):
+    """The unit-length fast path must agree with the general scan exactly."""
+
+    def test_paths_agree_on_unit_length_intervals(self):
+        rng = random.Random(11)
+        intervals = [
+            C.Interval(m, m + 1, rng.random() < 0.1, [rng.random()])
+            for m in range(60) for _ in range(5)
+        ]
+        fast = C._risk_sets(intervals)
+        general = [
+            (t, [i for i, iv in enumerate(intervals) if iv.start < t <= iv.stop],
+             [i for i, iv in enumerate(intervals) if iv.event and iv.stop == t])
+            for t in sorted({iv.stop for iv in intervals if iv.event})
+        ]
+        self.assertEqual(
+            [(t, sorted(r), sorted(e)) for t, r, e in fast],
+            [(t, sorted(r), sorted(e)) for t, r, e in general],
+        )
+
+    def test_longer_intervals_take_the_general_path(self):
+        intervals = [
+            C.Interval(0, 5, False, [1.0]),
+            C.Interval(2, 3, True, [2.0]),
+        ]
+        risk_sets = C._risk_sets(intervals)
+        self.assertEqual(len(risk_sets), 1)
+        t, risk, events = risk_sets[0]
+        self.assertEqual(t, 3)
+        self.assertEqual(sorted(risk), [0, 1])
+        self.assertEqual(events, [1])
+
+    def test_fit_is_unchanged_by_the_fast_path(self):
+        """Same data, unit intervals: coefficients must not depend on the path."""
+        intervals = simulate(n=400, seed=17)
+        fast = C.fit_cox(intervals, ["x1", "x2"])
+        stretched = [C.Interval(i.start * 2, i.stop * 2, i.event, i.covariates)
+                     for i in intervals]
+        general = C.fit_cox(stretched, ["x1", "x2"])
+        self.assertAlmostEqual(
+            fast.coefficients[0].beta, general.coefficients[0].beta, places=6)
+
+
 class SchoenfeldTests(unittest.TestCase):
     def test_proportional_hazards_data_shows_little_trend(self):
         model_intervals = simulate(n=1500, seed=21)

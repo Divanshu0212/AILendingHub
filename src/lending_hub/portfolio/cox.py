@@ -54,6 +54,11 @@ MAX_ITERATIONS = 50
 CONVERGENCE_TOLERANCE = 1e-7
 MAX_STEP_HALVINGS = 20
 
+#: Standardised-coefficient magnitude above which a fit is separation rather
+#: than a finding. A one-standard-deviation move multiplying the hazard by
+#: e^20 is not a credit effect anyone has ever measured.
+SEPARATION_COEFFICIENT = 20.0
+
 
 class CoxError(Exception):
     """The model cannot be fitted or read as asked."""
@@ -182,6 +187,20 @@ class CoxModel:
             )
         if self.events == 0:
             return False, "no events in the fitting sample"
+        extreme = []
+        for j, coefficient in enumerate(self.coefficients):
+            scale = self._scale[j] if j < len(self._scale) else 1.0
+            if abs(coefficient.beta * scale) > SEPARATION_COEFFICIENT:
+                extreme.append(coefficient.name)
+        if extreme:
+            return False, (
+                f"{extreme} have standardised coefficients above "
+                f"{SEPARATION_COEFFICIENT:.0f} in absolute value, i.e. hazard "
+                "ratios beyond e^20. That is separation, not a "
+                "finding: some risk set is perfectly ordered by the covariate and "
+                "the likelihood is maximised by sending the coefficient to "
+                "infinity. Collapse the covariate's extreme levels or drop it."
+            )
         if self.ties == "breslow" and self.tie_fraction > 0.5:
             return False, (
                 f"{self.tie_fraction:.0%} of events share an event time and the "
@@ -199,8 +218,14 @@ class CoxModel:
         return total
 
     def risk(self, covariates: Sequence[float]) -> float:
-        """``exp(β'x)`` — the relative hazard multiplier."""
-        return math.exp(self.linear_predictor(covariates))
+        """``exp(β'x)`` — the relative hazard multiplier.
+
+        The exponent is clamped to ``[-700, 700]``, the range in which
+        ``math.exp`` is finite in double precision. A linear predictor outside
+        it means the fit has separated, which :attr:`promotable` reports; the
+        clamp keeps a diagnostic run from dying before it gets there.
+        """
+        return math.exp(min(700.0, max(-700.0, self.linear_predictor(covariates))))
 
     def survival(self, covariates: Sequence[float], t: float) -> float:
         """S(t | x) = exp(-H₀(t) · exp(β'x)), with H₀ from Breslow."""
@@ -246,14 +271,72 @@ def _standardise(intervals: Sequence[Interval], p: int) -> tuple[list[float], li
 
 
 def _risk_sets(intervals: Sequence[Interval]) -> list[tuple[int, list[int], list[int]]]:
-    """``(time, risk-set indices, event indices)`` for each distinct event time."""
+    """``(time, risk-set indices, event indices)`` for each distinct event time.
+
+    The general form is ``start < t <= stop``, which costs one scan of every
+    interval per event time. On a panel that is O(events x rows) and does not
+    finish: 800 events against 340,000 account-months is 270 million
+    comparisons before any likelihood is evaluated.
+
+    So there is a fast path. When every interval is one month long — which is
+    exactly what :func:`intervals_from_hazard_rows` produces — ``start < t <=
+    start + 1`` holds only at ``t == stop``, so the risk set is a dict lookup
+    on the stop time. The general path is kept for callers who build longer
+    intervals, and the two are equivalent by construction rather than by
+    assumption.
+    """
     event_times = sorted({iv.stop for iv in intervals if iv.event})
+    unit_length = all(iv.stop == iv.start + 1 for iv in intervals)
+
+    if unit_length:
+        by_stop: dict[int, list[int]] = {}
+        for i, iv in enumerate(intervals):
+            by_stop.setdefault(iv.stop, []).append(i)
+        return [
+            (
+                t,
+                by_stop.get(t, []),
+                [i for i in by_stop.get(t, []) if intervals[i].event],
+            )
+            for t in event_times
+        ]
+
     out = []
     for t in event_times:
         risk = [i for i, iv in enumerate(intervals) if iv.start < t <= iv.stop]
         events = [i for i, iv in enumerate(intervals) if iv.event and iv.stop == t]
         out.append((t, risk, events))
     return out
+
+
+def _without_within_risk_set_variation(
+    x: list[list[float]],
+    risk_sets,
+    features: Sequence[str],
+    tolerance: float = 1e-10,
+) -> list[str]:
+    """Covariates with no variation inside any risk set.
+
+    Cox estimates from *comparisons among those at risk at the same instant*.
+    A covariate constant within every risk set contributes nothing to any such
+    comparison, however much it varies across the sample as a whole — and the
+    symptom is a singular information matrix several iterations later, which
+    reads as a data problem rather than a specification one.
+    """
+    if not risk_sets:
+        return []
+    p = len(features)
+    varies = [False] * p
+    for _t, risk, _events in risk_sets:
+        if len(risk) < 2:
+            continue
+        for j in range(p):
+            if varies[j]:
+                continue
+            first = x[risk[0]][j]
+            if any(abs(x[i][j] - first) > tolerance for i in risk):
+                varies[j] = True
+    return [features[j] for j in range(p) if not varies[j]]
 
 
 def _log_likelihood_and_derivatives(
@@ -272,7 +355,15 @@ def _log_likelihood_and_derivatives(
         if d == 0 or not risk:
             continue
 
-        weights = {i: math.exp(sum(b * v for b, v in zip(beta, x[i]))) for i in risk}
+        # Log-sum-exp: shift every linear predictor by the risk set's maximum
+        # before exponentiating. Every use below is either a ratio (where the
+        # shift cancels exactly) or a log (where it cancels against the event
+        # terms, as the loglik accumulation shows), so this is exact rather than
+        # approximate — and without it a well-separated risk set overflows
+        # math.exp and takes the whole fit with it.
+        eta = {i: sum(b * v for b, v in zip(beta, x[i])) for i in risk}
+        shift = max(eta.values())
+        weights = {i: math.exp(eta[i] - shift) for i in risk}
 
         s0 = sum(weights[i] for i in risk)
         s1 = [sum(weights[i] * x[i][j] for i in risk) for j in range(p)]
@@ -282,7 +373,7 @@ def _log_likelihood_and_derivatives(
         ]
 
         for i in events:
-            loglik += sum(b * v for b, v in zip(beta, x[i]))
+            loglik += eta[i] - shift
             for j in range(p):
                 gradient[j] += x[i][j]
 
@@ -361,6 +452,19 @@ def fit_cox(
     distinct = len(risk_sets)
     tie_fraction = 1.0 - distinct / n_events if n_events else 0.0
 
+    degenerate = _without_within_risk_set_variation(x, risk_sets, features)
+    if degenerate:
+        raise CoxError(
+            f"{degenerate} vary across the sample but not *within* any risk set, "
+            "so the partial likelihood cannot identify their coefficients. This "
+            "is the signature of a covariate that is a deterministic function of "
+            "the time axis — months observed, or age at snapshot — which is "
+            "constant among everyone at risk at the same time by construction. "
+            "It is not collinearity and adding data will not fix it: drop the "
+            "covariate, or express it as a deviation from its expected value at "
+            "that duration."
+        )
+
     beta = [0.0] * p
     loglik, gradient, information = _log_likelihood_and_derivatives(
         beta, x, risk_sets, ties)
@@ -371,6 +475,24 @@ def fit_cox(
         try:
             step = solve(information, gradient)
         except SingularMatrix as exc:
+            diverging = [
+                features[j] for j in range(p)
+                if abs(beta[j]) > SEPARATION_COEFFICIENT
+            ]
+            if diverging:
+                raise CoxError(
+                    f"the fit separated on {diverging} at iteration {iterations}: "
+                    f"their standardised coefficients passed "
+                    f"{SEPARATION_COEFFICIENT:.0f} and the information matrix "
+                    "then collapsed, because at that magnitude the weights inside "
+                    "each risk set concentrate on a single observation. This "
+                    "happens when a covariate almost determines the event among "
+                    "those at risk together — a monthly DPD reading against a "
+                    "next-month default is the classic case, since reaching the "
+                    "threshold means passing through the level below it first. "
+                    "It is a specification problem, not a data problem: lag the "
+                    "covariate, coarsen it, or model the roll directly."
+                ) from exc
             raise CoxError(
                 f"the information matrix is singular at iteration {iterations}: "
                 f"{exc}"
@@ -432,15 +554,26 @@ def fit_cox(
 
 
 def _breslow_baseline(model, intervals, x, beta, risk_sets) -> StepFunction:
-    """Breslow's estimator of the cumulative baseline hazard H₀(t)."""
+    """Breslow's estimator of the cumulative baseline hazard H₀(t).
+
+    Computed in log space. The increment is ``d / sum(exp(eta))``, and that
+    denominator overflows on a well-separated risk set; taking the logarithm
+    first turns an overflow into an underflow to zero, which is the right
+    answer rather than a crash.
+    """
     out = StepFunction()
     cumulative = 0.0
     for t, risk, events in risk_sets:
-        denominator = sum(
-            math.exp(sum(b * v for b, v in zip(beta, x[i]))) for i in risk
-        )
-        if denominator > 0:
-            cumulative += len(events) / denominator
+        if not risk or not events:
+            out.times.append(t)
+            out.values.append(cumulative)
+            continue
+        eta = [sum(b * v for b, v in zip(beta, x[i])) for i in risk]
+        shift = max(eta)
+        total = sum(math.exp(e - shift) for e in eta)
+        if total > 0:
+            log_increment = math.log(len(events)) - shift - math.log(total)
+            cumulative += math.exp(log_increment) if log_increment < 700 else float("inf")
         out.times.append(t)
         out.values.append(cumulative)
     return out

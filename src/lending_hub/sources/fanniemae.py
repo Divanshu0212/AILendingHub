@@ -79,7 +79,48 @@ FIELDS: dict[str, int] = {
     "zb_code": 43,          # zero balance / disposition code
     "zb_date": 44,
     "zb_upb": 45,
+    # Workout fields, present only on a loss disposition. Derived the same way
+    # as the rest of this map — by profiling, not by transcription — and the
+    # signature is unusually clean: every one of 50-61 is populated on 80-100%
+    # of loss dispositions and on **0.0%** of prepayments, which is what
+    # identifies them as workout columns rather than something else. Ordering
+    # confirms the three dates: last_paid_installment <= foreclosure holds on
+    # 20,000 of 20,000 sampled loss rows. Magnitudes confirm the split: 53-57
+    # run at 0.3-2.5% of exposure (costs) while 58 runs at ~61% (proceeds).
+    "last_paid_installment": 50,
+    "foreclosure_date": 51,
+    "disposition_date": 52,
+    "foreclosure_costs": 53,
+    "preservation_costs": 54,
+    "asset_recovery_costs": 55,
+    "holding_expenses": 56,
+    "holding_taxes": 57,
+    "net_sale_proceeds": 58,
+    "credit_enhancement_proceeds": 59,
+    "make_whole_proceeds": 60,
+    "other_foreclosure_proceeds": 61,
 }
+
+#: Workout cost columns. ``holding_expenses`` is Fannie's "miscellaneous holding
+#: expenses **and credits**", so it is genuinely signed and the sum can be
+#: negative; treating these as magnitudes drops real workouts.
+WORKOUT_COST_FIELDS = (
+    "foreclosure_costs",
+    "preservation_costs",
+    "asset_recovery_costs",
+    "holding_expenses",
+    "holding_taxes",
+)
+
+#: Proceeds from the asset itself.
+WORKOUT_PROCEEDS_FIELDS = ("net_sale_proceeds", "other_foreclosure_proceeds")
+
+#: Proceeds from a third party standing behind the loan — mortgage insurance and
+#: repurchase make-whole. Kept **separate** from the asset proceeds above,
+#: because whether they are netted off before LGD is measured is a policy choice
+#: that flips the sign of the LTV effect (LH-311), and summing them here would
+#: destroy the only information that makes it a choice.
+CREDIT_ENHANCEMENT_FIELDS = ("credit_enhancement_proceeds", "make_whole_proceeds")
 
 #: Columns knowable at origination. An application scorecard may use these and
 #: nothing else — every one is fixed before the loan exists, so no as-of filter
@@ -164,6 +205,32 @@ CREDIT_LOSS_DISPOSITIONS = frozenset(
 
 class LayoutError(Exception):
     """The file does not match the derived column map."""
+
+
+def minor_units(value: str) -> int:
+    """Parse a Fannie decimal amount to integer minor units.
+
+    Signed: several of these columns net credits against charges, and a
+    magnitude-only parse would silently drop the sign.
+    """
+    value = value.strip()
+    if not value:
+        return 0
+    return int(round(float(value) * 100))
+
+
+def workout_amounts(row: list[str]) -> tuple[int, int, int]:
+    """``(costs, asset proceeds, credit enhancement)`` in minor units.
+
+    The three-way split is the point. Costs and asset proceeds are properties of
+    the workout; credit enhancement is a third party paying, and LH-311 decides
+    whether it belongs in the loss at all.
+    """
+    return (
+        sum(minor_units(get(row, f)) for f in WORKOUT_COST_FIELDS),
+        sum(minor_units(get(row, f)) for f in WORKOUT_PROCEEDS_FIELDS),
+        sum(minor_units(get(row, f)) for f in CREDIT_ENHANCEMENT_FIELDS),
+    )
 
 
 def parse_mmyyyy(value: str) -> date | None:

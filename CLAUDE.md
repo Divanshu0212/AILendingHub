@@ -24,15 +24,25 @@ SRS and a phase file disagree, the SRS wins and the phase file gets a ticket.
 To work a phase you load: **the Master + that one phase file + this CLAUDE.md.** Nothing
 outside them may be assumed.
 
-**Current phase: P1 — Credit scoring + fraud layers 1–2.** Status and traceability:
-[docs/phase1/STATUS.md](docs/phase1/STATUS.md). Phase 0 is complete as far as it can
-be without bank access ([docs/phase0/STATUS.md](docs/phase0/STATUS.md)); its entry
-criteria are still outstanding, which is why neither phase is exitable.
+**Current phase: P3 — Portfolio Brain (behavioural PD, survival, LGD/EAD, staging,
+dashboards).** Status: [docs/phase3/STATUS.md](docs/phase3/STATUS.md). P1 is complete
+as far as it can be ([docs/phase1/STATUS.md](docs/phase1/STATUS.md)), as is P0
+([docs/phase0/STATUS.md](docs/phase0/STATUS.md)); every phase's entry criteria trace
+back to Phase 0's, which is why none is exitable. **P2 was skipped deliberately** —
+its entry criteria are `[POLICY]`-blocked on crop calendars (LH-102) and the phase
+file forbids guessing them, and its models cannot be honestly ported under ADR-0003.
 
-Phase 1 is the first phase with **models** in it, so two rules that were abstract in
-Phase 0 now bite: every model ships with its card (Master §2 rule 5 — see
-[docs/phase1/model_cards/](docs/phase1/model_cards/)), and every number a model
-produces is stamped with the track *and dataset* that produced it.
+Phase 1 was the first phase with **models**, so two rules that were abstract in
+Phase 0 began to bite: every model ships with its card (Master §2 rule 5), and every
+number is stamped with the track *and dataset* that produced it.
+
+Phase 3 adds a third: **"not measured" and "not measurable" are different gate
+states.** Some P3 criteria are unrun; others cannot be produced by any data
+reachable from here, and no effort inside this repository changes that. The CCF
+model is the clean case — there is no revolving product on any track, so the
+denominator is identically zero. Reporting both the same way puts a scheduling
+problem and a structural one in the same column, and the second never gets
+escalated.
 
 ---
 
@@ -116,26 +126,48 @@ src/lending_hub/
   decisionlog/               decision-log schema + replay (Master §3.3)
   serving/                   orchestrator, policy bands, shadow/canary, load test, parity
                              (WS-0.2.4, WS-0.4, Phase 1 §5)
-  sources/                   Track P dataset adapters — Fannie Mae, Home Credit,
-                             Home Credit history tables (ADR-0004)
+  sources/                   Track P dataset adapters — Fannie Mae (outcomes and
+                             panel), Home Credit, Home Credit history (ADR-0004)
   modeling/                  shared metrics + the WS-0.2.3 toy logistic model
   scoring/                   P1 credit scoring, WS-1.1 (SRS §4) — see below
   fraud/                     P1 fraud layers 1-2, WS-1.2 (SRS §5) — see below
+  portfolio/                 P3 portfolio brain, WS-3.1/3.2 (SRS §7, §9) — see below
 
 tools/                       CI gates: check_grounding, validate_source_registry,
-                             check_schema_compatibility, gate_report, phase1_gate_report
+                             check_schema_compatibility, gate_report,
+                             phase1_gate_report, phase3_gate_report
 config/sources/              one YAML per SRS §2.1 source
 config/retention.yaml        per-table retention (every period pending on LH-111)
 config/reason_codes.yaml     reason-code dictionary — DATA, editable by legal (LH-203)
 config/policy_bands.yaml     cutoffs and canary bands — dual-control config (LH-204)
-docs/adr/                    architecture decision records (0001-0004, 0010, 0011)
+docs/adr/                    architecture decision records (0001-0004, 0010-0012)
 docs/governance/             model card / validation / monitoring templates (WS-0.3.2)
 docs/phase0/                 STATUS, DATA_SOURCING, TRACK_P_FINDINGS, blocking_tickets
 docs/phase1/                 STATUS, blocking_tickets, model_cards/
+docs/phase3/                 STATUS, blocking_tickets, model_cards/
 datasets/                    real external data — gitignored, never committed
 tests/fixtures/              the ONLY place synthetic data may live (Master §2 rule 3)
 reports/                     generated gate output — regenerate, never commit
 ```
+
+### The Phase 3 package
+
+`portfolio/` is WS-3.1 and WS-3.2. `panel` is the substrate — one `Spell` yields
+the four shapes the phase needs (behavioural targets, the discrete-time risk set,
+competing-risk causes, adjacent month pairs), so no model slices raw performance
+rows itself. Then WS-3.1 in the order the phase file runs it: `behavioural` →
+`cox` → `hazard` → `competing` → `lgd` → `ead` → `staging` → `macro`, with
+`survival` holding the metric set and `linalg` the solver both Newton-Raphson
+fits share. WS-3.2 is `transitions`, `health`, `opsanomaly`, `aggregates`.
+`experiment` is the Track P runner.
+
+**The point-in-time risk is different here.** On an application table a leak takes
+an exotic join. On a behavioural panel it is the natural thing to write, because
+the DPD column that defines the target is sitting in the feature row — and it
+surfaces as excellent metrics, which is what an unnoticed leak looks like.
+`behavioural.assert_point_in_time()` proves the property directly rather than
+asserting it: it rewrites every month after the observation point, re-derives, and
+names any feature that moved.
 
 ### The two Phase 1 packages
 
@@ -151,24 +183,36 @@ Binning and the hyperparameter search are parallelised across processes
 across trees by definition and stays that way. If a fit is too slow the levers, in
 order, are `feature_fraction`, fewer trees, and fewer rows — not a dependency.
 
-Both are stdlib-only **ports** of the libraries the phase file names (OptBinning,
-LightGBM, SHAP, Fairlearn, scikit-learn, splink). Each module docstring states what
-it ports **and what it deliberately does not** — the GBM has no GOSS or EFB, the
-binning is PAVA rather than a MIP, SHAP is exact enumeration rather than TreeSHAP.
-Tests assert the *properties* a Track B swap must preserve, never this port's exact
-numbers; a test pinned to these cut points would fail on the library it is a port of.
+All three are stdlib-only **ports** of the libraries the phase files name
+(OptBinning, LightGBM, SHAP, Fairlearn, scikit-learn, splink, lifelines,
+scikit-survival, River). Each module docstring states what it ports **and what it
+deliberately does not** — the GBM has no GOSS or EFB, the binning is PAVA rather
+than a MIP, SHAP is exact enumeration rather than TreeSHAP, Cox has no penalised
+or stratified variant, S-H-ESD uses a seasonal median rather than STL. Tests
+assert the *properties* a Track B swap must preserve, never this port's exact
+numbers; a test pinned to these cut points would fail on the library it is a port
+of.
+
+**Ports still make real choices.** Two are worth knowing about because the named
+library's default is wrong here: `portfolio.cox` defaults to **Efron** tie
+handling where scikit-survival defaults to Breslow, because a month-end panel ties
+most of its events and Breslow biases coefficients toward zero at that density;
+and `portfolio.hazard` passes month-on-book as an **ordered numeric feature**
+where the phase file says dummies, because dummies discard the ordering a tree
+needs. Both deviations are stated in the module docstring and raised as findings.
 
 ### Start here
 
 | You want to | Read |
 |---|---|
-| Know what is done and what is blocked | [docs/phase1/STATUS.md](docs/phase1/STATUS.md) (P0: [here](docs/phase0/STATUS.md)) |
+| Know what is done and what is blocked | [P3 STATUS](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) |
 | Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
-| Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) |
-| Know why the phase docs were not followed literally | [Phase_0_FINDINGS.md](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [Phase_1_FINDINGS.md](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) |
-| Know what is waiting on a committee | [P0 tickets](docs/phase0/blocking_tickets.md) · [P1 tickets](docs/phase1/blocking_tickets.md) |
-| Know what a model may and may not be used for | [docs/phase1/model_cards/](docs/phase1/model_cards/) |
+| Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) · [ADR-0012](docs/adr/0012-phase3-panel-source.md) |
+| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) |
+| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) |
+| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P3 cards](docs/phase3/model_cards/) |
 | See real numbers from the whole P1 pipeline | `make trackp-p1` → `reports/trackP_p1_home_credit.json` |
+| See real numbers from the whole P3 pipeline | `make trackp-p3` → `reports/trackP_p3_fannie_mae.json` |
 
 ---
 
@@ -179,16 +223,19 @@ No install step is needed for the core checks.
 ```bash
 make help          # list every target
 make check         # grounding + registry + tests — run this before every commit
-make test          # stdlib unittest suite (793 tests, ~9s)
-make gate          # run every gate script and assemble both gate packs
+make test          # stdlib unittest suite (1,137 tests, ~23s)
+make gate          # run every gate script and assemble all three gate packs
 ```
 
 Individual gates: `make audit-joins` (WS-0.1.3), `make reconcile` (WS-0.1.5),
 `make schemas` (WS-0.1.4), `make repro` (WS-0.2.3), `make loadtest` (WS-0.2.4),
-`make parity` (WS-0.4), `make gate1` (Phase 1 §7 evidence pack).
+`make parity` (WS-0.4), `make gate1` (Phase 1 §7 evidence pack),
+`make gate3` (Phase 3 §7 evidence pack).
 
 `make trackp-p1` runs the whole of WS-1.1 against real applications and writes
-`reports/trackP_p1_home_credit.json`. It needs `datasets/`, which is gitignored —
+`reports/trackP_p1_home_credit.json`. `make trackp-p3` runs WS-3.1 and WS-3.2
+against a real 19-year mortgage panel and writes
+`reports/trackP_p3_fannie_mae.json`. Both need `datasets/`, which is gitignored —
 see [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) for how to obtain it.
 Everything else runs on a clean clone with nothing downloaded.
 
@@ -248,9 +295,23 @@ the intercept), **bureau-retro availability** (LH-207), the **labelled duplicate
 set** the ER threshold needs (LH-209), and the **bank-branch directory** behind IFSC
 existence (LH-210).
 
-Later phases add: crop calendars, sowing windows (P2) · SICR thresholds, downturn LGD
-add-ons, macro scenarios (P3) · alert budgets, action SLAs, pricing (P4) · rates, fees,
-adverse-action sentences (P5).
+**Phase 3's** (Phase 3 §8), all `[POLICY]` and all registered:
+
+> SICR thresholds (LH-301) · downturn LGD add-ons (LH-302) · CCF floors (LH-303) ·
+> macro scenarios (LH-304) · discount-rate conventions (LH-305) · reporting segment
+> definitions (LH-306)
+
+Phase 3 implementation added five more the phase file does not list, each raised as
+a finding: **CUSUM/ADWIN alarm parameters** (LH-307 — the methods are named, the
+parameters that make them alarm are not), the **origination lifetime PD** SICR is
+relative to (LH-308), the **cure definition** the LGD model's first stage needs
+(LH-309 — Appendix A defines default but not cure), the **behavioural**
+monotonicity list (LH-310, distinct from P1's application list), and the **LGD loss
+basis** (LH-311 — whether credit enhancement is netted off, which flips the sign of
+the LTV coefficient on real data).
+
+Later phases add: crop calendars, sowing windows (P2) · alert budgets, action SLAs,
+pricing (P4) · rates, fees, adverse-action sentences (P5).
 
 If a task seems to require one of these, the correct output is a **blocking ticket**, not
 a best guess. Write `TBD[owner, ticket-id]`, add the row to your phase's register
