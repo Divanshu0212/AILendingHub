@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Document | 00_MASTER — index & contract for the phase file set |
-| Version | 1.2 · 31 August 2026 |
+| Version | 1.3 · 1 September 2026 |
 | Parent | *AI-Powered Smart Lending Decision Hub — SRS & Algorithm Design v1.2* ("the SRS"; §-references in every phase file point there) |
 | File set | This master + 8 phase files (`Phase_0` … `Phase_7`), one file per phase |
 
@@ -19,7 +19,7 @@
 
 | Phase | File | Scope | Duration | Depends on |
 |---|---|---|---|---|
-| P0 | [Phase_0_Foundations.md](Phase_0_Foundations.md) | Data platform, feature store, streaming, governance, legacy-scorecard rebuild | 3–4 mo | — |
+| P0 | [Phase_0_Foundations.md](Phase_0_Foundations.md) | Data platform, feature store, streaming, governance, legacy-scorecard rebuild | 3–4 mo (Months 1–4) | — |
 | P1 | [Phase_1_Credit_Scoring_Fraud.md](Phase_1_Credit_Scoring_Fraud.md) | Credit scoring (champion+challenger) + fraud layers 1–2, one retail product | 3 mo | P0 |
 | P2 | [Phase_2_Agri_Intelligence.md](Phase_2_Agri_Intelligence.md) | Satellite/weather/crop/geo pipeline, agri features, agri fraud checks | 4 mo (spans a crop season) | P0 (∥ P1) |
 | P3 | [Phase_3_Portfolio_Brain.md](Phase_3_Portfolio_Brain.md) | Behavioral PD, survival, LGD/EAD, IFRS-9 staging, risk dashboards | 3 mo | P1 |
@@ -61,7 +61,7 @@ This program will be partly executed with AI coding assistants. To prevent hallu
    If a needed value is in none of the three: **stop and raise a blocking ticket.** Never assume, never copy a "typical industry value" into code.
 2. **One reference implementation per algorithm.** Each algorithm names exactly one paper and one library/repo in its phase file. Use that library, or port it with unit tests reproducing the library's outputs on fixture data. No from-scratch re-derivations without a validation ticket.
 3. **No silent synthetic data.** Synthetic/augmented data only in unit tests and load tests, always under `tests/fixtures/`, never in training tables. Training-data lineage must trace to source-system extracts.
-4. **Placeholders are typed.** Anything unknown is written `TBD[owner, ticket-id]` in code/config; CI fails the build if a `TBD` reaches a release branch.**Enforced by [`tools/check_grounding.py`](../tools/check_grounding.py)**, which also rejects a malformed placeholder (a bare `TBD` belongs to nobody), rejects a ticket id absent from the phase's blocking-ticket register, and — under rules 3 and 6 — rejects synthetic data outside `tests/fixtures/` and any Appendix A definition retyped outside the `definitions` package. Rules stated but unenforced hold only until the first deadline.
+4. **Placeholders are typed.** Anything unknown is written `TBD[owner, ticket-id]` in code/config; CI fails the build if a `TBD` reaches a release branch. **Enforced by [`tools/check_grounding.py`](../tools/check_grounding.py)**, which also rejects a malformed placeholder (a bare `TBD` belongs to nobody), rejects a ticket id absent from the phase's blocking-ticket register, and — under rules 3 and 6 — rejects synthetic data outside `tests/fixtures/` and any Appendix A definition retyped outside the `definitions` package. Rules stated but unenforced hold only until the first deadline.
 5. **Every model ships with its card.** No model passes shadow without a completed model card (SRS §12.2) reviewed by the model-risk team.
 6. **Definitions are frozen in Appendix A** (below). Code imports them as constants from a single `definitions` package — never re-typed inline.
 7. **LLM outputs are never facts.** In build tooling and in the product: any numeric or policy statement produced by an LLM must be traceable to a retrieved document or a tool computation, or it is discarded.
@@ -94,12 +94,12 @@ Every phase file follows the same skeleton, so agents can navigate mechanically:
 
 ---
 
-## 4. Appendix A — Frozen Definitions (v1, imported as code constants)
+## 4. Appendix A — Frozen Definitions (v1.1, imported as code constants)
 
 | Term | Definition |
 |---|---|
 | **DPD** | Days past due per the CBS ageing engine, snapshotted month-end (and daily once P3 streaming is live) |
-| **Default / Bad** | max DPD ≥ 90 within the outcome window, OR write-off, OR fraud-confirmed, OR restructure-due-to-distress — aligned with the IFRS-9/Ind AS 109 credit-impaired definition; one definition shared by scoring, provisioning, and EWS.The DPD arm is computable as stated; the other three are **not**, because the source-system code sets that identify them are bank mappings: write-off codes `[POLICY: Finance Controller]`, distress-restructure codes `[POLICY: Credit Policy]`, fraud dispositions `[POLICY: Fraud Head]`. A restructure code set that wrongly includes *voluntary* restructures inflates the bad rate across scoring, provisioning and EWS simultaneously — and because all three share this definition by design, the error is perfectly correlated and invisible to cross-checks.  |
+| **Default / Bad** | max DPD ≥ 90 within the outcome window, OR write-off, OR fraud-confirmed, OR restructure-due-to-distress — aligned with the IFRS-9/Ind AS 109 credit-impaired definition; one definition shared by scoring, provisioning, and EWS. The DPD arm is computable as stated; the other three are **not**, because the source-system code sets that identify them are bank mappings: write-off codes `[POLICY: Finance Controller]`, distress-restructure codes `[POLICY: Credit Policy]`, fraud dispositions `[POLICY: Fraud Head]`. A restructure code set that wrongly includes *voluntary* restructures inflates the bad rate across scoring, provisioning and EWS simultaneously — and because all three share this definition by design, the error is perfectly correlated and invisible to cross-checks. |
 | **Outcome window** | 12 months from disbursal (application scoring); next-12-months rolling (behavioral) |
 | **Observation point** | Application: final-decision timestamp. Behavioral: snapshot month-end. All features computed strictly as-of this point (point-in-time joins) |
 | **Indeterminate** | 30–89 max DPD in window: excluded from training targets, always included in scoring and reporting |
