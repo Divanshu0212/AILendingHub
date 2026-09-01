@@ -309,24 +309,6 @@ def _subtract(parent, child):
     return out
 
 
-def _bin_index(edges: list[float], value) -> int:
-    """Histogram bin for one value.
-
-    ``bisect_left`` rather than ``bisect_right`` so that "bin index <= b" is
-    exactly "value <= edges[b]", which is the comparison :meth:`Node.predict`
-    makes at score time. Using the other one puts a value sitting exactly on a
-    split edge in a different child during training than during scoring — a
-    training/serving skew that touches only the rows on the boundary and is
-    invisible in aggregate metrics.
-    """
-    if value is None or _isnan(value):
-        # Missing goes to the lowest bin, which sends it left under every split,
-        # matching Node.predict. The direction matters less than that it is the
-        # same in both places.
-        return 0
-    return bisect_left(edges, value)
-
-
 def _build(
     indices: list[int],
     hists,
