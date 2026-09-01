@@ -56,11 +56,10 @@ result discriminates well inside the delinquent tail and barely at all across
 the population, which is what a portfolio ranking needs. Column subsampling
 forces each split to consider features with broader coverage.
 
-**These are not tuned values, and the card will not present them as such.** A
-configuration grid at one sample size preferred this setting by a wide margin
-and the preference did not survive a larger sample. The measured uplift is in
-the run report; the stability behind it is Phase 3 finding D6, and it is the
-reason no single comparison here should be read as a result.
+**These are not tuned values, and the card will not present them as such.** The
+grid that chose them was scored in-sample, which favours capacity over skill;
+the setting is kept for the reason above, not because that grid preferred it.
+See Phase 3 finding D6.
 
 `scale_pos_weight` — the standard handling for class imbalance, and the first
 thing anyone reaches for at a 0.3% event rate — made the model **worse than
@@ -119,13 +118,12 @@ Not decisioning.
 **Not promotable.** `HazardModel.promotable` returns false on LH-310 — the
 behavioural monotone direction list is not ratified.
 
-On §7's numeric bar: the C-index comparison against Cox *is* now formable, and
-the run report carries it — but it is **not decidable at this event count**. The
-same configuration produced an uplift of +0.075 at one sample size and −0.119 at
-another, a sign change of 0.19 against a criterion stated at +0.02 (finding D6).
-The absolute 0.75 bar is not met at either. Both figures describe US conforming
-mortgages rather than this bank's book (ADR-0012), so neither is gate evidence.
-No independent validator exists either (§1).
+On §7's numeric bar: the C-index comparison against Cox is formable and is now
+measured **out of sample**, on accounts held out of both fits. That correction
+mattered — the in-sample version credited this model with its own memorisation
+and flipped sign as events accumulated (finding D6). The figures describe US
+conforming mortgages rather than this bank's book (ADR-0012), so they are not
+gate evidence either way, and no independent validator exists (§1).
 
 ## 13. Sign-off
 

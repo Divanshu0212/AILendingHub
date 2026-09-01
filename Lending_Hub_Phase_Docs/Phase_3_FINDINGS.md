@@ -35,7 +35,7 @@ not have known because they only appear once code has to produce a number.
 | P3-F11 | Current DPD **separates** in a Cox model at monthly granularity | Specification, found by building | — |
 | P3-F12 | **A hypothesis of mine was wrong**, and the demonstration caught it | Method note | — |
 | P3-F13 | A behavioural hazard model scored at origination returns an **exactly constant** risk, which reads as a broken model | Method note | — |
-| P3-F14 | The challenger-vs-Cox comparison is **not stable** at this event count — the uplift changed sign between sample sizes | Found by building | — |
+| P3-F14 | The §7 comparison was **in-sample**, which measures capacity rather than skill — a 200-tree ensemble against a four-parameter model | Correction to my own work | — |
 
 ---
 
@@ -346,70 +346,73 @@ model** — and an implementation that returns `None` where a quantity is
 undefined (as `time_dependent_auc` does for an empty case or control set) makes
 that visible, where returning 0.5 would have hidden it.
 
-### D6 (P3-F14). The §7 comparison is not stable at this event count
+### D6 (P3-F14). The §7 comparison was in-sample, and that is not a comparison
 
-This finding began as a different one, and the way it changed is the useful part.
+This finding changed twice. The route matters more than the destination,
+because each wrong version looked like a result.
 
-**What the model does.** A discrete-time hazard model is asked "does this
-account default *this month*", and the most informative answer is nearly always
-the most recent arrears reading. Left unconstrained the trees spend themselves
-on `dpd_now` and `max_dpd_3m` — 61 of the first 100 splits on a fitted model,
-while `months_on_book`, the feature I expected to dominate, takes none of the
-top eight. Those features are **zero for about 99% of accounts at any
-snapshot**, because delinquency is rare, so the model discriminates well inside
-the delinquent tail and barely at all across the population. Ranking a book
-needs the second. That much is solid and is why `feature_fraction` is set.
+**What the model does** (this part held throughout). A discrete-time hazard
+model is asked "does this account default *this month*", and the most
+informative answer is nearly always the most recent arrears reading. Left
+unconstrained the trees spend themselves on `dpd_now` and `max_dpd_3m` — 61 of
+the first 100 splits on a fitted model, while `months_on_book`, the feature I
+expected to dominate, takes none of the top eight. Those are zero for about 99%
+of accounts at any snapshot, because delinquency is rare, so the model
+discriminates well inside the delinquent tail and barely at all across the
+population. Ranking a book needs the second. That is why `feature_fraction` is
+set.
 
-**What I then got wrong.** A configuration grid at 0.8% sampling said column
-subsampling was decisive:
+**First wrong version: "column subsampling fixes it."** A configuration grid at
+0.8% sampling gave the subsampled challenger a +0.075 uplift over Cox. I applied
+it and wrote it into the module and the model card as a result.
 
-| Configuration | C-index | Uplift vs Cox |
-|---|---|---|
-| baseline (60 trees, depth 4, lr 0.1) | 0.5458 | −0.0217 |
-| + `scale_pos_weight` | 0.3413 | −0.2262 |
-| **+ `feature_fraction` 0.5** (200 trees, lr 0.05) | **0.6423** | **+0.0748** |
-| + both | 0.5059 | −0.0615 |
+**Second wrong version: "the comparison is unstable."** It did not replicate. At
+2% the identical configuration gave −0.119. I concluded the measurement was
+noise-dominated and rewrote the finding to say so — and that was wrong too,
+because I had not checked whether it was *noise*. A seed sweep settles it:
 
-I took the third row as the answer, applied it, and wrote it into the module and
-the model card as a result. It did not replicate. Re-running the identical
-configuration at 2% sampling:
-
-| Sample | Subjects | Cox C | Challenger C | Uplift |
+| Sample | Subject events | Cox C | Challenger C by seed | Uplift by seed |
 |---|---|---|---|---|
-| 0.8% | 1,796 | 0.5675 | 0.6423 | **+0.0748** |
-| 2.0% | 4,718 | 0.6708 | 0.5517 | **−0.1191** |
+| 0.8% | 204 | 0.5675 | 0.6423 / 0.6726 / 0.6314 | **+0.075 / +0.105 / +0.064** |
+| 2.0% | 600 | 0.6500 | 0.5517 / 0.5510 / 0.5685 | **−0.098 / −0.099 / −0.082** |
 
-Both models moved by more than 0.10, in **opposite directions**, and the uplift
-changed sign by 0.19. No stable estimator does that on more data from the same
-population. The measurement is dominated by which loans the sample happened to
-draw — the 2007 vintage's defaults are concentrated in a narrow window, so a
-few hundred subject events decide the ordering.
+Within a sample size the result is tight — a spread of 0.04 and 0.02. Between
+sample sizes it flips sign, consistently, every seed. That is not noise. It is a
+*systematic* effect of sample size, and a systematic effect has a cause.
 
-**The finding is therefore not "column subsampling fixes the challenger".** It
-is that **Phase 3 §7's headline criterion is not measurable to the precision it
-is stated at**, on any sample this repository can draw. The criterion asks for a
-+0.02 uplift; the sampling noise here is an order of magnitude larger than that.
-A gate reading a single run would be reading noise, and would read it as a
-result.
+**The cause: the comparison had no held-out set.** Both models were being scored
+on the accounts they were fitted on. A four-parameter Cox model can barely
+overfit 200 events; a 200-tree depth-4 ensemble memorises them. So at 0.8% the
+challenger's apparent advantage was its own training data being read back to it,
+and as events accumulated the memorisation advantage shrank and the true (worse)
+ranking emerged. Cox's C rising with more data and the challenger's falling is
+the signature.
 
-This is the same shape as Phase 1's P1-F8, which was also a headline uplift that
-turned out to be unstable, and it went the same way: the corrected version is
-worth more than the original. The published `CHALLENGER_PARAMS` now says these
-are not tuned values and says why.
+**The fix.** `HOLDOUT_FRACTION` splits the panel **by account** — never by
+account-month, because the same loan on both sides of a panel split is the same
+loan and the model has effectively seen the test row already. Both models are
+fitted on the fit set and scored on the held-out accounts, and the run report
+carries `out_of_sample: true`.
 
-**Proposed wording** for §7: *"the C-index comparison is made at a stated
-observation month, with both models scored on the same subjects, and with
-subjects censored at the horizon the challenger was fitted to. The uplift is
-reported with a confidence interval or a resampled spread; a point estimate from
-a single fit does not satisfy this criterion."* Without the first two clauses
-the criterion is not formable; without the third it is not decidable.
+**What this says about §7.** The criterion "hazard GBM C-index ≥ Cox + 0.02" is
+silent on the split, and an implementer following it literally will do what I
+did — because comparing two models on the data you have is the obvious reading,
+and it systematically favours whichever model has more capacity. That is
+precisely the wrong bias for a criterion whose job is to justify replacing an
+interpretable model with a complex one.
 
-One thing the grid does establish robustly, because it held at every size tried:
-**`scale_pos_weight` makes this model worse than random.** At a 0.3% event rate,
-upweighting the positives buys fit on the delinquent tail at the cost of the
-ordering everywhere else. It is deliberately absent, with the measurement
-recorded beside it, because "we tried the obvious thing and it was actively
-harmful" is exactly the result that gets rediscovered every two years.
+**Proposed wording** for §7: *"the C-index comparison is made on accounts held
+out of both fits, at a stated observation month, over a common forward time
+axis, with subjects censored at the horizon the challenger was fitted to. An
+in-sample comparison between models of different capacity does not satisfy this
+criterion."*
+
+One result held at every sample size and every seed: **`scale_pos_weight` makes
+this model worse than random.** At a 0.3% event rate, upweighting the positives
+buys fit on the delinquent tail at the cost of the ordering everywhere else. It
+is deliberately absent, with the measurement recorded beside it, because "we
+tried the obvious thing and it was actively harmful" is exactly the result that
+gets rediscovered every two years.
 
 ---
 

@@ -50,6 +50,20 @@ METRIC_HORIZONS = (12, 24, 36, 48)
 #: months 0-60 measures extrapolation, not discrimination.
 FITTED_HORIZON = 60
 
+#: Share of accounts held out of every survival fit and scored on.
+#:
+#: This is not a refinement. Without it the §7 comparison is **in-sample**, and
+#: an in-sample comparison between a four-parameter Cox model and a 200-tree
+#: ensemble measures capacity, not skill: the ensemble memorises and the Cox
+#: model cannot. That produced a uplift that was stable across seeds and flipped
+#: sign with sample size — +0.08 with 217 events, −0.09 with 639 — because the
+#: memorisation advantage shrinks as events accumulate. Phase 3 finding D6.
+#:
+#: The split is by **account**, never by account-month: the same loan on both
+#: sides of a panel split is the same loan, and the model has effectively seen
+#: the test row already.
+HOLDOUT_FRACTION = 0.3
+
 #: Months on book at which survival metrics are taken.
 #:
 #: Not zero, and the reason is a finding rather than a tuning choice. A
@@ -83,12 +97,11 @@ COX_FEATURES = ("max_dpd_12m", "orig_oltv", "orig_credit_score", "orig_dti")
 #: portfolio ranking needs. Column subsampling forces each split to consider
 #: features with broader coverage.
 #:
-#: **Do not read these as tuned values.** A grid at one sample size preferred
-#: this configuration by a wide margin and the preference did not survive a
-#: larger sample; the run report carries the measured uplift, and the spread
-#: behind it is Phase 3 finding D6. ``scale_pos_weight`` is deliberately
-#: absent — the standard handling for a rare event made the model *worse than
-#: random* at every size tried.
+#: **Do not read these as tuned values.** The grid that chose them was scored
+#: in-sample, which favours capacity over skill; they are kept for the reason
+#: above rather than because that grid preferred them (Phase 3 finding D6).
+#: ``scale_pos_weight`` is deliberately absent — the standard handling for a
+#: rare event made the model *worse than random* at every size and seed tried.
 CHALLENGER_PARAMS = {
     "n_trees": 200,
     "max_depth": 4,
@@ -215,8 +228,14 @@ def run(path: str, output: str, *, sample_rate: float, row_limit: int | None) ->
     features_for_hazard = _attach_hazard_features(panel, hazard_rows)
     print(f"  {len(hazard_rows):,} account-months at risk")
 
+    print("splitting accounts for out-of-sample survival evaluation ...")
+    fit_ids, test_ids = _split_accounts(panel, HOLDOUT_FRACTION)
+    fit_rows = [r for r in hazard_rows if r.account_id in fit_ids]
+    print(f"  {len(fit_ids):,} accounts to fit on, {len(test_ids):,} held out "
+          f"({len(fit_rows):,} of {len(hazard_rows):,} account-months)")
+
     print("fitting the Cox reference ...")
-    cox_rows = hazard_rows[:COX_MAX_ROWS]
+    cox_rows = fit_rows[:COX_MAX_ROWS]
     intervals = cox.intervals_from_hazard_rows(cox_rows, COX_FEATURES)
     cox_model = cox.fit_cox(intervals, list(COX_FEATURES))
     report["cox"] = cox_model.summary()
@@ -240,7 +259,7 @@ def run(path: str, output: str, *, sample_rate: float, row_limit: int | None) ->
         features_for_hazard,
         reason="Track P experiment; behavioural directions unratified (LH-310)")
     hazard_model = hazard.fit_hazard(
-        hazard_rows, features_for_hazard, hazard_constraints,
+        fit_rows, features_for_hazard, hazard_constraints,
         **CHALLENGER_PARAMS)
     report["hazard"] = hazard_model.to_dict()
 
@@ -269,7 +288,8 @@ def run(path: str, output: str, *, sample_rate: float, row_limit: int | None) ->
 
     # ------------------------------------------------------------- survival metrics
     print("scoring survival metrics ...")
-    report["survival_metrics"] = _survival_metrics(panel, hazard_model, cox_model)
+    report["survival_metrics"] = _survival_metrics(
+        panel, hazard_model, cox_model, test_ids)
 
     # ---------------------------------------------------------------- WS-3.1/5
     print("fitting LGD on workout cashflows ...")
@@ -366,7 +386,24 @@ def _attach_hazard_features(panel, hazard_rows) -> list[str]:
         if n != hazard.TIME_FEATURE]
 
 
-def _survival_metrics(panel, hazard_model, cox_model) -> dict:
+def _split_accounts(panel, holdout: float) -> tuple[set, set]:
+    """Split accounts — not account-months — into fit and held-out sets.
+
+    Deterministic on the account id, so the same loan lands on the same side on
+    every run and the split needs no state.
+    """
+    import hashlib
+
+    fit, held = set(), set()
+    for spell in panel.spells:
+        digest = hashlib.blake2b(
+            f"survival-split:{spell.account_id}".encode(), digest_size=8).digest()
+        draw = int.from_bytes(digest, "big") / float(1 << 64)
+        (held if draw < holdout else fit).add(spell.account_id)
+    return fit, held
+
+
+def _survival_metrics(panel, hazard_model, cox_model, test_ids: set) -> dict:
     """Score both models from a common observation point, on common subjects.
 
     Phase 3 §7 compares the challenger's C-index against the Cox reference's, so
@@ -382,6 +419,8 @@ def _survival_metrics(panel, hazard_model, cox_model) -> dict:
     horizons = list(METRIC_HORIZONS)
 
     for spell in panel.spells:
+        if spell.account_id not in test_ids:
+            continue
         index = next(
             (i for i, m in enumerate(spell.months)
              if m.months_on_book >= OBSERVATION_MONTH),
@@ -450,6 +489,8 @@ def _survival_metrics(panel, hazard_model, cox_model) -> dict:
     return {
         "observation_month": OBSERVATION_MONTH,
         "censored_at_month": FITTED_HORIZON,
+        "out_of_sample": True,
+        "holdout_fraction": HOLDOUT_FRACTION,
         "note": (
             "both models are scored on the same subjects, at the same month on "
             "book, over the same forward time axis — the only comparison Phase 3 "
@@ -458,7 +499,10 @@ def _survival_metrics(panel, hazard_model, cox_model) -> dict:
             "risk (every arrears feature is zero for every loan), which reads as "
             "a broken model rather than as a question its features cannot "
             "answer. Subjects are censored at the horizon the challenger was "
-            "fitted to, so neither model is graded on months it never saw."
+            "fitted to, so neither model is graded on months it never saw — and "
+            "they are held-out accounts, because an in-sample comparison between "
+            "a four-parameter model and a 200-tree ensemble measures capacity "
+            "rather than skill."
         ),
         "subjects": len(subjects),
         "concordance_challenger": challenger.to_dict(),
