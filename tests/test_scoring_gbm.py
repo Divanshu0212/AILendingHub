@@ -212,3 +212,69 @@ class TestFittingBehaviour(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHyperparameterSearch(unittest.TestCase):
+    """Phase 1 §4 Step 4: search on validation vintages only."""
+
+    def setUp(self):
+        from lending_hub.scoring.gbm import DEFAULT_GRID, tune_gbm
+        self.tune_gbm = tune_gbm
+        self.grid = DEFAULT_GRID
+        self.train, self.train_y = make(700, 201)
+        self.validation, self.validation_y = make(300, 202)
+
+    def result(self, **kw):
+        return self.tune_gbm(
+            self.train, self.train_y, FEATURES, RATIFIED,
+            validation=(self.validation, self.validation_y),
+            grid=self.grid[:3], n_trees=20, early_stopping_rounds=5,
+            max_bins=16, **kw,
+        )
+
+    def test_it_tries_every_configuration_and_names_them(self):
+        result = self.result()
+        self.assertEqual(len(result.trials), 3)
+        self.assertEqual(
+            [t["name"] for t in result.trials], [c["name"] for c in self.grid[:3]]
+        )
+
+    def test_it_selects_the_lowest_validation_log_loss(self):
+        # Log-loss rather than AUC: a search that optimises ranking says nothing
+        # about whether the probabilities mean anything.
+        result = self.result()
+        self.assertEqual(
+            result.best["validation_log_loss"],
+            min(t["validation_log_loss"] for t in result.trials),
+        )
+
+    def test_the_grid_brackets_the_library_defaults(self):
+        default = next(c for c in self.grid if c["name"] == "library-default")
+        self.assertEqual(default["max_depth"], 3)
+        self.assertEqual(default["learning_rate"], 0.1)
+        self.assertEqual(default["min_child_weight"], 1.0)
+        self.assertEqual(default["l2"], 1.0)
+
+    def test_the_search_subsample_is_recorded(self):
+        # A hyperparameter chosen on a tenth of the data is a weaker claim, and a
+        # reader cannot tell which they have without being told.
+        result = self.result(search_rows=200)
+        self.assertEqual(result.rows_searched, 200)
+        self.assertIn("200 of 700", result.note)
+
+    def test_an_empty_grid_is_refused(self):
+        with self.assertRaises(GBMError):
+            self.tune_gbm(
+                self.train, self.train_y, FEATURES, RATIFIED,
+                validation=(self.validation, self.validation_y), grid=(),
+            )
+
+    def test_the_same_seed_reproduces_the_search(self):
+        first, second = self.result(search_rows=300), self.result(search_rows=300)
+        self.assertEqual(first.best, second.best)
+
+    def test_the_result_serialises_for_the_model_card(self):
+        payload = self.result().to_dict()
+        for key in ("best", "trials", "rows_searched", "note"):
+            self.assertIn(key, payload)
+        self.assertIn("test set was not read", payload["note"])

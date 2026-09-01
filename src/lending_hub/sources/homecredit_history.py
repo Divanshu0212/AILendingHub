@@ -317,33 +317,3 @@ def load_pos_cash(path: str, *, keys: set[str] | None = None) -> tuple[dict[str,
         }
     summary.applicants = len(out)
     return out, summary
-
-
-def merge(
-    rows: list[dict],
-    *aggregates: dict[str, dict],
-    feature_names: dict[str, str],
-) -> list[str]:
-    """Attach aggregates to application rows, in place, and return the new columns.
-
-    An applicant absent from a history table gets ``None`` for every feature of
-    that table, never zero. "No bureau file" and "a bureau file showing nothing"
-    are different applicants — the first is new-to-credit, the second has been
-    looked at and found clean — and a zero merges the first into the second.
-    Recovering the distinction later is impossible.
-    """
-    names = list(feature_names)
-    for row in rows:
-        key = row.get("application_id", "")
-        merged: dict = {}
-        for table in aggregates:
-            merged.update(table.get(key, {}))
-        for name in names:
-            row[name] = merged.get(name)
-        row[f"{name_group(names)}_present"] = 1.0 if merged else 0.0
-    return names + [f"{name_group(names)}_present"]
-
-
-def name_group(names: list[str]) -> str:
-    """The shared prefix of a feature group, for its coverage flag."""
-    return names[0].split("_", 1)[0] if names else "history"

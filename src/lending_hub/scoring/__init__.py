@@ -10,13 +10,16 @@ Workstream: WS-1.1
 from .binning import Bin, Binning, BinningError, fit_binning, information_value
 from .gbm import (
     DECREASING,
+    DEFAULT_GRID,
     INCREASING,
     UNCONSTRAINED,
     GBM,
     GBMError,
     MonotoneConstraints,
     Node,
+    TuningResult,
     fit_gbm,
+    tune_gbm,
 )
 from .calibration import (
     CalibrationError,
@@ -166,6 +169,7 @@ from .target import (
 __all__ = [
     "BUREAU_RETRO_AVAILABILITY",
     "DECREASING",
+    "DEFAULT_GRID",
     "FAIRNESS_ACTION_THRESHOLD",
     "GINI_UPLIFT_REQUIRED",
     "GBM",
@@ -241,6 +245,7 @@ __all__ = [
     "ScreenVerdict",
     "Splits",
     "SwapSetAnalysis",
+    "TuningResult",
     "TargetError",
     "TargetLedger",
     "TargetRow",
@@ -296,6 +301,7 @@ __all__ = [
     "screen_psi",
     "split_by_vintage",
     "swap_sets",
+    "tune_gbm",
     "tree_shap",
     "unratified_codes",
     "validate",

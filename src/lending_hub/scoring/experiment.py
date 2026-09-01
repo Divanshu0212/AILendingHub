@@ -33,6 +33,12 @@ import time
 from datetime import date
 
 from lending_hub.definitions import DEFINITIONS_VERSION, fingerprint
+from lending_hub.sources.homecredit_history import (
+    BUREAU_FEATURES,
+    POS_FEATURES,
+    load_bureau,
+    load_pos_cash,
+)
 from lending_hub.sources.homecredit import (
     CATEGORICAL_FEATURES,
     DERIVED_FEATURES,
@@ -48,12 +54,25 @@ from .calibration import CalibrationSource, fit_calibration
 from .explain import explain_gbm, global_importance
 from .fairness import assess
 from .features import PROTECTED_NAMES, ProtectedAttributeAccess, ScreenVerdict
-from .gbm import MonotoneConstraints, fit_gbm
+from .gbm import MonotoneConstraints, fit_gbm, tune_gbm
 from .rejects import memo_when_unavailable
 from .scorecard import fit_scorecard, negative_coefficients
 from .splits import Part, carve_calibration, holdout_without_time_axis, manifest
 from .target import LabelProvenance, build_target_table
 from .validation import monotonicity_spot_check, sensitivity, swap_sets, validate
+
+#: The history tables. Both live beside application_train.csv in the same
+#: gitignored extract; absent, the run proceeds on application features alone and
+#: says so.
+HISTORY_PATHS = {
+    "bureau": "datasets/home-credit-default-risk/bureau.csv",
+    "repayment history": "datasets/home-credit-default-risk/POS_CASH_balance.csv",
+}
+
+#: Rows the hyperparameter search fits each configuration on. Searching at full
+#: size costs the grid's length times a full fit, for a decision that is stable
+#: well before then; the winner is refitted on everything.
+SEARCH_ROWS = 30_000
 
 #: One cohort, because the source has no time axis. Named so the vintage split
 #: refuses it rather than producing a fake ordering.
@@ -70,12 +89,42 @@ def _log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
+def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = True) -> dict:
     started = time.time()
 
     _log(f"loading {path} ...")
     rows, labels, protected, load_summary = load(path, limit=limit)
     _log(f"  {load_summary.kept} rows, base rate {load_summary.base_rate:.4f}")
+
+    history_names: list[str] = []
+    history_summaries: list[dict] = []
+    keys = {row["application_id"] for row in rows}
+
+    for label, loader, spec in (
+        ("bureau", load_bureau, BUREAU_FEATURES),
+        ("repayment history", load_pos_cash, POS_FEATURES),
+    ):
+        source = HISTORY_PATHS[label]
+        if not pathlib.Path(source).exists():
+            _log(f"  {label}: {source} not found, skipped")
+            continue
+        _log(f"  aggregating {label} from {source} ...")
+        aggregates, summary = loader(source, keys=keys)
+        history_summaries.append(summary.to_dict())
+        covered = 0
+        for row in rows:
+            values = aggregates.get(row["application_id"])
+            covered += 1 if values else 0
+            for name in spec:
+                # Absent from the table means None, never zero. "No bureau file"
+                # and "a bureau file showing nothing" are different applicants,
+                # and a zero merges the first into the second irreversibly.
+                row[name] = values.get(name) if values else None
+        flag = f"{label.split()[0]}_present"
+        for row in rows:
+            row[flag] = 1.0 if aggregates.get(row["application_id"]) else 0.0
+        history_names += list(spec) + [flag]
+        _log(f"    {summary.rows_read:,} rows -> {covered:,} of {len(rows):,} applicants covered")
 
     applications = to_applications(
         rows, labels, decided_at=date(2018, 1, 1), vintage=SINGLE_COHORT
@@ -123,12 +172,14 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
             for name in load_summary.feature_names
             if any(name.startswith(f"{c}=") for c in CATEGORICAL_FEATURES)
         ]
+        + history_names
     )
 
     # ---- WS-1.1 Step 3: bin, screen, and keep what survives ------------------
     _log(f"binning {len(candidates)} candidate features on {len(train_rows)} rows ...")
     screened: list[dict] = []
     binnings = []
+    usable = []
     for name in candidates:
         try:
             binning = fit_binning(
@@ -151,17 +202,28 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
         )
         if verdict is ScreenVerdict.PASS:
             binnings.append(binning)
+        if verdict is not ScreenVerdict.INVESTIGATE:
+            # The IV floor is a *scorecard* convention — SRS §4.3.1 states it in
+            # the champion's section, not the challenger's — and a tree ensemble's
+            # value is in interactions between features that are individually
+            # weak. The challenger therefore takes everything that bins, minus
+            # anything the leakage ceiling flagged. Finding P1-F14.
+            usable.append(binning)
 
     binnings.sort(key=lambda b: -b.iv)
     kept = binnings[:SCORECARD_CHARACTERISTICS]
-    _log(f"  {len(binnings)} passed the IV screen; scorecard keeps {len(kept)}")
+    usable.sort(key=lambda b: -b.iv)
+    _log(
+        f"  {len(usable)} binnable, {len(binnings)} passed the IV screen; "
+        f"scorecard keeps {len(kept)}, challenger uses {len(usable)}"
+    )
 
     # ---- WS-1.1 Step 3: the champion ----------------------------------------
     _log("fitting the WOE scorecard ...")
     scorecard = fit_scorecard(train_rows, train_y, kept, epochs=15, seed=seed)
 
     # ---- WS-1.1 Step 4: the challenger --------------------------------------
-    challenger_features = [b.feature for b in binnings]
+    challenger_features = [b.feature for b in usable]
     constraints = MonotoneConstraints.for_experiment(
         challenger_features,
         reason=(
@@ -170,6 +232,23 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
             "not promotable."
         ),
     )
+    tuning = None
+    hyperparameters = {"max_depth": 3, "learning_rate": 0.1,
+                       "min_child_weight": 1.0, "l2": 1.0}
+    if tune:
+        _log(f"searching hyperparameters on validation ({len(challenger_features)} features) ...")
+        tuning = tune_gbm(
+            train_rows, train_y, challenger_features, constraints,
+            validation=(validation_rows, validation_y),
+            n_trees=trees, early_stopping_rounds=15, max_bins=32,
+            search_rows=min(SEARCH_ROWS, len(train_rows)), seed=seed,
+        )
+        hyperparameters = {
+            k: v for k, v in tuning.best.items()
+            if k in ("max_depth", "learning_rate", "min_child_weight", "l2")
+        }
+        _log(f"  chose {tuning.best['name']}: {hyperparameters}")
+
     _log(f"fitting the challenger on {len(challenger_features)} features ...")
     challenger = fit_gbm(
         train_rows,
@@ -177,11 +256,11 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
         challenger_features,
         constraints,
         n_trees=trees,
-        max_depth=3,
         max_bins=32,
         validation=(validation_rows, validation_y),
         early_stopping_rounds=15,
         seed=seed,
+        **hyperparameters,
     )
     _log(f"  {len(challenger.trees)} trees, best iteration {challenger.best_iteration}")
 
@@ -324,6 +403,7 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
             "were accepted deliberately.",
         ],
         "load": load_summary.to_dict(),
+        "history": history_summaries,
         "target": table.manifest(),
         "split": split_manifest.to_dict(),
         "feature_screen": sorted(
@@ -337,6 +417,7 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
         },
         "challenger": {
             **challenger.to_dict(),
+            "tuning": tuning.to_dict() if tuning else None,
             "calibration": challenger_calibration.to_dict(),
             "global_shap_importance": [
                 {"feature": name, "mean_abs_shap": value} for name, value in importance
@@ -370,6 +451,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=60_000, help="rows to read")
     parser.add_argument("--seed", type=int, default=20260901)
     parser.add_argument("--trees", type=int, default=120)
+    parser.add_argument(
+        "--no-tune", action="store_true",
+        help="skip the Phase 1 §4 Step 4 hyperparameter search (faster; not compliant)",
+    )
     args = parser.parse_args(argv)
 
     if not pathlib.Path(args.path).exists():
@@ -379,7 +464,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    report = run(args.path, limit=args.limit, seed=args.seed, trees=args.trees)
+    report = run(args.path, limit=args.limit, seed=args.seed, trees=args.trees,
+                 tune=not args.no_tune)
 
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

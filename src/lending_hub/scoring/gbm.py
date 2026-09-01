@@ -569,6 +569,127 @@ def fit_gbm(
     )
 
 
+#: The search space for :func:`tune_gbm`. Named configurations rather than a
+#: cross-product: a full grid over four axes is 24 fits, most of them
+#: uninformative, and a reviewer cannot tell from a grid definition which
+#: hypotheses were actually being tested.
+#:
+#: Every value brackets LightGBM's documented defaults — depth around its shallow
+#: end because SRS §4.3.2 wants a depth-limited credit model, learning rate at and
+#: below the default, ``min_child_weight`` and ``lambda_l2`` at the default and one
+#: step up. Nothing here is invented: it is the library's own defaults plus a step
+#: either side, which is what makes the search reportable.
+DEFAULT_GRID: tuple[dict, ...] = (
+    {"name": "library-default", "max_depth": 3, "learning_rate": 0.1,
+     "min_child_weight": 1.0, "l2": 1.0},
+    {"name": "shallow-slow", "max_depth": 3, "learning_rate": 0.05,
+     "min_child_weight": 1.0, "l2": 1.0},
+    {"name": "deeper", "max_depth": 4, "learning_rate": 0.1,
+     "min_child_weight": 1.0, "l2": 1.0},
+    {"name": "deeper-regularised", "max_depth": 4, "learning_rate": 0.05,
+     "min_child_weight": 20.0, "l2": 10.0},
+    {"name": "deepest-regularised", "max_depth": 5, "learning_rate": 0.05,
+     "min_child_weight": 20.0, "l2": 10.0},
+    {"name": "shallow-heavy-leaf", "max_depth": 3, "learning_rate": 0.05,
+     "min_child_weight": 20.0, "l2": 10.0},
+)
+
+
+@dataclass
+class TuningResult:
+    """What the search tried, and what it chose."""
+
+    best: dict
+    trials: list[dict]
+    rows_searched: int
+    note: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "best": self.best,
+            "trials": self.trials,
+            "rows_searched": self.rows_searched,
+            "note": self.note,
+        }
+
+
+def tune_gbm(
+    rows: Sequence[dict],
+    labels: Sequence[int],
+    features: Sequence[str],
+    constraints: MonotoneConstraints,
+    *,
+    validation: tuple[Sequence[dict], Sequence[int]],
+    grid: Sequence[dict] = DEFAULT_GRID,
+    n_trees: int = 200,
+    early_stopping_rounds: int = 20,
+    max_bins: int = DEFAULT_MAX_BINS,
+    scale_pos_weight: float | None = None,
+    search_rows: int | None = None,
+    seed: int = 0,
+) -> TuningResult:
+    """Search the grid on the validation set, as Phase 1 §4 Step 4 requires.
+
+    Selection is by **validation log-loss**, not by validation AUC. A search that
+    optimises AUC picks the configuration that ranks best and says nothing about
+    whether its probabilities mean anything; log-loss is a proper scoring rule and
+    penalises both. Calibration happens afterwards on rows neither the fit nor
+    this search has seen, which is what keeps that ordering honest.
+
+    ``search_rows`` fits the grid on a seeded subsample and refits the winner on
+    everything. The alternative — searching at full size — costs the grid's length
+    times the full fit, and on a portfolio that is hours for a decision that is
+    stable well before then. The subsample size is recorded, because a
+    hyperparameter chosen on a tenth of the data is a weaker claim than one chosen
+    on all of it, and a reader cannot tell which they have without being told.
+
+    The test set is never touched. That is the point of the step.
+    """
+    if not grid:
+        raise GBMError("an empty grid searches nothing")
+
+    pool = list(range(len(rows)))
+    if search_rows is not None and search_rows < len(pool):
+        rng = random.Random(seed)
+        pool = sorted(rng.sample(pool, search_rows))
+    search_x = [rows[i] for i in pool]
+    search_y = [labels[i] for i in pool]
+
+    trials: list[dict] = []
+    best: dict | None = None
+    for config in grid:
+        params = {k: v for k, v in config.items() if k != "name"}
+        model = fit_gbm(
+            search_x, search_y, features, constraints,
+            n_trees=n_trees, max_bins=max_bins,
+            scale_pos_weight=scale_pos_weight,
+            validation=validation, early_stopping_rounds=early_stopping_rounds,
+            seed=seed, **params,
+        )
+        loss = min(model.validation_curve) if model.validation_curve else float("inf")
+        trial = {
+            "name": config.get("name", ""),
+            **params,
+            "validation_log_loss": loss,
+            "best_iteration": model.best_iteration,
+            "trees_grown": len(model.trees),
+        }
+        trials.append(trial)
+        if best is None or loss < best["validation_log_loss"]:
+            best = trial
+
+    return TuningResult(
+        best=best,
+        trials=trials,
+        rows_searched=len(search_x),
+        note=(
+            f"selected by validation log-loss over {len(grid)} configurations on "
+            f"{len(search_x)} of {len(rows)} training rows; the test set was not "
+            "read (Phase 1 §4 WS-1.1 Step 4)"
+        ),
+    )
+
+
 def _log_loss(labels: Sequence[int], probabilities: Sequence[float]) -> float:
     total = 0.0
     for label, p in zip(labels, probabilities):

@@ -35,6 +35,7 @@ a decision somebody makes silently".
 | P1-F11 | Isotonic is mandated where the cited paper advises against it | SRS §4.3.2.2 and Phase 1 §4 Step 5 — chosen by event count and recorded |
 | P1-F12 | "IFSC validity" is two different checks | Phase 1 §4 WS-1.2 Step 5 splits them; LH-210 open |
 | P1-F13 | Which score each metric class is computed on was unstated | SRS **v1.2** §4.3.4; `validate()` takes score and PD separately. See C2 |
+| P1-F14 | "Brier ≤ legacy" barely discriminates at an 8% base rate — the between-model gap is a tenth of the distance to a model that has learned nothing | **Not applied.** Moving a gate threshold is the owner's call with Model Risk. See B7 |
 
 Every `[POLICY]` ticket remains **open** — the documents now say the value is
 required and who owns it, which is not the same as having it.
@@ -289,6 +290,34 @@ exactly like a meaningful one on a deliverables checklist.
 **Implemented:** `check_ifsc()` validates format, states in its own result that
 existence was not checked, and cites LH-210 for the directory.
 
+### B7 (P1-F14). "Brier ≤ legacy" barely discriminates on a rare event
+
+**§7:** *"Brier ≤ legacy."*
+
+Brier score on a rare event is dominated by the base rate, and at an 8% default
+rate almost all of it is the base rate. Predicting 8.02% for every applicant —
+a model that has learned nothing — scores **0.0738**. The two Phase 1 models score
+0.06996 and 0.06954.
+
+So the whole usable range of the criterion is about 0.004, and the gap it is being
+asked to adjudicate between two models is 0.0004 — **a tenth of the distance to a
+model with no information in it.** A challenger that is genuinely much better and
+one that is marginally worse both land in the third decimal place. On a 1% fraud
+base rate, which is where P1's own WS-1.2 evaluation lives, it would be the fourth.
+
+ECE over the same pair is 0.00935 against 0.00600 — a 36% difference where Brier
+shows 0.6%. The calibration signal is there; Brier is the wrong instrument for
+reading it.
+
+**Recommended.** State the criterion as a **skill score** against the base-rate
+null — `1 − Brier / (p(1−p))`, which is 0.0517 and 0.0575 for these two models and
+puts the models on a scale where the difference is visible — or state it on ECE,
+which §4.3.4 already lists. Keep Brier as a reported number; it is a proper
+scoring rule and it belongs in the pack. Just do not ask a comparison to turn on
+it. **Not applied**: this one changes a gate threshold rather than clarifying an
+instruction, and a gate threshold is the document owner's to move with Model Risk
+rather than mine to propose into the file.
+
 ---
 
 ## C. Track P observations — evidence, not document changes
@@ -420,7 +449,32 @@ The orchestrator now distinguishes *two* reasons for referring —
 `P1_BANDS_NOT_DUAL_APPROVED` (a control failed) — because those go to different
 people.
 
-### D4. A defect the Track P run found in the harness
+### D4. The IV floor was applied to the challenger, and the documents never said to
+
+An implementation defect of mine, recorded here because it is the kind that hides
+successfully: the run screened its **challenger's** feature set through the
+information-value floor and kept only what passed.
+
+Both documents scope that screen to the champion. SRS §4.3.1 states the IV window
+inside the scorecard's method, and Phase 1 §4 Step 3 restates it in the champion
+step; Step 4, the challenger, says nothing about IV. Nothing asked for the screen
+to be shared, and there is a reason it should not be: a scorecard needs each
+characteristic to carry standalone signal because each contributes independently,
+whereas a tree ensemble's advantage *is* the interaction between features that are
+individually weak. Screening on standalone IV removes exactly the features a GBM
+is there to exploit.
+
+The cost was large. With the bureau and repayment-history tables loaded, 74 of the
+candidates bin successfully and 31 clear the IV floor — so the screen was
+discarding **43 features** before the challenger ever saw them. The challenger now
+takes everything that bins, minus anything the leakage *ceiling* flagged, which is
+the one half of the screen that protects it rather than starving it.
+
+Worth noting what this did to finding P1-F8's territory: two of the reasons the
+uplift looked weak — "the challenger was not tuned" and "only 17 of 56 candidates
+survived the screen" — were partly this defect rather than properties of the data.
+
+### D5. A defect the Track P run found in the harness
 
 The first run reported a train-to-test score PSI of **4.69** on a *random* split
 of a single population, which is impossible. The cause was comparing raw training

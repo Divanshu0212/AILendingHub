@@ -15,3 +15,16 @@ Track A only, never a training input.
 
 The real extract is 307,511 rows and is gitignored; see
 [docs/phase0/DATA_SOURCING.md](../../../docs/phase0/DATA_SOURCING.md).
+
+## History fixtures
+
+`bureau_sample.csv` — five bureau records across three applicants: one with a
+mixed active/closed file including a prolonged credit in arrears, one with a
+single old closed record, and one whose amount columns are blank (so a debt ratio
+with no denominator has to come back as `None`, not zero).
+
+`pos_cash_sample.csv` — six monthly balances. Applicant 900001 has a worsening
+arrears run across three months plus a completed prior loan; 900003's only row is
+at `MONTHS_BALANCE = 0`, which is excluded as not strictly before the application
+and must therefore leave that applicant absent from the aggregate rather than
+present with zeros.
