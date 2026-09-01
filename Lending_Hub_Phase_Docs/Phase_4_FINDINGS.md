@@ -23,6 +23,10 @@ computed.
 | P4-F5 | **BOCPD confidence depends on the preceding regime's stability**, so a global threshold has no constant false-negative rate | Gap found by measurement | **LH-512 (new)** |
 | P4-F6 | **A per-officer alert cap is not derivable from a portfolio alert budget** | Gap found by building | **LH-507 (new)** |
 | P4-F7 | **Signal precision is unmeasurable for every signal**, so §4 Step 1's ship gate blocks the entire catalogue | Structural | LH-510 |
+| P4-F8 | **"Never hard-coded" is about time, and the phase file omits the freshness that follows from it** | Gap found by building | **LH-513 (new)** |
+| P4-F9 | **Velocity confirmation without a change-point is not an alert**, which the two-key rule implies and does not say | Under-specification | LH-508 |
+| P4-F10 | Scoring alert precision against the **default outcome measures the opposite of its name** | Method note | LH-510 |
+| P4-F11 | **A correction to my own work**: the first Track P capture number scored unreachable defaults and measured the train/test split | Correction to my own work | — |
 
 ---
 
@@ -144,6 +148,43 @@ book comfortably inside its budget can still bury the one officer covering a
 district in drought, because alerts are spatially and temporally correlated
 exactly when they matter. Registered as **LH-507**.
 
+### B5 (P4-F8). "Never hard-coded" is a statement about time
+
+**§5 WS-B Step 2:** *"Funds cost, opex, hurdle from ALM tables `[POLICY: ALCO]`
+— **never hard-coded**."*
+
+The emphasis is doing real work and it is worth spelling out why. ALM components
+are not constants that happen to be unknown; they **move**. A cost of funds
+tracks the policy rate, an opex allocation moves with cost-to-income, a hurdle is
+reset by ALCO. So a pricing service reading a constant is not merely ungrounded —
+it is *wrong within a quarter even if the constant was right on the day*.
+
+Which is exactly why the omission matters: the phase file requires the components
+come from tables and says nothing about **how current the table must be**. A
+table that stopped updating produces plausible rates indefinitely from a funding
+environment that no longer exists, and nothing in the output says so. That is the
+failure that actually happens — "never hard-coded" is satisfied, and the service
+is still wrong.
+
+`price()` refuses a table older than an engineering default of 92 days and
+refuses a future-dated one. The real tolerance is a treasury decision.
+Registered as **LH-513**.
+
+### B6 (P4-F9). Velocity without a change-point is not an alert
+
+**§4 WS-A Step 3** defines Amber as "change-point alone" and Red as
+"change-point + negative direction + PD-velocity confirmation". Read as a
+complete decision procedure, that leaves a case unnamed: **PD velocity firing
+with no cash-flow change-point.**
+
+Implementing `tier()` forced the question. The answer that follows from the
+rule's own logic is Tier.NONE — a PD move with no corresponding regime change in
+cash flow is the ordinary month-to-month drift of a hazard model, and routing it
+as Amber would flood the queue with model noise, which is the fatigue failure the
+two-key rule exists to prevent. But the phase file does not say so, and the
+opposite reading ("any signal fires → at least Amber") is equally available to an
+implementer. Added to **LH-508**.
+
 ---
 
 ## C. Measured findings
@@ -185,6 +226,62 @@ desk (LH-510), so no signal has a precision, so none ships.
 each naming its ticket. The alternative — shipping with a plausible precision —
 is precisely the failure the rule was written to prevent, and it would be
 invisible: an invented 0.31 looks exactly like a measured one.
+
+### C2 (P4-F10). The available precision proxy measures the opposite of its name
+
+Not a gap in the phase file — §4 Step 6 correctly asks for precision per tier,
+and Appendix A correctly defines it against confirmed-relevant dispositions. The
+finding is about what happens when those dispositions do not exist, because the
+substitution is obvious and available: score each alert against whether the
+account later defaulted.
+
+**That metric is inversely related to the thing it is named for.** An alert that
+correctly identified distress, which the collections team then successfully
+cured, becomes a false positive. So the better the collections operation, the
+worse its EWS appears — and a bank that improved its cure rate would see its
+early-warning precision fall and might well "fix" the detector.
+
+It is the same class of error as Phase 3's in-sample comparison (P3-F14): a
+number that looks like the right metric and measures something else.
+`ews.backtest.tier_precision()` requires dispositions and refuses an empty set
+with this reason attached, and the Track P run reports precision as **not
+measurable** rather than substituting.
+
+### C3 (P4-F11). A correction to my own work: capture measured the split, not the detector
+
+The first Track P run reported **capture 0.111 at p90** against a 0.55 target,
+with `never_alerted: 728 of 827`. Read straight, that says the detector missed
+88% of defaulters and the criterion fails badly.
+
+It was wrong, and the shape of the error is worth recording because it is the
+same one Phase 3 caught in itself (P3-F14) pointing the other way.
+
+The detector alerts only on **held-out** snapshots — everything after the
+out-of-time split at 2012-12-31. But the denominator was every default in the
+panel. A default that happened before the first held-out snapshot **could not
+have been alerted on by construction**, so including it does not measure a worse
+detector; it measures the split.
+
+On this panel that is not a small correction. Measured directly: **151 of 179
+defaults in a 0.5% sample (84%) occur before the split**, because the Fannie Mae
+2007Q1 vintage front-loads its defaults into the 2008-11 credit event, which
+sits entirely inside the training window. So roughly six sevenths of the
+denominator was unreachable, and the reported capture was about a seventh of the
+detector's real rate.
+
+`ews.experiment` now scores against **reachable** defaults only — those after
+the first alertable snapshot — and the run report carries `in_panel`,
+`reachable` and `before_first_alertable_snapshot` so the distinction is visible
+rather than buried in a single ratio.
+
+**Why this belongs in the findings rather than a silent fix.** Phase 3's finding
+was an in-sample comparison that flattered a model; this is an out-of-sample
+denominator that maligned one. Both are the same underlying failure — a metric
+whose population was chosen by the mechanics of the experiment rather than by
+the question — and both are invisible in the output, because 0.111 looks exactly
+like a real capture rate. The only thing that surfaced it was asking why the
+number was so far from plausible and checking the denominator against the split
+before publishing it.
 
 ---
 

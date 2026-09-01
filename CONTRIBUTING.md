@@ -16,7 +16,12 @@ that's a bug in the repo, not in your machine.
 
 ## Picking up work
 
-1. Open [docs/phase2/STATUS.md](docs/phase2/STATUS.md) — the current phase. It maps every
+1. Open [docs/phase4/STATUS.md](docs/phase4/STATUS.md) — the current phase. It is
+   the first phase that *acts*, so read
+   [ADR-0014](docs/adr/0014-phase4-action-systems-track.md) before quoting
+   anything from `ews/` or `reco/`: detection has Track P evidence, action has
+   none, and nothing in the phase is simulated.
+   Then [docs/phase2/STATUS.md](docs/phase2/STATUS.md) — the previous phase. It maps every
    Phase 2 checklist item to the artifact that satisfies it, the track it runs on, and
    its state. **Phase 2 has no Track P** ([ADR-0013](docs/adr/0013-phase2-agri-track.md)),
    which is unlike every phase before it — read that ADR before quoting anything from
@@ -55,7 +60,9 @@ And when touching Phase 3:
 | `make gate3` | Assembles the Phase 3 §7 evidence pack into `reports/phase3_gate.md` |
 | `make trackp-p3` | Runs WS-3.1 and WS-3.2 against a real 19-year mortgage panel. Also needs `datasets/` |
 
-Phase 2 has `make gate2` and **no `make trackp-p2`** — there is no imagery, no agri
+Phase 4 has `make gate4` and `make trackp-p4`, which measures whether hazard
+deterioration precedes default on the real panel. Phase 2 has `make gate2` and
+**no `make trackp-p2`** — there is no imagery, no agri
 book and no ratified crop calendar, and none of the three is approximable, so every
 `agri/` module runs on Track A only. That is the whole content of ADR-0013, and it is
 why the Phase 2 gate pack quotes no metrics rather than fixture ones.
@@ -89,7 +96,8 @@ threshold looks exactly like a real one six months later.
 1. Write `TBD[<owner role>, <ticket-id>]` at the point of use.
 2. Add a row to **your phase's** register —
    [P0](docs/phase0/blocking_tickets.md), [P1](docs/phase1/blocking_tickets.md),
-   [P2](docs/phase2/blocking_tickets.md), [P3](docs/phase3/blocking_tickets.md).
+   [P2](docs/phase2/blocking_tickets.md), [P3](docs/phase3/blocking_tickets.md),
+   [P4](docs/phase4/blocking_tickets.md).
    `make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
    `TBD` registered in none of them.
 3. Make the code **raise** where the value would be read, rather than defaulting.

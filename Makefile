@@ -61,6 +61,14 @@ trackp-p3:  ## Run WS-3.1/3.2 end to end on Track P data (needs datasets/, see D
 gate1:  ## Assemble the Phase 1 gate evidence pack (Phase 1 §7)
 	$(PY) tools/phase1_gate_report.py --out reports/phase1_gate.md
 
+.PHONY: trackp-p4
+trackp-p4:  ## Run the WS-4.A detection layer on Track P data (needs datasets/)
+	$(PY) -m lending_hub.ews.experiment --output reports/trackP_p4_fannie_mae.json
+
+.PHONY: gate4
+gate4:  ## Assemble the Phase 4 gate evidence pack (Phase 4 §8)
+	$(PY) tools/phase4_gate_report.py --output reports/phase4_gate.md
+
 .PHONY: gate2
 gate2:  ## Assemble the Phase 2 gate evidence pack (Phase 2 §7)
 	$(PY) tools/phase2_gate_report.py --output reports/phase2_gate.md
@@ -68,9 +76,10 @@ gate2:  ## Assemble the Phase 2 gate evidence pack (Phase 2 §7)
 .PHONY: gate3
 gate3:  ## Assemble the Phase 3 gate evidence pack (Phase 3 §7)
 	$(PY) tools/phase3_gate_report.py --output reports/phase3_gate.md
+	$(PY) tools/phase4_gate_report.py --output reports/phase4_gate.md
 
 .PHONY: gate
-gate: check schemas  ## Run every gate script and assemble all four gate packs
+gate: check schemas  ## Run every gate script and assemble all five gate packs
 	-$(PY) -m lending_hub.identity.audit --out reports/join_rate_audit.json
 	-$(PY) -m lending_hub.lakehouse.reconcile --out reports/gl_reconciliation.json
 	-$(PY) -m lending_hub.mlops.reproducibility_test
@@ -80,3 +89,4 @@ gate: check schemas  ## Run every gate script and assemble all four gate packs
 	$(PY) tools/phase1_gate_report.py --out reports/phase1_gate.md
 	$(PY) tools/phase2_gate_report.py --output reports/phase2_gate.md
 	$(PY) tools/phase3_gate_report.py --output reports/phase3_gate.md
+	$(PY) tools/phase4_gate_report.py --output reports/phase4_gate.md

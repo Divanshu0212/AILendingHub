@@ -24,12 +24,14 @@ SRS and a phase file disagree, the SRS wins and the phase file gets a ticket.
 To work a phase you load: **the Master + that one phase file + this CLAUDE.md.** Nothing
 outside them may be assumed.
 
-**Current phase: P2 — Agri Intelligence (satellite, weather, crop, geo).**
-Status: [docs/phase2/STATUS.md](docs/phase2/STATUS.md). P3 is built as far as it
-can be ([docs/phase3/STATUS.md](docs/phase3/STATUS.md)), as are P1
+**Current phase: P4 — EWS + Recommendations (the first phase that *acts*).**
+Status: [docs/phase4/STATUS.md](docs/phase4/STATUS.md). P2
+([docs/phase2/STATUS.md](docs/phase2/STATUS.md)), P3
+([docs/phase3/STATUS.md](docs/phase3/STATUS.md)), P1
 ([docs/phase1/STATUS.md](docs/phase1/STATUS.md)) and P0
-([docs/phase0/STATUS.md](docs/phase0/STATUS.md)); every phase's entry criteria trace
-back to Phase 0's, which is why none is exitable.
+([docs/phase0/STATUS.md](docs/phase0/STATUS.md)) are each built as far as they can
+be; every phase's entry criteria trace back to Phase 0's, which is why none is
+exitable.
 
 Phase 1 was the first phase with **models**, so two rules that were abstract in
 Phase 0 began to bite: every model ships with its card (Master §2 rule 5), and every
@@ -64,6 +66,23 @@ The payoff is not a gate. It is that the boundary is now explicit and reviewable
 and that **five values nobody had noticed were missing** now have owners
 (LH-407 to LH-409, LH-411, LH-412) — each found the same way, by writing code
 against a step that read as fully specified until it had to produce a number.
+
+Phase 4 adds a fifth rule, and it changes what a *track* can mean: **an action
+system can only be evaluated against actions taken.** Every phase before it
+produced a number checkable against an outcome that had already happened. P4
+produces an alert routed to a human with an SLA, and an offer made to a customer.
+So P4 splits ([ADR-0014](docs/adr/0014-phase4-action-systems-track.md)): its
+**detection** layer has real Track P evidence — P3's hazard model is fitted on
+338,210 real account-months, so "does deterioration precede default, and by how
+long" has a real answer — while its **disposition and action** layers have none
+and can have none.
+
+**Nothing in P4 is simulated**, and that is the phase's central refusal. A
+simulated collections desk would produce a signal catalogue with precisions, a
+passing ship gate and a bandit that visibly learns — every number a property of
+the simulator. It would be worse than P3's in-sample error, because the simulator
+would be authored by the same person as the detector, so a signal would score
+well exactly to the extent that the simulator shared its theory of default.
 
 ---
 
@@ -154,20 +173,24 @@ src/lending_hub/
   fraud/                     P1 fraud layers 1-2, WS-1.2 (SRS §5) — see below
   portfolio/                 P3 portfolio brain, WS-3.1/3.2 (SRS §7, §9) — see below
   agri/                      P2 agri intelligence, WS-2.1/2.2/2.3/2.4 (SRS §3) — see below
+  ews/                       P4 early warning, WS-4.A (SRS §10) — see below
+  reco/                      P4 recommendation engine, WS-4.B (SRS §6) — see below
 
 tools/                       CI gates: check_grounding, validate_source_registry,
                              check_schema_compatibility, gate_report,
-                             phase1_gate_report, phase2_gate_report, phase3_gate_report
+                             phase1_gate_report, phase2_gate_report,
+                             phase3_gate_report, phase4_gate_report
 config/sources/              one YAML per SRS §2.1 source
 config/retention.yaml        per-table retention (every period pending on LH-111)
 config/reason_codes.yaml     reason-code dictionary — DATA, editable by legal (LH-203)
 config/policy_bands.yaml     cutoffs and canary bands — dual-control config (LH-204)
-docs/adr/                    architecture decision records (0001-0004, 0010-0013)
+docs/adr/                    architecture decision records (0001-0004, 0010-0014)
 docs/governance/             model card / validation / monitoring templates (WS-0.3.2)
 docs/phase0/                 STATUS, DATA_SOURCING, TRACK_P_FINDINGS, blocking_tickets
 docs/phase1/                 STATUS, blocking_tickets, model_cards/
 docs/phase2/                 STATUS, blocking_tickets, model_cards/
 docs/phase3/                 STATUS, blocking_tickets, model_cards/
+docs/phase4/                 STATUS, blocking_tickets, model_cards/
 datasets/                    real external data — gitignored, never committed
 tests/fixtures/              the ONLY place synthetic data may live (Master §2 rule 3)
 reports/                     generated gate output — regenerate, never commit
@@ -252,18 +275,46 @@ and `portfolio.hazard` passes month-on-book as an **ordered numeric feature**
 where the phase file says dummies, because dummies discard the ordering a tree
 needs. Both deviations are stated in the module docstring and raised as findings.
 
+### The two Phase 4 packages
+
+`ews/` is WS-4.A and `reco/` is WS-4.B, and the split between them is the split
+between detecting and acting. WS-4.A runs `signals` → `velocity` → `bocpd` →
+`agri_triggers` → `routing` → `backtest`, with `experiment` as the Track P
+runner. WS-4.B runs in the phase file's own shipping order: `feasible` (ship
+first, useful alone) → `pricing` → `bandit` → `suitability`.
+
+**The refusals here are about actions rather than numbers.** An `Alert` cannot be
+constructed without an owner, an SLA and a recommended action, because an alert
+missing any of the three is a notification and the difference stops being visible
+once it is in a queue. A `BanditDecision` cannot be constructed without a
+propensity, which makes Phase 4 §8's "completeness = 100%" the one exit criterion
+this repository fully satisfies — it is a property of the type, not a
+measurement. `Reward.blended()` refuses without a ratified weight, because a
+bandit rewarded on take-up alone learns to offer the largest permitted loan to
+whoever is likeliest to accept it. And no signal in the catalogue ships, because
+precision needs a collections desk that does not exist.
+
+**Two corrections came out of building it**, both recorded in
+[Phase_4_FINDINGS](Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md). The phase file's
+BOCPD instruction names a quantity that is identically the hazard and detects
+nothing (P4-F1). And my own first Track P capture number scored defaults the
+detector could not have reached, measuring the train/test split rather than the
+detector (P4-F11) — the same failure as P3's in-sample comparison, pointing the
+other way.
+
 ### Start here
 
 | You want to | Read |
 |---|---|
-| Know what is done and what is blocked | [P2 STATUS](docs/phase2/STATUS.md) · [P3](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) |
+| Know what is done and what is blocked | [P4 STATUS](docs/phase4/STATUS.md) · [P2](docs/phase2/STATUS.md) · [P3](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) |
 | Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
 | Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) · [ADR-0012](docs/adr/0012-phase3-panel-source.md) |
-| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) |
-| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) |
-| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) |
+| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) · [P4](Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md) |
+| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) |
+| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) · [P4 cards](docs/phase4/model_cards/) |
 | See real numbers from the whole P1 pipeline | `make trackp-p1` → `reports/trackP_p1_home_credit.json` |
 | See real numbers from the whole P3 pipeline | `make trackp-p3` → `reports/trackP_p3_fannie_mae.json` |
+| See whether deterioration precedes default, and by how long | `make trackp-p4` → `reports/trackP_p4_fannie_mae.json` |
 
 ---
 
@@ -275,13 +326,14 @@ No install step is needed for the core checks.
 make help          # list every target
 make check         # grounding + registry + tests — run this before every commit
 make test          # stdlib unittest suite (1,529 tests, ~27s)
-make gate          # run every gate script and assemble all four gate packs
+make gate          # run every gate script and assemble all five gate packs
 ```
 
 Individual gates: `make audit-joins` (WS-0.1.3), `make reconcile` (WS-0.1.5),
 `make schemas` (WS-0.1.4), `make repro` (WS-0.2.3), `make loadtest` (WS-0.2.4),
 `make parity` (WS-0.4), `make gate1` (Phase 1 §7 evidence pack),
-`make gate2` (Phase 2 §7 evidence pack), `make gate3` (Phase 3 §7 evidence pack).
+`make gate2` (Phase 2 §7 evidence pack), `make gate3` (Phase 3 §7 evidence pack),
+`make gate4` (Phase 4 §8 evidence pack).
 
 `make trackp-p1` runs the whole of WS-1.1 against real applications and writes
 `reports/trackP_p1_home_credit.json`. `make trackp-p3` runs WS-3.1 and WS-3.2
