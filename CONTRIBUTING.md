@@ -16,9 +16,9 @@ that's a bug in the repo, not in your machine.
 
 ## Picking up work
 
-1. Open [docs/phase1/STATUS.md](docs/phase1/STATUS.md) — the current phase. It maps every
-   Phase 1 checklist item to the artifact that satisfies it, the track (A/P/B) it runs
-   on, and its state. Phase 0's is [here](docs/phase0/STATUS.md).
+1. Open [docs/phase3/STATUS.md](docs/phase3/STATUS.md) — the current phase. It maps every
+   Phase 3 checklist item to the artifact that satisfies it, the track (A/P/B) it runs
+   on, and its state. Earlier phases: [P1](docs/phase1/STATUS.md), [P0](docs/phase0/STATUS.md).
 2. Take an item that is `not started`, or unblock one in `blocked` by chasing its
    `[POLICY]` owner.
 3. Load the Master guide + the one phase file you are working. Do not work from memory
@@ -44,6 +44,13 @@ Two more you will want when touching Phase 1:
 |---|---|
 | `make gate1` | Assembles the Phase 1 §7 evidence pack into `reports/phase1_gate.md` |
 | `make trackp-p1` | Runs the whole of WS-1.1 against real applications. Needs `datasets/` — see [DATA_SOURCING](docs/phase0/DATA_SOURCING.md). Everything else runs on a clean clone |
+
+And when touching Phase 3:
+
+| Command | What it does |
+|---|---|
+| `make gate3` | Assembles the Phase 3 §7 evidence pack into `reports/phase3_gate.md` |
+| `make trackp-p3` | Runs WS-3.1 and WS-3.2 against a real 19-year mortgage panel. Also needs `datasets/` |
 
 ## Commit format
 
@@ -73,7 +80,8 @@ threshold looks exactly like a real one six months later.
 
 1. Write `TBD[<owner role>, <ticket-id>]` at the point of use.
 2. Add a row to **your phase's** register —
-   [P0](docs/phase0/blocking_tickets.md), [P1](docs/phase1/blocking_tickets.md).
+   [P0](docs/phase0/blocking_tickets.md), [P1](docs/phase1/blocking_tickets.md),
+   [P3](docs/phase3/blocking_tickets.md).
    `make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
    `TBD` registered in none of them.
 3. Make the code **raise** where the value would be read, rather than defaulting.
@@ -81,7 +89,8 @@ threshold looks exactly like a real one six months later.
    because a plausible score reaches a customer letter and nothing downstream can
    tell it apart from a real one.
 4. Keep building everything the missing value does not block. A blocked number rarely
-   blocks the code path around it — Phase 1 has ten open tickets and every workstream
+   blocks the code path around it — Phase 1 has ten open tickets and Phase 3 eleven,
+   and every workstream
    built.
 
 ## Adding a dependency
@@ -100,9 +109,17 @@ data" — and it comes with two obligations that are easy to skip:
 
 1. **State what you did not port.** The GBM implements histogram splits and the
    regularised gain and has no GOSS or EFB; the binning is PAVA rather than OptBinning's
-   MIP; SHAP is exact enumeration rather than TreeSHAP's polynomial algorithm. Each of
-   those sentences is in the module docstring, because a port that claims to be the
-   library is a port nobody re-checks.
+   MIP; SHAP is exact enumeration rather than TreeSHAP's polynomial algorithm; Cox has
+   no penalised or stratified variant; S-H-ESD uses a seasonal median rather than STL.
+   Each of those sentences is in the module docstring, because a port that claims to be
+   the library is a port nobody re-checks.
+
+   **And say where you deviate from the library's defaults, with the reason.** A port is
+   not obliged to copy a default that is wrong for this data. `portfolio.cox` uses Efron
+   tie handling where scikit-survival defaults to Breslow, because a month-end panel ties
+   most of its events and Breslow biases coefficients toward zero at that density —
+   measured at 0.740 against Efron's 0.758 on data generated with a true 0.800. A
+   deviation nobody wrote down is indistinguishable from a mistake.
 2. **Test properties, not numbers.** Assert monotonicity, local accuracy, determinism
    from the seed, bin contiguity — the things a Track B swap must preserve. A test
    pinned to your port's exact cut points will fail on the library it is a port of, and

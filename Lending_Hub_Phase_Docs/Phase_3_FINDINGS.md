@@ -34,6 +34,7 @@ not have known because they only appear once code has to produce a number.
 | P3-F10 | A behavioural Gini is not comparable with an application Gini, and the exit criteria invite the comparison | Under-specification | — |
 | P3-F11 | Current DPD **separates** in a Cox model at monthly granularity | Specification, found by building | — |
 | P3-F12 | **A hypothesis of mine was wrong**, and the demonstration caught it | Method note | — |
+| P3-F13 | A behavioural hazard model scored at origination returns an **exactly constant** risk, which reads as a broken model | Method note | — |
 
 ---
 
@@ -314,6 +315,34 @@ The general check is worth keeping regardless: `fit_cox` now detects covariates
 with no within-risk-set variation and names them, because the symptom otherwise
 is a singular matrix several iterations later — which reads as a data problem
 rather than a specification one.
+
+### D5 (P3-F13). Scoring a behavioural model at origination produces a constant
+
+Also a method note, and the more instructive of the two because the symptom
+looked like a bug in the metric.
+
+The first Track P run reported Harrell's C of **exactly 0.5** and a
+time-dependent AUC of **exactly 0.5** at every horizon. Exactly 0.5 from
+`harrell_c` means every comparable pair is tied — the risk score is constant.
+
+It was. Survival metrics were being taken at month 0, where *every* behavioural
+feature is zero for *every* loan: no arrears, no trend, no balance history. The
+challenger's trees split first on the arrears features, so at month 0 every loan
+falls into the same leaf and the origination attributes never get consulted. The
+model was not broken; it was being asked a question none of its features can
+answer.
+
+The fix is the same one Phase 3 §7 implicitly requires: score both models on the
+**same subjects, at the same month on book, over the same forward time axis**.
+Anything else compares two populations. The runner now observes at month 12 and
+measures time forward from there, which is what makes the §7 comparison
+"C-index ≥ Cox + 0.02" formable at all.
+
+The general lesson is worth more than the fix: **a metric that comes out at
+exactly its null value is usually reporting a degenerate input, not a weak
+model** — and an implementation that returns `None` where a quantity is
+undefined (as `time_dependent_auc` does for an empty case or control set) makes
+that visible, where returning 0.5 would have hidden it.
 
 ---
 

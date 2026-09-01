@@ -16,7 +16,7 @@ how far it goes, and what is still missing.
 
 | Dataset | Verdict |
 |---|---|
-| **Fannie Mae** 2007Q1 + 2019Q1 | **In use.** Adapter built, 28.5M rows profiled, Appendix A labels produced |
+| **Fannie Mae** 2007Q1 + 2019Q1 | **In use, twice.** Phase 0/1: adapter built, 28.5M rows profiled, Appendix A labels produced. Phase 3: the same file as a 19-year account-month panel plus real workout cashflows (ADR-0012) |
 | **Home Credit** | **In use for Phase 1.** Four files missing, including the one that mattered |
 | **PKDD'99** | **Not usable as supplied.** See below — this one needs a decision |
 
@@ -40,6 +40,42 @@ The delinquency status maps onto Appendix A with no tuning at all: Fannie report
 *months* delinquent in 30-day steps, so status `03` lands exactly on the default
 threshold and `01`-`02` land exactly inside the indeterminate band. That
 alignment is the reason this dataset is worth 8 GB of disk.
+
+**Phase 3 reads the same file a second way** — as an account-month *panel*
+rather than one outcome per loan (`lending_hub.sources.fanniemae_panel`,
+[ADR-0012](../adr/0012-phase3-panel-source.md)). Phase 1 needed a sample;
+Phase 3 needs depth, because behavioural PD, survival, competing risks and
+transition matrices are all statements about what happens between one month and
+the next. The 2007Q1 vintage runs January 2007 to March 2026 — nineteen years of
+month-end status per loan, containing both the 2008-11 credit event and the
+2020-21 refinance wave.
+
+```bash
+make trackp-p3        # WS-3.1 + WS-3.2 end to end, ~6 minutes at 2% sampling
+```
+
+Sampling is by **whole loan**, on a stable hash of the loan id. Sampling rows
+would tear holes in the trajectories that every trailing-window feature and every
+transition pair depends on, and the damage would be indistinguishable from real
+missingness.
+
+Two further things this file carries that nothing else here does:
+
+* **Workout cashflows** per disposed loan — foreclosure costs, property
+  preservation, holding taxes, net sale proceeds and credit-enhancement
+  proceeds — which makes LGD a real `[DATA]` computation rather than a
+  demonstration. Fitting against them produced ticket **LH-311**: whether credit
+  enhancement is netted off decides the *sign* of the LTV coefficient.
+* **Real feed defects** that no fixture would have contained. Holding expenses
+  post net of credits, so costs can be negative; proceeds can post as reversals.
+  Both broke validation that looked correct, and both are kept and counted rather
+  than filtered.
+
+What it cannot support is set out in ADR-0012, and the short version is: no
+revolving product on any track, so **no CCF is estimable at all**; Fannie's
+zero-balance code conflates prepayment with maturity; and these are US conforming
+mortgages, so nothing about severity, seasoning or prepayment behaviour transfers
+to an Indian retail or agri book.
 
 ### Home Credit — partially usable
 
