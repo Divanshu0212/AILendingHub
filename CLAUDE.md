@@ -116,7 +116,8 @@ src/lending_hub/
   decisionlog/               decision-log schema + replay (Master §3.3)
   serving/                   orchestrator, policy bands, shadow/canary, load test, parity
                              (WS-0.2.4, WS-0.4, Phase 1 §5)
-  sources/                   Track P dataset adapters — Fannie Mae, Home Credit (ADR-0004)
+  sources/                   Track P dataset adapters — Fannie Mae, Home Credit,
+                             Home Credit history tables (ADR-0004)
   modeling/                  shared metrics + the WS-0.2.3 toy logistic model
   scoring/                   P1 credit scoring, WS-1.1 (SRS §4) — see below
   fraud/                     P1 fraud layers 1-2, WS-1.2 (SRS §5) — see below
@@ -140,9 +141,15 @@ reports/                     generated gate output — regenerate, never commit
 
 `scoring/` is WS-1.1 in the order the phase file runs it: `target` → `splits` →
 `features` → `binning` (+`isotonic`) → `scorecard` → `gbm` → `calibration` →
-`explain` (+`reasons`) → `fairness` → `rejects` → `validation`, with `experiment`
-as the Track P runner. `fraud/` is WS-1.2: `entity_resolution`, `velocity`,
-`anomaly`, `supervised`, `documents`, `routing`.
+`explain` (+`reasons`) → `fairness` → `rejects` → `validation`, with `parallel`
+as a shared helper and `experiment` as the Track P runner. `fraud/` is WS-1.2:
+`entity_resolution`, `velocity`, `anomaly`, `supervised`, `documents`, `routing`.
+
+**On speed.** Stdlib-only means no numpy, so every numeric loop is interpreted.
+Binning and the hyperparameter search are parallelised across processes
+(`scoring/parallel.py` — `concurrent.futures` is stdlib); boosting is sequential
+across trees by definition and stays that way. If a fit is too slow the levers, in
+order, are `feature_fraction`, fewer trees, and fewer rows — not a dependency.
 
 Both are stdlib-only **ports** of the libraries the phase file names (OptBinning,
 LightGBM, SHAP, Fairlearn, scikit-learn, splink). Each module docstring states what
@@ -172,7 +179,7 @@ No install step is needed for the core checks.
 ```bash
 make help          # list every target
 make check         # grounding + registry + tests — run this before every commit
-make test          # stdlib unittest suite (727 tests, ~7s)
+make test          # stdlib unittest suite (793 tests, ~9s)
 make gate          # run every gate script and assemble both gate packs
 ```
 

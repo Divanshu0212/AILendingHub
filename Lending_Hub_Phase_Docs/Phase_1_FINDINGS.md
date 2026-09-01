@@ -335,10 +335,11 @@ Fixing both changes the measurement, and fixing the *second* changes the answer 
 because carving a dedicated calibration block takes 15% of the rows out of
 training, and the two models do not react to that equally:
 
-| Training rows | Champion (raw Gini) | Challenger (raw Gini) | Uplift |
+| Configuration | Champion | Challenger | Uplift |
 |---|---|---|---|
-| 42,000 (calibrating on validation) | 47.77 | 47.78 | **+0.01** |
-| 35,700 (dedicated calibration block) | **44.45** | 47.73 | **+3.28** |
+| 42,000 train, 16 features, calibrated on validation | 47.77 | 47.78 | **+0.01** |
+| 35,700 train, 16 features, dedicated calibration block | 44.45 | 47.73 | **+3.28** |
+| 89,250 train, 77 features, bureau + repayment history, tuned | 46.86 | **51.94** | **+5.08** |
 
 The challenger is essentially unmoved by losing 15% of its training data
 (47.78 → 47.73). The champion loses **3.3 Gini points**. The uplift is not a
@@ -351,20 +352,28 @@ characteristic WOE scorecard rests on bin-level event rates, and a bin holding 5
 of a 35,700-row sample has a noisier WOE than the same bin at 42,000 — whereas a
 depth-3 ensemble is averaging over 76 trees and absorbs it.
 
+The third row is the current state and it settles the original question: with the
+bureau and repayment-history tables loaded, the feature screen corrected (D4) and
+the §4 Step 4 search actually run, the challenger clears +3 Gini comfortably and
+lands inside the +2–6 the benchmark cites. The benchmark reproduces. What did not
+reproduce, in the first two rows, was a pipeline using a fifth of the available
+data and a sixth of the available features.
+
 **What follows.**
 
-1. **A single-run uplift figure is not evidence.** It moved from +0.01 to +3.28
-   under a change that was about calibration hygiene, not about either model. Any
+1. **A single-run uplift figure is not evidence.** It has moved from +0.01 to
+   +5.08 across three configurations, none of which changed the *algorithms*. Any
    gate that turns on "+3 Gini" needs the figure computed under a fixed, stated
-   split protocol, and needs to be reported with the training-set size that
+   split protocol, and reported with the training-set size and feature set that
    produced it.
-2. **The confounds still stand** and still argue against generalising in either
-   direction: the challenger was not tuned; three of the seventeen features are
+2. **Two of the four confounds have since been removed.** The challenger *is* now
+   tuned — and the search found a 0.0013 log-loss spread across six
+   configurations, so that confound was smaller than it looked — and the feature
+   screen no longer starves it. The two that remain: three of the features are
    `EXT_SOURCE_1/2/3`, externally-supplied credit scores that already aggregate
-   the non-linear structure a GBM would otherwise find (global SHAP: 0.403, 0.309,
-   0.190 against 0.170 for the next feature); the split is not out of time; and
-   only 17 of 56 candidates survived the IV screen, so there are fewer
-   interactions available than a GBM's advantage assumes.
+   the non-linear structure a GBM would otherwise find (global SHAP 0.391, 0.358,
+   0.195 against 0.152 for the next feature), and the split is still not out of
+   time.
 3. **§7 should record what the challenger bought, not only whether it cleared the
    bar** — applied in Phase 1 v1.1.
 4. **The champion's data sensitivity is a scorecard-design finding in its own
@@ -373,6 +382,11 @@ depth-3 ensemble is averaging over 76 trees and absorbs it.
    document change, because it is a modelling practice rather than a specification
    gap — but it is the reason the champion's Track P numbers should not be read as
    its ceiling.
+5. **Collinearity is the champion's real constraint, not feature availability.**
+   With 26 IV-passing candidates, stepwise sign elimination had to drop *fourteen*
+   before the signs came out clean, and the card settled at twelve
+   characteristics. The bureau aggregates are heavily collinear with one another,
+   so most of them cannot sit on the same card however predictive each is alone.
 
 ### C2 (P1-F13). Discrimination measured on a calibrated PD understates it
 

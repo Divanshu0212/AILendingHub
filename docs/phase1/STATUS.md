@@ -18,12 +18,22 @@ criteria land ([LH-120](../phase0/blocking_tickets.md)). Phase 1's own entry
 criterion — "P0 gate passed" — is therefore unmet, and what exists is everything
 buildable before it is.
 
-Track P run: 60,000 Home Credit applications, 8.02% bad rate, 56 candidate
-features, both models fitted, calibrated, explained, fairness-tested and
-validated. Champion **44.45** Gini, challenger **47.73**, uplift **+3.28** — on a
-split that is not out of time, against a champion rather than a rebuilt legacy
-scorecard, so it satisfies no §7 criterion. `make trackp-p1` reproduces it;
-`make gate1` assembles the pack.
+Track P run: **150,000** Home Credit applications across all three usable tables
+(1.72M bureau records, 10.0M monthly balances carrying observed DPD), 8.17% bad
+rate, 77 candidate features, both models fitted, tuned, calibrated, explained,
+fairness-tested and validated in about 17 minutes.
+
+| | Champion | Challenger |
+|---|---|---|
+| AUC | 0.7343 | **0.7597** |
+| Gini | 46.86 | **51.94** |
+| KS | 0.3585 | 0.3899 |
+| Brier skill vs base-rate null | +0.0810 | **+0.1017** |
+| ECE | 0.00708 | 0.00740 |
+
+The split is not out of time and the comparator is the champion rather than a
+rebuilt legacy scorecard, so **this satisfies no §7 criterion**. `make trackp-p1`
+reproduces it; `make gate1` assembles the pack.
 
 ## Deliverables checklist (Phase 1 §6)
 
@@ -31,8 +41,8 @@ scorecard, so it satisfies no §7 criterion. `make trackp-p1` reproduces it;
 |---|---|---|---|---|
 | 1 | ADR-010 (product), ADR-011 (ER library) | [ADR-0010](../adr/0010-scored-product-and-track-p-standin.md) · [ADR-0011](../adr/0011-entity-resolution-library.md) | — | **partial** — both merged; the Track B product choice is `[POLICY]` (LH-201) |
 | 2 | Target script + split manifest (versioned) | [target.py](../../src/lending_hub/scoring/target.py) · [splits.py](../../src/lending_hub/scoring/splits.py) | A+P | **done** — ledger reconciles; manifest hashed and stamped `out_of_time` |
-| 3 | Feast feature definitions + metadata screens | [features.py](../../src/lending_hub/scoring/features.py) | A | **partial** — 10 definitions with source/PIT/null/IV/PSI metadata; Feast deployment is LH-120 |
-| 4 | Champion scorecard + challenger in MLflow (calibrated) | [scorecard.py](../../src/lending_hub/scoring/scorecard.py) · [gbm.py](../../src/lending_hub/scoring/gbm.py) · [calibration.py](../../src/lending_hub/scoring/calibration.py) | A+P | **partial** — both fitted and calibrated on Track P; MLflow server is LH-120; the challenger is **not promotable** (LH-202) |
+| 3 | Feast feature definitions + metadata screens | [features.py](../../src/lending_hub/scoring/features.py) · [homecredit_history.py](../../src/lending_hub/sources/homecredit_history.py) | A+P | **partial** — 10 bank definitions with source/PIT/null/IV/PSI metadata, and the bureau + repayment-history groups now exercised on 1.72M real credit records and 10.0M monthly balances; Feast deployment is LH-120 |
+| 4 | Champion scorecard + challenger in MLflow (calibrated) | [scorecard.py](../../src/lending_hub/scoring/scorecard.py) · [gbm.py](../../src/lending_hub/scoring/gbm.py) · [calibration.py](../../src/lending_hub/scoring/calibration.py) | A+P | **partial** — both fitted, tuned (§4 Step 4 search) and calibrated on a dedicated block; the champion's signs converge with no wrong-signed characteristics; MLflow server is LH-120; the challenger is **not promotable** (LH-202) |
 | 5 | SHAP reason-code service + editable mapping table | [explain.py](../../src/lending_hub/scoring/explain.py) · [reasons.py](../../src/lending_hub/scoring/reasons.py) · [config/reason_codes.yaml](../../config/reason_codes.yaml) | A+P | **partial** — exact Shapley values with local accuracy asserted; every sentence is `TBD` (LH-203), so no letter can be rendered |
 | 6 | Fairness report; reject-inference memo | [fairness.py](../../src/lending_hub/scoring/fairness.py) · [rejects.py](../../src/lending_hub/scoring/rejects.py) | A+P | **partial** — disparities measured on Track P; no verdict is computable (LH-205); reject inference is **not exercisable** (no declined applications, ADR-0010) |
 | 7 | Independent validation report (both models) | [validation.py](../../src/lending_hub/scoring/validation.py) | A+P | **partial** — the harness runs and produces both reports; *independent* validation needs a validator who is not the developer (Master §3.1) and none exists |
@@ -85,7 +95,7 @@ Engineering that does not depend on bank access, and is done:
 - A case queue that will not close a case without a validated disposition.
 - Policy bands as dual-control config, with the band version on every decision.
 
-**743 tests, stdlib only, green on a clean clone in about 7 seconds.**
+**793 tests, stdlib only, green on a clean clone in about 9 seconds.**
 
 ## What is blocked, and on whom
 
@@ -124,6 +134,25 @@ the uplift swings from +0.01 to +3.28 on a 15% change in training-set size, and
 the whole swing is the *champion's* degradation — the challenger is unmoved. A
 single-run uplift figure is not evidence, and the model that turned out to be
 data-hungry was the scorecard, not the ensemble.
+
+## Performance work, and what it did not change
+
+The models improved substantially inside this phase — challenger Gini 47.73 →
+51.94, Brier skill +0.058 → +0.102, and the champion's five wrong-signed
+characteristics eliminated. The causes, in order of size: the bureau and
+repayment-history tables (previously unread), the corrected feature screen
+(finding D4), four times the training data, the §4 Step 4 hyperparameter search,
+and stepwise sign elimination.
+
+**None of it moves a single exit criterion.** The split is still not out of time,
+the label is still the vendor's, there is still no rebuilt legacy scorecard, and
+no independent validator exists. A better Track P model is a better demonstration
+that the code paths work; it is not evidence, and the gate pack still reads 0 of 8.
+
+On speed: a fit uses one core for the phase that dominates it, because boosting is
+sequential across trees. Binning and the hyperparameter search are parallelised
+(`scoring/parallel.py`); the rest is a consequence of ADR-0003's stdlib-only rule,
+which trades throughput for a suite that runs anywhere with no install.
 
 ## Where to start reading
 

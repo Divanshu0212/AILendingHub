@@ -1,6 +1,6 @@
 # Phase 1 — gate evidence pack
 
-Generated 2026-09-01T06:07:56.853132+00:00 by `tools/phase1_gate_report.py`.
+Generated 2026-09-01T10:33:31.065363+00:00 by `tools/phase1_gate_report.py`.
 
 Per ADR-0003 and ADR-0004, **only Track B numbers are gate evidence.**
 Track P results below prove the code paths against real applications and
@@ -11,9 +11,9 @@ say nothing about this bank's portfolio.
 | # | Criterion | Workstream | Track | Measured | State |
 |---|---|---|---|---|---|
 | 1 | Champion ≥ rebuilt legacy on out-of-time Gini and Brier | WS-1.1 Step 9 | P | — | not evaluable — no rebuilt legacy scorecard supplied |
-| 2 | Challenger ≥ +3 Gini over rebuilt legacy, out-of-time | WS-1.1 Step 9 | P | +3.28 pts | not evaluable — measured on a test set that is NOT out of time; this number cannot satisfy the criterion as written |
-| 3 | Brier ≤ legacy | WS-1.1 Step 9 | P | 0.06954 vs 0.06996 | pass (Track P) |
-| 4 | Swap set shows no adverse-segment concentration | WS-1.1 Step 9 | P | worst segment 20-29 at 1.32x | not evaluable — no bar (LH-205) |
+| 2 | Challenger ≥ +3 Gini over rebuilt legacy, out-of-time | WS-1.1 Step 9 | P | +5.08 pts | not evaluable — measured on a test set that is NOT out of time; this number cannot satisfy the criterion as written |
+| 3 | Brier ≤ legacy | WS-1.1 Step 9 | P | 0.06739 vs 0.06894 | pass (Track P) |
+| 4 | Swap set shows no adverse-segment concentration | WS-1.1 Step 9 | P | worst segment 50-59 at 1.23x | not evaluable — no bar (LH-205) |
 | 5 | Fraud precision at operating alert budget ≥ incumbent rules | WS-1.2 Step 3 | — | — | **not measured** |
 | 6 | Step-up friction on eventual-good customers < 3% | WS-1.2 Step 6 | — | — | **not measured** |
 | 7 | Decision-log spot audit: 100 re-scored decisions identical | Master §3.3 | — | — | **not measured** |
@@ -72,12 +72,12 @@ Full register: [docs/phase1/blocking_tickets.md](../docs/phase1/blocking_tickets
 
 ## Track P run (not gate evidence)
 
-Dataset `home_credit_default_risk`, seed 20260901, 45.8s.
+Dataset `home_credit_default_risk`, seed 20260901, 990.7s.
 
 | Model | Test Gini | Brier | ECE | Score PSI |
 |---|---|---|---|---|
-| Champion (WOE scorecard) | 44.45 | 0.06996 | 0.00935 | 0.0005 |
-| Challenger (monotone GBM) | 47.73 | 0.06954 | 0.00600 | 0.0018 |
+| Champion (WOE scorecard) | 46.86 | 0.06894 | 0.00708 | 0.0007 |
+| Challenger (monotone GBM) | 51.94 | 0.06739 | 0.00740 | 0.0006 |
 
 Reproduce with `make trackp-p1`. Every limitation is listed in the run
 report's `limitations` block — the split is not out of time, the label is

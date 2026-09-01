@@ -36,7 +36,7 @@ This runs three gates:
 |---|---|
 | `make grounding` | Master §2 — no ungrounded value, no malformed `TBD`, no unregistered ticket, no synthetic data outside `tests/fixtures/` |
 | `make registry`  | Every `config/sources/*.yaml` validates against the source-registry schema |
-| `make test`      | The unit suite — 727 tests, stdlib only, about 7 seconds |
+| `make test`      | The unit suite — 793 tests, stdlib only, about 9 seconds |
 
 Two more you will want when touching Phase 1:
 
