@@ -118,12 +118,14 @@ Not decisioning.
 **Not promotable.** `HazardModel.promotable` returns false on LH-310 — the
 behavioural monotone direction list is not ratified.
 
-On §7's numeric bar: the C-index comparison against Cox is formable and is now
-measured **out of sample**, on accounts held out of both fits. That correction
-mattered — the in-sample version credited this model with its own memorisation
-and flipped sign as events accumulated (finding D6). The figures describe US
-conforming mortgages rather than this bank's book (ADR-0012), so they are not
-gate evidence either way, and no independent validator exists (§1).
+On §7's numeric bar, measured **out of sample** on held-out accounts: this model
+**loses** to the Cox reference — C 0.5285 against 0.6967, an uplift of −0.168
+against a +0.02 bar, and the 0.75 absolute bar is missed too. The gap is wider
+out of sample than in, which is what removing a memorisation advantage should do
+(finding D6). These figures describe US conforming mortgages rather than this
+bank's book (ADR-0012) so they are not gate evidence, and no independent
+validator exists (§1) — but on this data the honest reading is that the
+interpretable reference is the better ranker.
 
 ## 13. Sign-off
 

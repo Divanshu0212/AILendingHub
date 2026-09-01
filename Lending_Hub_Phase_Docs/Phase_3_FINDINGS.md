@@ -394,6 +394,21 @@ loan and the model has effectively seen the test row already. Both models are
 fitted on the fit set and scored on the held-out accounts, and the run report
 carries `out_of_sample: true`.
 
+**The result, once it is a comparison.** On 1,400 held-out accounts at 2%
+sampling: challenger C **0.5285**, Cox C **0.6967**, uplift **−0.168**. The gap
+is *wider* out of sample than the −0.098 measured in-sample, which is what
+removing a memorisation advantage should do and is the last piece of evidence
+that the diagnosis is right.
+
+So the honest Track P answer to §7 criterion 1 is that **the challenger does not
+beat the reference** — it loses by 0.17 against a bar of +0.02, and it misses
+the 0.75 absolute bar as well. That is not a failure of the phase file's
+instruction to build a challenger; it is the instruction working. A
+discrete-time hazard GBM whose signal concentrates in features that are zero for
+99% of the population is the wrong shape for ranking a book, and an
+interpretable four-parameter model that the phase file required be built *first*
+is what revealed it.
+
 **What this says about §7.** The criterion "hazard GBM C-index ≥ Cox + 0.02" is
 silent on the split, and an implementer following it literally will do what I
 did — because comparing two models on the data you have is the obvious reading,
