@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| Document version | 1.1 |
-| Date | 31 August 2026 (v1.1 — see Change log) |
+| Document version | 1.2 |
+| Date | 1 September 2026 (v1.2 — see Change log) |
 | Status | Draft for review |
 | Audience | Bank engineering, data science, risk, compliance, and product teams |
 | Scope | Functional requirements + deep algorithm design for every module, with public algorithm/paper references |
@@ -254,7 +254,7 @@ Produce, for every applicant (salaried, self-employed, MSME, farmer), a **calibr
 | ID | Requirement |
 |---|---|
 | CS-1 | Score any applicant in < 500 ms (online) with the exact same features as training (feature-store parity) |
-| CS-2 | Output: calibrated PD, score (e.g., 300–900 scale), top-5 reason codes, confidence/coverage flag |
+| CS-2 | Output: calibrated PD, score on the ratified scale, top-5 reason codes, confidence/coverage flag. The **scale itself is `[POLICY: Credit Risk Head]`** — see §4.3.1.4. The PD is grounded and usable without it; the score is not |
 | CS-3 | Segment-specific models: bureau-thick, bureau-thin/new-to-credit, MSME, agri |
 | CS-4 | Champion (scorecard) and challenger (GBM) run in parallel; champion decisions logged for challenger comparison |
 | CS-5 | Reject inference performed at each retrain to correct selection bias |
@@ -271,9 +271,13 @@ Produce, for every applicant (salaried, self-employed, MSME, farmer), a **calibr
 1. **Binning:** each variable is split into bins (monotone optimal binning, e.g. the open-source [OptBinning](https://github.com/guillermo-navas-palencia/optbinning) solver, which formulates binning as a mixed-integer program maximizing IV subject to monotonicity).
 2. **Weight of Evidence:** `WOE_bin = ln( %Goods_bin / %Bads_bin )`. **Information Value** `IV = Σ (%Goods−%Bads)·WOE` ranks variables (keep IV ∈ [0.02, 0.5]; above 0.5 → leakage suspicion).
 3. **Logistic regression** on WOE-transformed variables: `log(p/(1−p)) = β₀ + Σ βᵢ·WOE(xᵢ)`.
-4. **Score scaling:** points = offset − factor·log-odds, e.g. 20 points to double the odds (PDO=20).
+4. **Score scaling:** `points = offset − factor·log-odds`. This has **three** constants, and specifying one does not specify the scale:
+   - **PDO** — points to double the odds. Fixed at 20 by the phase file, which fixes `factor = PDO / ln 2`, i.e. the *slope*.
+   - **The anchor** — a reference score and the good:bad odds at it, which together fix `offset`, i.e. the *intercept*.
 
-**Reason codes** are free: the bins with the largest negative point contributions are the adverse-action reasons.
+   The anchor is `[POLICY: Credit Risk Head]` and is **on the do-not-invent list**. Until it is supplied, an implementation must **refuse to emit a score** rather than pick a plausible anchor: a score computed against an invented one is internally consistent, indistinguishable from a real score, and travels into cutoffs, letters and customer conversations with nothing downstream able to catch it. The calibrated PD — which is what pricing and IFRS-9 consume — is unaffected and remains available.
+
+**Reason codes** are free, but the ranking rule matters. Rank by **points below max**: the distance from the applicant's assigned points on a characteristic to the best points attainable on that characteristic. Ranking by the largest raw negative contribution instead ranks characteristics by the *width of their weight range*, so a heavily-weighted characteristic on which the applicant is merely average outranks a lightly-weighted one on which they are in the worst bin — and the customer is told the principal reason for their decline is something they are unremarkable at. "Principal reasons why" is a question about the applicant, not about the model's weights.
 
 #### 4.3.2 Challenger — Gradient-Boosted Decision Trees (XGBoost / LightGBM)
 
@@ -290,14 +294,26 @@ where `g,h` are the first/second derivatives of the loss. This regularized gain 
 
 **Bank refinements (the difference between a Kaggle model and a bank model):**
 1. **Monotonic constraints.** XGBoost/LightGBM support `monotone_constraints`: force PD to be non-increasing in income, non-decreasing in DPD history, utilization, enquiries. This closes most of the regulator's "counter-intuitive behavior" objections at a cost of <0.5 Gini.
-2. **Calibration.** Raw GBM outputs are not calibrated probabilities. Fit **isotonic regression** or **Platt scaling** on a held-out calibration set ([Niculescu-Mizil & Caruana, ICML 2005](https://www.cs.cornell.edu/~alexn/papers/calibration.icml05.crc.rev3.pdf)); validate with reliability diagrams + Brier score. PDs feed pricing and IFRS-9/ECL, so calibration is not optional.
+2. **Calibration.** Raw GBM outputs are not calibrated probabilities. Fit **isotonic regression** or **Platt scaling** ([Niculescu-Mizil & Caruana, ICML 2005](https://www.cs.cornell.edu/~alexn/papers/calibration.icml05.crc.rev3.pdf)); validate with reliability diagrams + Brier score. PDs feed pricing and IFRS-9/ECL, so calibration is not optional — and for the same reason, two details of *how* it is fitted are binding rather than advisory:
+   - **The calibration sample must not be the model-selection sample.** Early stopping and hyperparameter search pick the model where validation loss is lowest; a calibrator then fitted on those same rows is fitted where the model was chosen to look good, and the resulting reliability diagram is optimistic. An optimistic calibration is a systematic mispricing, not a cosmetic overstatement. Use a dedicated calibration split, or out-of-fold predictions cross-fitted over the training set — the latter is preferable on a thin-bad portfolio because it uses the largest sample available.
+   - **The calibrator is chosen by the sample, and the choice is recorded.** The paper cited above is also the source of the caveat: isotonic regression needs more data than Platt and overfits small samples, where its step function chases noise. On a rare default the binding constraint is the **event count**, not the row count. Use isotonic where the calibration sample supports it, Platt otherwise, and record which was used — a calibrator swapped silently between retrains is a change nobody can see in the metrics.
 3. **Explainability — SHAP.** [Lundberg & Lee, NeurIPS 2017, arXiv:1705.07874](https://arxiv.org/abs/1705.07874) and the polynomial-time **TreeSHAP** algorithm ([Lundberg et al., 2020, Nature MI, arXiv:1905.04610](https://arxiv.org/abs/1905.04610)). SHAP values φᵢ are the unique attribution satisfying local accuracy (Σφᵢ = f(x) − E[f]), consistency, and missingness (Shapley axioms). Per-decision top negative SHAP features → adverse-action reason codes; global SHAP summaries → model documentation.
-4. **Reject inference.** Training only on approved loans biases the model. Standard corrections (surveyed in [Crook & Banasik, 2004; overview in Lessmann et al. 2015](https://www.sciencedirect.com/science/article/abs/pii/S0377221715004208)): parceling / fuzzy augmentation (assign rejected applicants weighted good/bad outcomes from the current model), or better, **bureau-based inference** — observe how the bank's rejects performed on loans they got elsewhere (bureau retro data). Run at every retrain; document uplift.
+4. **Reject inference.** Training only on approved loans biases the model: it estimates default risk *conditional on having been approved*, not through-the-door risk. Standard corrections are surveyed in [Crook & Banasik, 2004; overview in Lessmann et al. 2015](https://www.sciencedirect.com/science/article/abs/pii/S0377221715004208). The two available methods are **not interchangeable**, and treating them as a preference ordering is how a circular correction reaches production:
+   - **Bureau-based inference is inference from evidence.** Someone else lent to the applicant and observed the outcome. It belongs in the training target, flagged as externally observed. This is the correction.
+   - **Parceling / fuzzy augmentation is inference from belief.** It assigns each reject a weighted good/bad outcome *from the current model's own prediction*. Presented as a correction it is circular — the model's belief becomes the model's evidence and the resulting confidence is manufactured. It belongs in a **sensitivity analysis** ("the coefficients move this much if rejects behave as the model already expects") and must never be written into a label column.
+
+   Where neither is available, the honest output is a measurement of the *size* of the bias — the distributional distance between the booked and declined populations, which needs no reject outcomes at all — plus a model-card limitation. Run at every retrain; document uplift, and label it as correction or sensitivity.
 5. **Thin-file / alternative data segment.** For new-to-credit customers, add: Account-Aggregator bank-statement features (income regularity, balance volatility, bounce counts), agri features (Module 1), and — with explicit consent and regulatory clearance — behavioral/telco features, whose predictive power is established in [Björkegren & Grissen, "Behavior Revealed in Mobile Phone Usage Predicts Credit Repayment," World Bank Economic Review 2020 / arXiv:1712.05840](https://arxiv.org/abs/1712.05840). Psychometric scoring (EFL/LenddoEFL line of work) is an optional add-on for zero-file MSME.
 
 #### 4.3.3 Fairness constraints
 
 Compute **demographic parity difference, equalized-odds difference** ([Hardt, Price & Srebro, NeurIPS 2016, arXiv:1610.02413](https://arxiv.org/abs/1610.02413)) and **adverse-impact ratio** on gender, age bands, and geography (caste/religion are never features; test pincode as a proxy). Mitigation ladder: remove/neutralize offending features → in-processing reduction ([Agarwal et al., ICML 2018, arXiv:1803.02453](https://arxiv.org/abs/1803.02453), implemented in [Fairlearn](https://fairlearn.org)) → threshold adjustment. Document trade-offs in the model card.
+
+**Where protected attributes live.** A protected attribute has to be *readable* — a disparity you cannot see is a disparity you cannot measure — and must never be reachable from a training path. "Gender is not a feature", enforced by a review checklist, survives exactly as long as the reviewer who remembers it. So the separation is architectural: protected attributes are held in a **separate store with its own access path**, the feature catalogue **refuses to register** one, and fairness code receives an accessor that no training or serving path is handed. Under DPDP purpose limitation the two uses are distinct in law as well as in code — an attribute collected for fairness monitoring is not thereby available for scoring.
+
+**Proxies are the normal case, not the exotic one.** Excluding an attribute does not remove it. Elapsed-time features (months employed, months since registration, age of the credit file) correlate strongly with age; geography correlates with much else. Run the proxy test on **every** feature group, not only on geography, and expect to find something.
+
+**Mitigation order is not a preference.** Threshold adjustment means a different decision boundary per protected class, which in most jurisdictions carries the largest legal exposure of the three rungs — and it is the easiest to reach for, because it needs no retraining. Reaching it without having tried the two rungs above it is a decision that must be made deliberately and in writing.
 
 #### 4.3.4 Evaluation & monitoring metrics
 
@@ -775,6 +791,7 @@ Officer-facing before customer-facing, shadow before live, one product before ma
 
 | Version | Date | Change |
 |---|---|---|
+| 1.2 | 1 Sep 2026 | Applied Phase 1 implementation findings ([Phase_1_FINDINGS.md](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md)): §4.3.1.4 now states that score scaling has three constants and that the anchor is `[POLICY]`, with CS-2 amended to match — specifying PDO fixes the slope and not the scale; §4.3.1 corrects the reason-code ranking rule to points-below-max; §4.3.2.2 makes it binding that the calibration sample is not the model-selection sample and that the calibrator is chosen by event count and recorded; §4.3.2.4 separates reject inference from evidence (bureau retro, a correction) from inference from belief (parceling, a sensitivity analysis) and forbids the latter reaching a label column; §4.3.3 states where protected attributes live, that proxy testing applies to every feature group, and why the mitigation ladder's order is binding. |
 | 1.1 | 31 Aug 2026 | Applied Phase 0 implementation findings ([Phase_0_FINDINGS.md](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md)): added S9 (LOS) and S10 (collections) to the §2.1 source inventory, which the Phase 0 identity spine joins but which the inventory omitted; stated the two-timestamp point-in-time rule in §2.1 and §11.1; strengthened the §11.1 reproducibility requirement so the triplet must determine the artifact; named the unresolved CS-7 / DPDP erasure conflict in §11.4. |
 | 1.0 | 31 Aug 2026 | Initial draft. |
 

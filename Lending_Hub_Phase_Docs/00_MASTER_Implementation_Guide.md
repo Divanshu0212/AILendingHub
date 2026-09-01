@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Document | 00_MASTER — index & contract for the phase file set |
-| Version | 1.1 · 31 August 2026 |
+| Version | 1.2 · 1 September 2026 |
 | Parent | *AI-Powered Smart Lending Decision Hub — SRS & Algorithm Design v1.1* ("the SRS"; §-references in every phase file point there) |
 | File set | This master + 7 phase files (`Phase_0` … `Phase_6`), one file per phase |
 
@@ -113,12 +113,21 @@ Condensed view; each phase file carries its own expanded list.
 | Phase | Never assumed by any implementer or AI assistant |
 |---|---|
 | P0 | Retention periods, PII classes, consent wording, GL mapping rules, survivorship exceptions, write-off / distress-restructure code sets |
-| P1 | Approve/decline cutoffs, review-band edges, monotonicity directions, reason-code wording, fairness thresholds |
+| P1 | Approve/decline cutoffs, review-band edges, canary %, monotonicity directions, reason-code wording, fairness action thresholds, fraud alert budget, step-up friction tolerance, **score-scale anchor** (reference score + odds at it — PDO alone does not specify a scale), **fraud-desk disposition taxonomy** (Appendix A *Confirmed fraud*; without it no count of confirmed frauds means anything), bureau-retro availability, the labelled duplicate-pair set an ER threshold is tuned on, bank-branch directory for IFSC existence |
 | P2 | Crop calendars, input costs, sowing windows, disbursal-tranching rules |
 | P3 | SICR thresholds, downturn LGD add-ons, CCF floors, macro scenarios |
 | P4 | Alert budgets, action library & SLAs, exploration %, pricing components |
 | P5 | Rates/fees (retrieval-only), adverse-action sentences (templates-only), containment targets |
 | P6 | Any promotion without measured out-of-time lift |
+
+**Why the P1 row is so much longer than the others.** It is the only row that has
+been through implementation. Four of its entries — the score-scale anchor, bureau-retro
+availability, the labelled duplicate-pair set, and the branch directory — were not on
+the phase file's own §8 list; they were found by building against it, each in the same
+way: a step read as fully specified until code had to produce a value, at which point
+it turned out to need one nobody had supplied. Expect the same enlargement of P2–P6 as
+each is built, and treat a short do-not-invent list as a sign the phase has not been
+attempted rather than a sign it is simple.
 
 ---
 
