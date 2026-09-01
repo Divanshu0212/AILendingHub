@@ -24,25 +24,46 @@ SRS and a phase file disagree, the SRS wins and the phase file gets a ticket.
 To work a phase you load: **the Master + that one phase file + this CLAUDE.md.** Nothing
 outside them may be assumed.
 
-**Current phase: P3 — Portfolio Brain (behavioural PD, survival, LGD/EAD, staging,
-dashboards).** Status: [docs/phase3/STATUS.md](docs/phase3/STATUS.md). P1 is complete
-as far as it can be ([docs/phase1/STATUS.md](docs/phase1/STATUS.md)), as is P0
+**Current phase: P2 — Agri Intelligence (satellite, weather, crop, geo).**
+Status: [docs/phase2/STATUS.md](docs/phase2/STATUS.md). P3 is built as far as it
+can be ([docs/phase3/STATUS.md](docs/phase3/STATUS.md)), as are P1
+([docs/phase1/STATUS.md](docs/phase1/STATUS.md)) and P0
 ([docs/phase0/STATUS.md](docs/phase0/STATUS.md)); every phase's entry criteria trace
-back to Phase 0's, which is why none is exitable. **P2 was skipped deliberately** —
-its entry criteria are `[POLICY]`-blocked on crop calendars (LH-102) and the phase
-file forbids guessing them, and its models cannot be honestly ported under ADR-0003.
+back to Phase 0's, which is why none is exitable.
 
 Phase 1 was the first phase with **models**, so two rules that were abstract in
 Phase 0 began to bite: every model ships with its card (Master §2 rule 5), and every
 number is stamped with the track *and dataset* that produced it.
 
-Phase 3 adds a third: **"not measured" and "not measurable" are different gate
+Phase 3 added a third: **"not measured" and "not measurable" are different gate
 states.** Some P3 criteria are unrun; others cannot be produced by any data
 reachable from here, and no effort inside this repository changes that. The CCF
 model is the clean case — there is no revolving product on any track, so the
 denominator is identically zero. Reporting both the same way puts a scheduling
 problem and a structural one in the same column, and the second never gets
 escalated.
+
+Phase 2 adds a fourth, and it is the sharpest: **a phase can be worth building
+when none of its exit criteria is reachable.** P2 has **no Track P at all**
+([ADR-0013](docs/adr/0013-phase2-agri-track.md)) — there is no imagery in
+`datasets/`, no agri book with outcomes (LH-406), and no ratified crop calendar
+(LH-102) — and unlike P1 and P3 nothing substitutes, because a crop calendar for
+the wrong agro-zone is a different calendar rather than a noisy version of the
+right one. All six exit criteria report *not measurable*.
+
+So what was built is **every deterministic computation in the phase, up to the
+boundary of what is groundable**, on the interfaces Track B swaps in: SPI/SPEI
+with the reference test §4 mandates, the index pipelines, the plot registry, the
+gates and contracts around all three models, the credit-feature formulas, the
+three backtests. The three fine-tuned models themselves are not ported, and that
+is a decision recorded in ADR-0013 rather than an omission — a stdlib
+re-derivation of SAM or Presto would be a different model wearing the paper's
+name, which is worse than absence because it looks complete on a checklist.
+
+The payoff is not a gate. It is that the boundary is now explicit and reviewable,
+and that **five values nobody had noticed were missing** now have owners
+(LH-407 to LH-409, LH-411, LH-412) — each found the same way, by writing code
+against a step that read as fully specified until it had to produce a number.
 
 ---
 
@@ -132,18 +153,20 @@ src/lending_hub/
   scoring/                   P1 credit scoring, WS-1.1 (SRS §4) — see below
   fraud/                     P1 fraud layers 1-2, WS-1.2 (SRS §5) — see below
   portfolio/                 P3 portfolio brain, WS-3.1/3.2 (SRS §7, §9) — see below
+  agri/                      P2 agri intelligence, WS-2.1/2.2/2.3/2.4 (SRS §3) — see below
 
 tools/                       CI gates: check_grounding, validate_source_registry,
                              check_schema_compatibility, gate_report,
-                             phase1_gate_report, phase3_gate_report
+                             phase1_gate_report, phase2_gate_report, phase3_gate_report
 config/sources/              one YAML per SRS §2.1 source
 config/retention.yaml        per-table retention (every period pending on LH-111)
 config/reason_codes.yaml     reason-code dictionary — DATA, editable by legal (LH-203)
 config/policy_bands.yaml     cutoffs and canary bands — dual-control config (LH-204)
-docs/adr/                    architecture decision records (0001-0004, 0010-0012)
+docs/adr/                    architecture decision records (0001-0004, 0010-0013)
 docs/governance/             model card / validation / monitoring templates (WS-0.3.2)
 docs/phase0/                 STATUS, DATA_SOURCING, TRACK_P_FINDINGS, blocking_tickets
 docs/phase1/                 STATUS, blocking_tickets, model_cards/
+docs/phase2/                 STATUS, blocking_tickets, model_cards/
 docs/phase3/                 STATUS, blocking_tickets, model_cards/
 datasets/                    real external data — gitignored, never committed
 tests/fixtures/              the ONLY place synthetic data may live (Master §2 rule 3)
@@ -160,6 +183,34 @@ rows itself. Then WS-3.1 in the order the phase file runs it: `behavioural` →
 `survival` holding the metric set and `linalg` the solver both Newton-Raphson
 fits share. WS-3.2 is `transitions`, `health`, `opsanomaly`, `aggregates`.
 `experiment` is the Track P runner.
+
+### The Phase 2 package
+
+`agri/` is WS-2.1 through WS-2.4, and it is the one package with **no Track P
+run behind it** — read [ADR-0013](docs/adr/0013-phase2-agri-track.md) before
+quoting anything from it. WS-2.1 is `ports` (the Copernicus/PostGIS/weather
+seam) → `drought` (SPI/SPEI) → `indices` (NDVI/EVI, backscatter, cloud masking)
+→ `geometry` → `registry` → `ingest`. WS-2.2 is `boundary`, `crop` and
+`yield_model`. WS-2.3 is `features`; WS-2.4 is `backtest` and `disparate`.
+
+**The three models are absent on purpose.** SAM/U-Net, Presto and the
+histogram-CNN + GP are fine-tuned or pretrained networks with no imagery to fit
+and no labels to fit against, so Master §2 rule 2 admits neither of its branches
+— use the library, or port it with tests reproducing its outputs. What `boundary`,
+`crop` and `yield_model` contain instead is each model's **contract**: the metric,
+the gate, the calibration, the abstention rule, the output shape, and the
+baseline each must beat. That turns out to be where most of the risk lives.
+
+**The refusals are the design.** More than in any other package, the interesting
+behaviour here is what does not compute. `VillageLocation.area_hectares` raises
+rather than returning a nominal area around a centroid. `expected_income()`
+raises without ratified input costs, which on a smallholder plot decide the
+*sign* of the result. `land_quality_index()` raises without a ratified formula,
+because §4 names six inputs and no function over them. `run_backtest()` accepts
+no threshold arguments at all, because §4 says a failed test triggers feature
+redesign and never threshold relaxation. Each of those is a place where a
+plausible default would have produced a number nobody could later tell from a
+real one.
 
 **The point-in-time risk is different here.** On an application table a leak takes
 an exotic join. On a behavioural panel it is the natural thing to write, because
@@ -205,12 +256,12 @@ needs. Both deviations are stated in the module docstring and raised as findings
 
 | You want to | Read |
 |---|---|
-| Know what is done and what is blocked | [P3 STATUS](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) |
+| Know what is done and what is blocked | [P2 STATUS](docs/phase2/STATUS.md) · [P3](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) |
 | Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
 | Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) · [ADR-0012](docs/adr/0012-phase3-panel-source.md) |
-| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) |
-| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) |
-| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P3 cards](docs/phase3/model_cards/) |
+| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) |
+| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) |
+| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) |
 | See real numbers from the whole P1 pipeline | `make trackp-p1` → `reports/trackP_p1_home_credit.json` |
 | See real numbers from the whole P3 pipeline | `make trackp-p3` → `reports/trackP_p3_fannie_mae.json` |
 
@@ -223,14 +274,14 @@ No install step is needed for the core checks.
 ```bash
 make help          # list every target
 make check         # grounding + registry + tests — run this before every commit
-make test          # stdlib unittest suite (1,137 tests, ~23s)
-make gate          # run every gate script and assemble all three gate packs
+make test          # stdlib unittest suite (1,529 tests, ~27s)
+make gate          # run every gate script and assemble all four gate packs
 ```
 
 Individual gates: `make audit-joins` (WS-0.1.3), `make reconcile` (WS-0.1.5),
 `make schemas` (WS-0.1.4), `make repro` (WS-0.2.3), `make loadtest` (WS-0.2.4),
 `make parity` (WS-0.4), `make gate1` (Phase 1 §7 evidence pack),
-`make gate3` (Phase 3 §7 evidence pack).
+`make gate2` (Phase 2 §7 evidence pack), `make gate3` (Phase 3 §7 evidence pack).
 
 `make trackp-p1` runs the whole of WS-1.1 against real applications and writes
 `reports/trackP_p1_home_credit.json`. `make trackp-p3` runs WS-3.1 and WS-3.2
@@ -310,8 +361,28 @@ monotonicity list (LH-310, distinct from P1's application list), and the **LGD l
 basis** (LH-311 — whether credit enhancement is netted off, which flips the sign of
 the LTV coefficient on real data).
 
-Later phases add: crop calendars, sowing windows (P2) · alert budgets, action SLAs,
-pricing (P4) · rates, fees, adverse-action sentences (P5).
+**Phase 2's** (Phase 2 §8), all `[POLICY]` or `[DATA]` and all registered:
+
+> crop calendars & sowing windows (LH-102, LH-402) · per-crop input costs (LH-401) ·
+> disbursal-tranching rules (LH-403) · qualifying-crop lists (LH-404) ·
+> natural-calamity relief treatment (LH-405) · **any plot polygon not observed or
+> walked**
+
+That last one is the only entry on any do-not-invent list an implementer can
+violate *by accident* rather than by guessing a number, which is why it is a type
+in `agri.registry` rather than a rule in a document.
+
+Phase 2 implementation added five more the phase file does not list, each raised
+as a finding: the **GPS-walk label set** Model A trains and gates on (LH-407 — an
+input the plan never schedules), the **mandi price window** as distinct from the
+feed (LH-408), where an **abstaining model's cases go** (LH-409), the **function
+combining LandQualityIndex's six inputs** (LH-411 — six named inputs are not a
+formula, and LQI is what exit criterion (a) tests), and **which crop season a
+default belongs to** (LH-412 — the rule can pass or fail criterion (c) with no
+change to the flag).
+
+Later phases add: alert budgets, action SLAs, pricing (P4) · rates, fees,
+adverse-action sentences (P5).
 
 If a task seems to require one of these, the correct output is a **blocking ticket**, not
 a best guess. Write `TBD[owner, ticket-id]`, add the row to your phase's register

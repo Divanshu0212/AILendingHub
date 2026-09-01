@@ -1,6 +1,6 @@
 # Phase 0 — gate evidence pack
 
-Generated 2026-08-31T21:21:51.629563+00:00 by `tools/gate_report.py`.
+Generated 2026-09-01T17:42:01.063827+00:00 by `tools/gate_report.py`.
 
 Per ADR-0003, **only Track B numbers are gate evidence.** A Track A result
 describes the code that computed it, not the portfolio.
@@ -13,7 +13,7 @@ describes the code that computed it, not the portfolio.
 | GL delta ≤ 0.1% | WS-0.1.5 | — | — | **blocked** on LH-150, LH-120 |
 | Stream freshness < 60 s | WS-0.1.4 | — | — | **not run** |
 | Scorecard parity ≥ 99.9% | WS-0.4 | A | 100.0000% | **pass (Track A — not gate evidence)** |
-| Serving latency p99 | WS-0.2.4 | A | fetch p99=0.0023089996830094606ms, score p99=0.00017300044419243932ms | **pass (Track A — not gate evidence)** |
+| Serving latency p99 | WS-0.2.4 | A | fetch p99=0.0022410022211261094ms, score p99=0.000166997779160738ms | **pass (Track A — not gate evidence)** |
 
 Gates with Track B evidence: **0 of 5**.
 

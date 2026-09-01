@@ -1,6 +1,6 @@
 # Phase 3 — gate evidence pack
 
-Generated 2026-09-01T12:51:41.528582+00:00 by `tools/phase3_gate_report.py`.
+Generated 2026-09-01T17:42:01.181025+00:00 by `tools/phase3_gate_report.py`.
 
 Per ADR-0003 and ADR-0004, **only Track B numbers are gate evidence.**
 Track P results below prove the code paths against real mortgage

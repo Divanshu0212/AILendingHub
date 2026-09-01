@@ -16,9 +16,12 @@ that's a bug in the repo, not in your machine.
 
 ## Picking up work
 
-1. Open [docs/phase3/STATUS.md](docs/phase3/STATUS.md) — the current phase. It maps every
-   Phase 3 checklist item to the artifact that satisfies it, the track (A/P/B) it runs
-   on, and its state. Earlier phases: [P1](docs/phase1/STATUS.md), [P0](docs/phase0/STATUS.md).
+1. Open [docs/phase2/STATUS.md](docs/phase2/STATUS.md) — the current phase. It maps every
+   Phase 2 checklist item to the artifact that satisfies it, the track it runs on, and
+   its state. **Phase 2 has no Track P** ([ADR-0013](docs/adr/0013-phase2-agri-track.md)),
+   which is unlike every phase before it — read that ADR before quoting anything from
+   `agri/`. Other phases: [P3](docs/phase3/STATUS.md), [P1](docs/phase1/STATUS.md),
+   [P0](docs/phase0/STATUS.md).
 2. Take an item that is `not started`, or unblock one in `blocked` by chasing its
    `[POLICY]` owner.
 3. Load the Master guide + the one phase file you are working. Do not work from memory
@@ -36,7 +39,7 @@ This runs three gates:
 |---|---|
 | `make grounding` | Master §2 — no ungrounded value, no malformed `TBD`, no unregistered ticket, no synthetic data outside `tests/fixtures/` |
 | `make registry`  | Every `config/sources/*.yaml` validates against the source-registry schema |
-| `make test`      | The unit suite — 793 tests, stdlib only, about 9 seconds |
+| `make test`      | The unit suite — 1,529 tests, stdlib only, about 27 seconds |
 
 Two more you will want when touching Phase 1:
 
@@ -51,6 +54,11 @@ And when touching Phase 3:
 |---|---|
 | `make gate3` | Assembles the Phase 3 §7 evidence pack into `reports/phase3_gate.md` |
 | `make trackp-p3` | Runs WS-3.1 and WS-3.2 against a real 19-year mortgage panel. Also needs `datasets/` |
+
+Phase 2 has `make gate2` and **no `make trackp-p2`** — there is no imagery, no agri
+book and no ratified crop calendar, and none of the three is approximable, so every
+`agri/` module runs on Track A only. That is the whole content of ADR-0013, and it is
+why the Phase 2 gate pack quotes no metrics rather than fixture ones.
 
 ## Commit format
 
@@ -81,7 +89,7 @@ threshold looks exactly like a real one six months later.
 1. Write `TBD[<owner role>, <ticket-id>]` at the point of use.
 2. Add a row to **your phase's** register —
    [P0](docs/phase0/blocking_tickets.md), [P1](docs/phase1/blocking_tickets.md),
-   [P3](docs/phase3/blocking_tickets.md).
+   [P2](docs/phase2/blocking_tickets.md), [P3](docs/phase3/blocking_tickets.md).
    `make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
    `TBD` registered in none of them.
 3. Make the code **raise** where the value would be read, rather than defaulting.

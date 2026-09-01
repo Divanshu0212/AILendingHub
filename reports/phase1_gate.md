@@ -1,6 +1,6 @@
 # Phase 1 — gate evidence pack
 
-Generated 2026-09-01T10:33:31.065363+00:00 by `tools/phase1_gate_report.py`.
+Generated 2026-09-01T17:42:01.101077+00:00 by `tools/phase1_gate_report.py`.
 
 Per ADR-0003 and ADR-0004, **only Track B numbers are gate evidence.**
 Track P results below prove the code paths against real applications and
