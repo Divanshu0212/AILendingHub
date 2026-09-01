@@ -284,9 +284,9 @@ class PlotRegistry:
         is not a weaker input to be down-weighted — it is not an input.
 
         ``iou_gate`` is required with no default. The phase file states 0.75
-        `[SPEC]`, and :data:`MODEL_A_IOU_GATE` carries it; making the caller
-        pass it keeps a *changed* gate from being applied in one place and
-        forgotten in another.
+        `[SPEC]`, and :data:`lending_hub.agri.boundary.MODEL_A_IOU_GATE`
+        carries it; making the caller pass it keeps a *changed* gate from being
+        applied in one place and forgotten in another.
         """
         if plot.source in (PlotSource.GPS_WALK, PlotSource.CADASTRAL):
             return True
