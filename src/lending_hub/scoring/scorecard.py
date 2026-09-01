@@ -354,6 +354,92 @@ def fit_scorecard(
     )
 
 
+@dataclass
+class SelectionStep:
+    """One round of characteristic elimination, for the model card."""
+
+    round_number: int
+    dropped: str
+    coefficient: float
+    added: str | None
+    remaining: int
+
+    def to_dict(self) -> dict:
+        return {
+            "round": self.round_number,
+            "dropped": self.dropped,
+            "coefficient": self.coefficient,
+            "added": self.added,
+            "remaining": self.remaining,
+        }
+
+
+def fit_scorecard_stepwise(
+    rows: Sequence[dict],
+    labels: Sequence[int],
+    pool: Sequence[Binning],
+    *,
+    size: int,
+    max_rounds: int = 12,
+    minimum: int = 5,
+    **fit_kwargs,
+) -> tuple[Scorecard, list[SelectionStep]]:
+    """Fit, eliminate wrong-signed characteristics, refit, until the signs are clean.
+
+    On WOE-transformed inputs every coefficient must be positive: a higher WOE is
+    a better bin, so it has to raise the log-odds of good. A negative one means the
+    characteristic is being fitted *against* its own evidence, which happens when it
+    is largely explained by others already in the card — and its reason codes then
+    point the wrong way for that applicant while the model's overall discrimination
+    hides it. Standard scorecard practice is to drop and refit, and this is that
+    procedure rather than a variant of it.
+
+    One characteristic per round, the most negative first, with the next candidate
+    from the IV-ranked pool taking its place so the card keeps its size. Dropping
+    every offender at once oscillates: characteristics go negative *because* of what
+    else is in the card, so removing several changes the problem being solved.
+
+    The stopping rule needs no threshold — it is "no negative coefficients remain",
+    which is a property of the fit rather than a number someone chose. That matters
+    here: correlation-capped selection is the other standard approach and it needs a
+    cap, which nobody in this programme has ratified.
+    """
+    if size < minimum:
+        raise ScorecardError(f"a scorecard of {size} cannot be reduced below {minimum}")
+
+    ordered = list(pool)
+    selected = ordered[:size]
+    spare = ordered[size:]
+    log: list[SelectionStep] = []
+
+    for round_number in range(1, max_rounds + 1):
+        card = fit_scorecard(rows, labels, selected, **fit_kwargs)
+        worst = min(card.characteristics, key=lambda c: c.coefficient)
+        if worst.coefficient >= 0:
+            return card, log
+
+        if len(selected) <= minimum and not spare:
+            # Nothing left to trade. Returning the card with its remaining wrong
+            # signs and a log that says so beats silently returning a smaller card.
+            return card, log
+
+        selected = [b for b in selected if b.feature != worst.name]
+        replacement = spare.pop(0) if spare else None
+        if replacement is not None:
+            selected.append(replacement)
+        log.append(
+            SelectionStep(
+                round_number=round_number,
+                dropped=worst.name,
+                coefficient=worst.coefficient,
+                added=replacement.feature if replacement else None,
+                remaining=len(selected),
+            )
+        )
+
+    return fit_scorecard(rows, labels, selected, **fit_kwargs), log
+
+
 def negative_coefficients(scorecard: Scorecard) -> list[str]:
     """Characteristics whose fitted coefficient has the wrong sign.
 

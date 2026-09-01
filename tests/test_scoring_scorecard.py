@@ -324,3 +324,97 @@ class TestReasonCodes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def collinear_sample(n=3000, seed=1):
+    """A suppressor variable — the standard cause of a wrong-signed coefficient.
+
+    ``x2`` and ``x3`` track ``x1`` and carry none of the target's signal
+    themselves, so a multivariate fit uses one of them to subtract the others'
+    noise and gives it a negative weight. That is the pathology
+    :func:`fit_scorecard_stepwise` exists to remove.
+    """
+    rng = random.Random(seed)
+    rows, labels = [], []
+    for _ in range(n):
+        x1 = rng.gauss(0, 1)
+        rows.append({
+            "x1": x1,
+            "x2": x1 + 0.15 * rng.gauss(0, 1),
+            "x3": 0.9 * x1 + 0.1 * rng.gauss(0, 1),
+            "x4": rng.gauss(0, 1),
+        })
+        labels.append(1 if rng.random() < 1 / (1 + math.exp(-(-2.0 + 1.6 * x1))) else 0)
+    return rows, labels
+
+
+class TestStepwiseElimination(unittest.TestCase):
+    def setUp(self):
+        from lending_hub.scoring.scorecard import fit_scorecard_stepwise
+        self.stepwise = fit_scorecard_stepwise
+        self.rows, self.labels = collinear_sample()
+        self.pool = [
+            fit_binning([r[f] for r in self.rows], self.labels, feature=f)
+            for f in ("x1", "x2", "x3", "x4")
+        ]
+        self.pool.sort(key=lambda b: -b.iv)
+
+    def test_the_plain_fit_really_does_produce_a_wrong_sign(self):
+        # If this stops being true the test below proves nothing.
+        card = fit_scorecard(self.rows, self.labels, self.pool[:3], epochs=25, seed=0)
+        self.assertTrue(negative_coefficients(card))
+
+    def test_stepwise_removes_it(self):
+        card, log = self.stepwise(
+            self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
+        )
+        self.assertEqual(negative_coefficients(card), [])
+        self.assertTrue(log)
+
+    def test_the_log_records_what_was_dropped_and_what_replaced_it(self):
+        _, log = self.stepwise(
+            self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
+        )
+        step = log[0].to_dict()
+        self.assertLess(step["coefficient"], 0)
+        self.assertIn("dropped", step)
+        self.assertEqual(step["round"], 1)
+
+    def test_a_clean_card_is_returned_unchanged_with_an_empty_log(self):
+        clean = [b for b in self.pool if b.feature in ("x1", "x4")]
+        card, log = self.stepwise(
+            self.rows, self.labels, clean, size=2, minimum=2, epochs=25, seed=0
+        )
+        self.assertEqual(log, [])
+        self.assertEqual(sorted(card.names), ["x1", "x4"])
+
+    def test_a_spare_backfills_the_dropped_characteristic(self):
+        _, log = self.stepwise(
+            self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
+        )
+        self.assertIsNotNone(log[0].added)
+        self.assertEqual(log[0].remaining, 3)
+
+    def test_it_shrinks_rather_than_stopping_once_the_pool_is_exhausted(self):
+        # With no spare left the choice is a smaller clean card or a full card with
+        # a characteristic fitted against its own evidence. Smaller and clean wins,
+        # and the log says how it got there.
+        card, log = self.stepwise(
+            self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
+        )
+        self.assertGreaterEqual(len(card.characteristics), 2)
+        self.assertLessEqual(len(card.characteristics), 3)
+        self.assertEqual(negative_coefficients(card), [])
+
+    def test_a_size_below_the_minimum_is_refused(self):
+        with self.assertRaises(ScorecardError):
+            self.stepwise(self.rows, self.labels, self.pool, size=2, minimum=5)
+
+    def test_the_stopping_rule_needs_no_threshold(self):
+        # "No negative coefficients remain" is a property of the fit, not a number
+        # someone chose — which matters because the correlation-cap alternative
+        # needs a cap nobody has ratified.
+        import inspect
+        parameters = inspect.signature(self.stepwise).parameters
+        self.assertNotIn("correlation_cap", parameters)
+        self.assertNotIn("threshold", parameters)

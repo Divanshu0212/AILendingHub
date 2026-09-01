@@ -56,7 +56,7 @@ from .fairness import assess
 from .features import PROTECTED_NAMES, ProtectedAttributeAccess, ScreenVerdict
 from .gbm import MonotoneConstraints, fit_gbm, tune_gbm
 from .rejects import memo_when_unavailable
-from .scorecard import fit_scorecard, negative_coefficients
+from .scorecard import fit_scorecard_stepwise, negative_coefficients
 from .splits import Part, carve_calibration, holdout_without_time_axis, manifest
 from .target import LabelProvenance, build_target_table
 from .validation import monotonicity_spot_check, sensitivity, swap_sets, validate
@@ -73,6 +73,9 @@ HISTORY_PATHS = {
 #: size costs the grid's length times a full fit, for a decision that is stable
 #: well before then; the winner is refitted on everything.
 SEARCH_ROWS = 30_000
+
+#: Tree budget per search trial. See the comment at the call site.
+SEARCH_TREES = 150
 
 #: One cohort, because the source has no time axis. Named so the vintage split
 #: refuses it rather than producing a fake ordering.
@@ -211,16 +214,24 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
             usable.append(binning)
 
     binnings.sort(key=lambda b: -b.iv)
-    kept = binnings[:SCORECARD_CHARACTERISTICS]
     usable.sort(key=lambda b: -b.iv)
     _log(
         f"  {len(usable)} binnable, {len(binnings)} passed the IV screen; "
-        f"scorecard keeps {len(kept)}, challenger uses {len(usable)}"
+        f"scorecard draws from the screened pool, challenger uses {len(usable)}"
     )
 
     # ---- WS-1.1 Step 3: the champion ----------------------------------------
-    _log("fitting the WOE scorecard ...")
-    scorecard = fit_scorecard(train_rows, train_y, kept, epochs=15, seed=seed)
+    _log("fitting the WOE scorecard (stepwise sign elimination) ...")
+    scorecard, elimination = fit_scorecard_stepwise(
+        train_rows, train_y, binnings,
+        size=min(SCORECARD_CHARACTERISTICS, len(binnings)),
+        epochs=15, seed=seed,
+    )
+    if elimination:
+        _log(
+            f"  dropped {len(elimination)} wrong-signed characteristic(s): "
+            + ", ".join(step.dropped for step in elimination)
+        )
 
     # ---- WS-1.1 Step 4: the challenger --------------------------------------
     challenger_features = [b.feature for b in usable]
@@ -240,7 +251,10 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
         tuning = tune_gbm(
             train_rows, train_y, challenger_features, constraints,
             validation=(validation_rows, validation_y),
-            n_trees=trees, early_stopping_rounds=15, max_bins=32,
+            # The search needs only the *ordering* of the configurations, which
+            # settles long before a full fit does; the winner is then grown to the
+            # full budget on the full training set.
+            n_trees=min(trees, SEARCH_TREES), early_stopping_rounds=15, max_bins=32,
             search_rows=min(SEARCH_ROWS, len(train_rows)), seed=seed,
         )
         hyperparameters = {
@@ -300,8 +314,11 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
 
     # ---- WS-1.1 Step 9: validation ------------------------------------------
     _log("validating ...")
+    # Spot-check the characteristics the *champion* ended up with, since those
+    # are the ones whose binned direction a reviewer will be shown.
+    on_card = [b for b in binnings if b.feature in set(scorecard.names)]
     checks = []
-    for binning in kept[:5]:
+    for binning in on_card[:5]:
         grid = sorted(
             {
                 b.lower
@@ -320,7 +337,7 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
         )
 
     sensitivity_results = sensitivity(
-        challenger.predict, test_rows[:400], [b.feature for b in kept[:8]]
+        challenger.predict, test_rows[:400], [b.feature for b in on_card[:8]]
     )
 
     # The comparator is the *champion scorecard*, not a rebuilt legacy scorecard:
@@ -411,7 +428,8 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
         ),
         "scorecard": {
             **scorecard.to_dict(),
-            "characteristics_kept": [b.feature for b in kept],
+            "characteristics_kept": scorecard.names,
+            "sign_elimination": [step.to_dict() for step in elimination],
             "negative_coefficients": negative_coefficients(scorecard),
             "calibration": scorecard_calibration.to_dict(),
         },

@@ -46,6 +46,14 @@ alignment is the reason this dataset is worth 8 GB of disk.
 Present: `application_train`, `application_test`, `bureau`, `POS_CASH_balance`
 (which carries a real `SK_DPD`, up to 2,672 days).
 
+**All three usable files are now in use.** Phase 1 aggregates `bureau.csv`
+(1,716,428 records) and `POS_CASH_balance.csv` (10,001,358 monthly balances) per
+applicant — adapter `lending_hub.sources.homecredit_history`. Between them they
+supply the bureau group the WS-1.1 Step 2 catalogue leads with (enquiries,
+utilisation, DPD history, file age) and prior repayment behaviour, and five bureau
+features land in the top ten by information value. Running without them cost the
+challenger about 4 Gini points and nearly half its Brier skill.
+
 Missing: `previous_application.csv`, `installments_payments.csv`,
 `bureau_balance.csv`, `credit_card_balance.csv`.
 
