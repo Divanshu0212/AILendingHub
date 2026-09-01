@@ -278,3 +278,100 @@ class TestHyperparameterSearch(unittest.TestCase):
         for key in ("best", "trials", "rows_searched", "note"):
             self.assertIn(key, payload)
         self.assertIn("test set was not read", payload["note"])
+
+
+class TestParallelism(unittest.TestCase):
+    """Parallelism must not change a result — only how long it takes."""
+
+    def test_pmap_preserves_input_order(self):
+        from lending_hub.scoring.parallel import pmap
+        import math
+        values = [float(i) for i in range(1, 40)]
+        self.assertEqual(pmap(math.sqrt, values), [math.sqrt(v) for v in values])
+
+    def test_pmap_falls_back_to_serial_for_a_single_worker(self):
+        from lending_hub.scoring.parallel import pmap
+        import math
+        self.assertEqual(pmap(math.sqrt, [4.0, 9.0], workers=1), [2.0, 3.0])
+
+    def test_pmap_falls_back_rather_than_raising_on_an_unpicklable_callable(self):
+        # A closure pickles in neither direction; the result must still be right.
+        from lending_hub.scoring.parallel import pmap
+        factor = 3
+        self.assertEqual(pmap(lambda x: x * factor, [1, 2, 3]), [3, 6, 9])
+
+    def test_worker_count_leaves_a_core_free(self):
+        import os
+        from lending_hub.scoring.parallel import RESERVED_CORES, worker_count
+        self.assertEqual(worker_count(), max(1, (os.cpu_count() or 1) - RESERVED_CORES))
+        self.assertEqual(worker_count(4), 4)
+
+    def test_the_search_picks_the_same_winner_in_parallel_and_in_serial(self):
+        from lending_hub.scoring.gbm import DEFAULT_GRID, tune_gbm
+        train, train_y = make(600, 301)
+        validation, validation_y = make(250, 302)
+        kwargs = dict(
+            validation=(validation, validation_y), grid=DEFAULT_GRID[:3],
+            n_trees=15, early_stopping_rounds=5, max_bins=16,
+        )
+        serial = tune_gbm(train, train_y, FEATURES, RATIFIED, workers=1, **kwargs)
+        parallel = tune_gbm(train, train_y, FEATURES, RATIFIED, workers=3, **kwargs)
+        self.assertEqual(serial.best, parallel.best)
+        self.assertEqual(
+            [t["name"] for t in serial.trials], [t["name"] for t in parallel.trials]
+        )
+
+
+class TestFeatureFraction(unittest.TestCase):
+    """LightGBM's feature_fraction: a speed control, not feature selection."""
+
+    def setUp(self):
+        self.rows, self.labels = make(800, 401)
+
+    def test_the_default_uses_every_feature(self):
+        model = fit_gbm(self.rows, self.labels, FEATURES, RATIFIED,
+                        n_trees=5, max_bins=16)
+        self.assertEqual(model.params["feature_fraction"], 1.0)
+
+    def test_a_subset_still_produces_a_usable_model(self):
+        from lending_hub.modeling.metrics import auc
+        test, test_y = make(400, 402)
+        model = fit_gbm(self.rows, self.labels, FEATURES, RATIFIED,
+                        n_trees=40, max_bins=16, feature_fraction=0.7)
+        self.assertGreater(auc(test_y, model.predict_all(test)), 0.65)
+
+    def test_it_stays_deterministic_under_the_seed(self):
+        probe, _ = make(50, 403)
+        first = fit_gbm(self.rows, self.labels, FEATURES, RATIFIED, n_trees=15,
+                        max_bins=16, feature_fraction=0.5, seed=9)
+        second = fit_gbm(self.rows, self.labels, FEATURES, RATIFIED, n_trees=15,
+                         max_bins=16, feature_fraction=0.5, seed=9)
+        self.assertEqual(first.predict_all(probe), second.predict_all(probe))
+
+    def test_an_excluded_feature_is_still_in_the_model(self):
+        # Sampling is per tree, so a feature left out of one is available to the
+        # next. It is a speed and decorrelation control, not selection.
+        model = fit_gbm(self.rows, self.labels, FEATURES, RATIFIED, n_trees=40,
+                        max_bins=16, feature_fraction=0.4, seed=5)
+        used = set()
+        def walk(node):
+            if not node.is_leaf:
+                used.add(node.feature)
+                walk(node.left)
+                walk(node.right)
+        for tree in model.trees:
+            walk(tree)
+        self.assertGreater(len(used), 1)
+
+    def test_monotone_constraints_still_hold_under_sampling(self):
+        model = fit_gbm(self.rows, self.labels, FEATURES, RATIFIED, n_trees=30,
+                        max_bins=16, feature_fraction=0.7, seed=3)
+        base = {"bureau_score": 620.0, "utilisation": 0.5, "enquiries": 3.0}
+        ps = [model.predict({**base, "utilisation": i / 40}) for i in range(49)]
+        self.assertTrue(all(a <= b + 1e-12 for a, b in zip(ps, ps[1:])))
+
+    def test_an_out_of_range_fraction_is_refused(self):
+        for bad in (0.0, 1.5, -0.2):
+            with self.assertRaises(GBMError):
+                fit_gbm(self.rows, self.labels, FEATURES, RATIFIED,
+                        n_trees=2, feature_fraction=bad)

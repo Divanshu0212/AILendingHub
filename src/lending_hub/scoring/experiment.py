@@ -57,6 +57,7 @@ from .features import PROTECTED_NAMES, ProtectedAttributeAccess, ScreenVerdict
 from .gbm import MonotoneConstraints, fit_gbm, tune_gbm
 from .rejects import memo_when_unavailable
 from .scorecard import fit_scorecard_stepwise, negative_coefficients
+from .parallel import pmap, worker_count
 from .splits import Part, carve_calibration, holdout_without_time_axis, manifest
 from .target import LabelProvenance, build_target_table
 from .validation import monotonicity_spot_check, sensitivity, swap_sets, validate
@@ -90,6 +91,15 @@ SCORECARD_CHARACTERISTICS = 15
 
 def _log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
+
+
+def _bin_one(payload):
+    """Bin one feature. Module level so a process pool can pickle it."""
+    name, values, labels = payload
+    try:
+        return name, fit_binning(values, labels, feature=name), ""
+    except Exception as exc:  # noqa: BLE001 — a feature that cannot bin is a finding
+        return name, None, str(exc)
 
 
 def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = True) -> dict:
@@ -179,17 +189,20 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
     )
 
     # ---- WS-1.1 Step 3: bin, screen, and keep what survives ------------------
-    _log(f"binning {len(candidates)} candidate features on {len(train_rows)} rows ...")
+    _log(
+        f"binning {len(candidates)} candidate features on {len(train_rows)} rows "
+        f"across {worker_count()} workers ..."
+    )
     screened: list[dict] = []
     binnings = []
     usable = []
-    for name in candidates:
-        try:
-            binning = fit_binning(
-                [row.get(name) for row in train_rows], train_y, feature=name
-            )
-        except Exception as exc:  # noqa: BLE001 - a feature that cannot bin is a finding
-            screened.append({"feature": name, "verdict": "unbinnable", "note": str(exc)})
+    results = pmap(
+        _bin_one,
+        [(name, [row.get(name) for row in train_rows], train_y) for name in candidates],
+    )
+    for name, binning, error in results:
+        if binning is None:
+            screened.append({"feature": name, "verdict": "unbinnable", "note": error})
             continue
         verdict, note = binning.screen()
         screened.append(

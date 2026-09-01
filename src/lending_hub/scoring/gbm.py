@@ -44,6 +44,8 @@ from bisect import bisect_left
 from dataclasses import dataclass, field
 from typing import Sequence
 
+from .parallel import pmap
+
 #: LightGBM's default maximum histogram bins per feature.
 DEFAULT_MAX_BINS = 255
 
@@ -264,6 +266,7 @@ def _histograms(
     grads: list[float],
     hess: list[float],
     widths: list[int],
+    active: list[int],
 ) -> list[tuple[list[float], list[float], list[int]]]:
     """Gradient/hessian/count histograms for one node, one entry per feature.
 
@@ -273,7 +276,8 @@ def _histograms(
     iterates and one that does not.
     """
     out = []
-    for position, width in enumerate(widths):
+    for position in active:
+        width = widths[position]
         column = columns[position]
         hist_g = [0.0] * width
         hist_h = [0.0] * width
@@ -332,6 +336,7 @@ def _build(
     features: Sequence[str],
     edges: dict[str, list[float]],
     widths: list[int],
+    active: list[int],
     constraints: MonotoneConstraints,
     *,
     depth: int,
@@ -362,10 +367,11 @@ def _build(
     parent_gain = total_g * total_g / (total_h + l2) if (total_h + l2) else 0.0
     best = None
 
-    for position, feature in enumerate(features):
+    for slot, position in enumerate(active):
+        feature = features[position]
         if widths[position] < 2:
             continue
-        histogram_g, histogram_h, histogram_n = hists[position]
+        histogram_g, histogram_h, histogram_n = hists[slot]
         direction = constraints.direction(feature)
         left_g = left_h = 0.0
         left_n = 0
@@ -421,22 +427,22 @@ def _build(
 
     # Build the smaller child's histograms and subtract for the larger.
     if len(left_indices) <= len(right_indices):
-        left_hists = _histograms(left_indices, columns, grads, hess, widths)
+        left_hists = _histograms(left_indices, columns, grads, hess, widths, active)
         right_hists = _subtract(hists, left_hists)
     else:
-        right_hists = _histograms(right_indices, columns, grads, hess, widths)
+        right_hists = _histograms(right_indices, columns, grads, hess, widths, active)
         left_hists = _subtract(hists, right_hists)
 
     node.feature = feature
     node.threshold = edges[feature][split_bin]
     node.left = _build(
         left_indices, left_hists, columns, grads, hess, features, edges, widths,
-        constraints, depth=depth + 1, max_depth=max_depth,
+        active, constraints, depth=depth + 1, max_depth=max_depth,
         min_child_weight=min_child_weight, l2=l2, gamma=gamma, bounds=left_bounds,
     )
     node.right = _build(
         right_indices, right_hists, columns, grads, hess, features, edges, widths,
-        constraints, depth=depth + 1, max_depth=max_depth,
+        active, constraints, depth=depth + 1, max_depth=max_depth,
         min_child_weight=min_child_weight, l2=l2, gamma=gamma, bounds=right_bounds,
     )
     return node
@@ -455,6 +461,7 @@ def fit_gbm(
     l2: float = 1.0,
     gamma: float = 0.0,
     max_bins: int = DEFAULT_MAX_BINS,
+    feature_fraction: float = 1.0,
     scale_pos_weight: float | None = None,
     validation: tuple[Sequence[dict], Sequence[int]] | None = None,
     early_stopping_rounds: int | None = None,
@@ -471,6 +478,14 @@ def fit_gbm(
     the extreme imbalance in fraud (§4 WS-1.2 Step 3) and the mild imbalance in
     credit. It changes the calibration of the raw output, which is one of several
     reasons the calibration step is separate and mandatory.
+
+    ``feature_fraction`` is LightGBM's parameter of the same name: each tree
+    considers a seeded random subset of the features. It cuts the per-node
+    histogram cost proportionally — the dominant term in a wide-feature fit — and
+    on correlated credit features it usually costs little accuracy, because a
+    feature left out of one tree is available to the next. It is a *speed and
+    decorrelation* control, not a feature-selection one: a feature excluded here
+    is still in the model. Default 1.0, so nothing changes unless asked.
     """
     if len(rows) != len(labels):
         raise GBMError("rows and labels must be the same length")
@@ -504,10 +519,14 @@ def fit_gbm(
     ]
     widths = [len(edges[feature]) + 1 for feature in features]
 
-    # The seed is threaded through even though the fit is deterministic: it is
-    # part of the reproducibility triplet (WS-0.2.3), and a model whose card
-    # records no seed cannot be re-derived by an auditor who has only the card.
-    random.Random(seed)
+    if not 0.0 < feature_fraction <= 1.0:
+        raise GBMError("feature_fraction must be in (0, 1]")
+
+    # The seed drives feature sampling. It is part of the reproducibility triplet
+    # (WS-0.2.3), and a model whose card records no seed cannot be re-derived by
+    # an auditor who has only the card.
+    rng = random.Random(seed)
+    n_active = max(1, round(feature_fraction * len(features)))
 
     raw = [base_score] * len(rows)
     trees: list[Node] = []
@@ -524,10 +543,15 @@ def fit_gbm(
             grads.append(weight * (p - label))
             hess.append(weight * max(p * (1 - p), 1e-9))
 
+        active = (
+            list(range(len(features)))
+            if n_active >= len(features)
+            else sorted(rng.sample(range(len(features)), n_active))
+        )
         root = list(range(len(rows)))
         tree = _build(
-            root, _histograms(root, columns, grads, hess, widths),
-            columns, grads, hess, features, edges, widths, constraints,
+            root, _histograms(root, columns, grads, hess, widths, active),
+            columns, grads, hess, features, edges, widths, active, constraints,
             depth=0, max_depth=max_depth, min_child_weight=min_child_weight,
             l2=l2, gamma=gamma, bounds=(-float("inf"), float("inf")),
         )
@@ -560,6 +584,7 @@ def fit_gbm(
             "l2": l2,
             "gamma": gamma,
             "max_bins": max_bins,
+            "feature_fraction": feature_fraction,
             "scale_pos_weight": weight_positive,
             "early_stopping_rounds": early_stopping_rounds,
             "seed": seed,
@@ -613,6 +638,27 @@ class TuningResult:
         }
 
 
+def _run_trial(payload):
+    """One grid trial, at module level so a process pool can pickle it."""
+    (config, rows, labels, features, constraints, validation,
+     n_trees, early_stopping_rounds, max_bins, scale_pos_weight, seed) = payload
+    params = {k: v for k, v in config.items() if k != "name"}
+    model = fit_gbm(
+        rows, labels, features, constraints,
+        n_trees=n_trees, max_bins=max_bins, scale_pos_weight=scale_pos_weight,
+        validation=validation, early_stopping_rounds=early_stopping_rounds,
+        seed=seed, **params,
+    )
+    loss = min(model.validation_curve) if model.validation_curve else float("inf")
+    return {
+        "name": config.get("name", ""),
+        **params,
+        "validation_log_loss": loss,
+        "best_iteration": model.best_iteration,
+        "trees_grown": len(model.trees),
+    }
+
+
 def tune_gbm(
     rows: Sequence[dict],
     labels: Sequence[int],
@@ -627,6 +673,7 @@ def tune_gbm(
     scale_pos_weight: float | None = None,
     search_rows: int | None = None,
     seed: int = 0,
+    workers: int | None = None,
 ) -> TuningResult:
     """Search the grid on the validation set, as Phase 1 §4 Step 4 requires.
 
@@ -655,27 +702,19 @@ def tune_gbm(
     search_x = [rows[i] for i in pool]
     search_y = [labels[i] for i in pool]
 
-    trials: list[dict] = []
+    # The configurations are independent, so they run in parallel. Results come
+    # back in grid order regardless of which finished first, which keeps the
+    # winner reproducible from the seed (WS-0.2.3).
+    payloads = [
+        (config, search_x, search_y, features, constraints, validation,
+         n_trees, early_stopping_rounds, max_bins, scale_pos_weight, seed)
+        for config in grid
+    ]
+    trials = pmap(_run_trial, payloads, workers=workers)
+
     best: dict | None = None
-    for config in grid:
-        params = {k: v for k, v in config.items() if k != "name"}
-        model = fit_gbm(
-            search_x, search_y, features, constraints,
-            n_trees=n_trees, max_bins=max_bins,
-            scale_pos_weight=scale_pos_weight,
-            validation=validation, early_stopping_rounds=early_stopping_rounds,
-            seed=seed, **params,
-        )
-        loss = min(model.validation_curve) if model.validation_curve else float("inf")
-        trial = {
-            "name": config.get("name", ""),
-            **params,
-            "validation_log_loss": loss,
-            "best_iteration": model.best_iteration,
-            "trees_grown": len(model.trees),
-        }
-        trials.append(trial)
-        if best is None or loss < best["validation_log_loss"]:
+    for trial in trials:
+        if best is None or trial["validation_log_loss"] < best["validation_log_loss"]:
             best = trial
 
     return TuningResult(
