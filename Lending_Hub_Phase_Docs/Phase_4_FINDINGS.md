@@ -274,6 +274,11 @@ the first alertable snapshot — and the run report carries `in_panel`,
 `reachable` and `before_first_alertable_snapshot` so the distinction is visible
 rather than buried in a single ratio.
 
+**The corrected numbers.** Against 101 reachable defaults, capture is 0.911 at
+p90 and 0.564 at p99 — every swept band clears the 0.55 target, where the
+original computation showed 0.111 and a comprehensive failure. An eight-fold
+move from fixing a denominator.
+
 **Why this belongs in the findings rather than a silent fix.** Phase 3's finding
 was an in-sample comparison that flattered a model; this is an out-of-sample
 denominator that maligned one. Both are the same underlying failure — a metric

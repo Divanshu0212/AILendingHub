@@ -40,6 +40,38 @@ on the preceding regime's stability), LH-513 (ALM table staleness).
 `make gate4` assembles the pack. Findings:
 [Phase_4_FINDINGS.md](../../Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md).
 
+## What the Track P run established
+
+On 5,081 loans and 338,210 real account-months, scored out of time against
+**101 reachable defaults** (the other 726 in the panel fall before the first
+held-out snapshot and could not have been alerted on — see P4-F11):
+
+| Band | Alerts | Capture | Median lead | p10 lead |
+|---|---|---|---|---|
+| p90 | 6,404 | **0.911** | 562d | 62d |
+| p95 | 3,526 | 0.861 | 365d | 61d |
+| p98 | 1,420 | 0.822 | 183d | 61d |
+| p99 | 687 | **0.564** | 153d | 61d |
+
+**Hazard deterioration does precede default, with substantial lead.** Every band
+clears the §4 Step 6 capture target of 0.55, including p99 — which raises 687
+alerts rather than 6,404 and still reaches 56%. That is the central EWS claim
+holding on real data.
+
+Three cautions travel with it, and none is optional:
+
+* **It is not gate evidence.** US conforming mortgages, not this bank's book
+  (ADR-0012, ADR-0014).
+* **There is no precision figure**, so "capture 0.911" says nothing about how
+  many of the 6,404 alerts were worth raising. A detector that alerted on
+  everything would capture everything. Precision needs dispositions (LH-510),
+  and the p10 lead sitting at ~61 days across every band — barely over the
+  60-day requirement — suggests the tail is doing real work.
+* **The lead distribution is extremely wide** (p10 62d, p90 2,342d at p90 band).
+  A median of 562 days is not "18 months of warning"; it is a mixture of alerts
+  that fire years ahead and alerts that barely clear the bar. Phase 4 §1
+  promises 30-120 days, and this distribution is not that shape.
+
 **LH-509 is the one to read.** Phase 4 §5 Step 4 defines the bandit's reward as
 "take-up blended with a seasoning risk-adjusted value proxy" and gives neither
 the blend weight nor the horizon. A bandit rewarded on take-up alone learns to

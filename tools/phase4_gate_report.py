@@ -237,11 +237,25 @@ def build(run: dict | None) -> list[str]:
                 )
             add("")
         panel = run.get("panel") or {}
+        defaults = run.get("observed_defaults") or {}
         if panel:
             add(
                 f"Panel: {panel.get('loans_sampled', 0):,} loans, "
-                f"{panel.get('account_months', 0):,} account-months, "
-                f"{run.get('observed_defaults', 0):,} observed defaults."
+                f"{panel.get('account_months', 0):,} account-months."
+            )
+            add("")
+        if isinstance(defaults, dict) and defaults:
+            add(
+                f"**Denominator:** {defaults.get('reachable', 0):,} reachable "
+                f"defaults of {defaults.get('in_panel', 0):,} in the panel. The "
+                f"other {defaults.get('before_first_alertable_snapshot', 0):,} "
+                f"fall before the first held-out snapshot "
+                f"({defaults.get('first_alertable_snapshot', '—')}) and could "
+                "not have been alerted on by construction, so counting them "
+                "would measure the train/test split rather than the detector. "
+                "The 2007Q1 vintage front-loads its defaults into the 2008-11 "
+                "credit event, which sits entirely inside the training window — "
+                "see finding P4-F11."
             )
             add("")
     else:
