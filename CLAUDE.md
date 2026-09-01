@@ -176,6 +176,9 @@ src/lending_hub/
   ews/                       P4 early warning, WS-4.A (SRS §10) — see below
   reco/                      P4 recommendation engine, WS-4.B (SRS §6) — see below
 
+frontend/                    P7 interface surfaces, Next.js — NEVER BUILT OR RUN (no Node
+                             toolchain here); see frontend/README.md before quoting anything
+
 tools/                       CI gates: check_grounding, validate_source_registry,
                              check_schema_compatibility, gate_report,
                              phase1_gate_report, phase2_gate_report,
@@ -191,6 +194,7 @@ docs/phase1/                 STATUS, blocking_tickets, model_cards/
 docs/phase2/                 STATUS, blocking_tickets, model_cards/
 docs/phase3/                 STATUS, blocking_tickets, model_cards/
 docs/phase4/                 STATUS, blocking_tickets, model_cards/
+docs/phase7/                 STATUS, blocking_tickets
 datasets/                    real external data — gitignored, never committed
 tests/fixtures/              the ONLY place synthetic data may live (Master §2 rule 3)
 reports/                     generated gate output — regenerate, never commit
@@ -302,15 +306,60 @@ detector could not have reached, measuring the train/test split rather than the
 detector (P4-F11) — the same failure as P3's in-sample comparison, pointing the
 other way.
 
+### The Phase 7 frontend
+
+`frontend/` is WS-7.1 through WS-7.5 and it is the only directory in this
+repository whose contents **have never been executed**. There is no Node
+toolchain on the machine it was authored on, so nothing was compiled,
+type-checked, linted, tested or rendered — read
+[frontend/README.md](frontend/README.md)'s banner before quoting anything from
+it. [docs/phase7/STATUS.md](docs/phase7/STATUS.md) gives that its own track
+column, **V**, rather than folding it into Track A, for the same reason P3
+separated "not measured" from "not measurable": a screen covered by a passing
+test suite and a screen that has never rendered are different artifacts, and a
+checklist marking both "done" hides the second.
+
+**The phase's own SRS section does not exist**
+([P7-F1](Lending_Hub_Phase_Docs/Phase_7_FINDINGS.md), LH-711). Phase 7 names its
+module as "§11 (Module 9 — User Experience & Interfaces)" and cites §11.4,
+§11.5, §11.6a–d, §11.8 and UX-1..UX-9 as binding. The SRS runs Module 1 to
+Module 8 and stops; §11 is Cross-Cutting Concerns. So each of the seven shared
+components was specified from the **Python module it renders** —
+`ews.routing.Alert`'s constructor refusals became the alert viewer's required
+fields, `reco.feasible.Assessment.binding_constraint` became the offer table's
+rejected rows — which is a better source than a UI spec, except where no backend
+counterpart exists. The freshness badge has none, and it is the weakest of the
+seven.
+
+**Three architectural rules, and each is enforced structurally rather than by
+convention.** *The frontend computes nothing*: there is no arithmetic helper in
+the codebase to call, every money field arrives as `{amount, display}` with
+components rendering only `display`, and a build gate fails on `Math.*` and on
+render-layer arithmetic. *No copy is written here*: `i18n/keys.ts` holds keys and
+no English, `<Copy>` has no `fallback` prop, and every screen therefore renders
+mostly placeholders — the honest state of a frontend whose copy registry is
+nobody's deliverable (LH-701). *Nothing model-derived renders without its
+provenance*: `Attributed<T>` makes a bare score untypeable, the client throws on
+a response missing the triplet, and `<AuditLink>` deep-links every attributed
+value.
+
+**There is no fixture adapter, deliberately.** `AbsentAdapter` rejects every
+call with a ticket-bearing error. A demo adapter would put a score, a PD, an EMI
+and reason sentences on screen — the four things Phase 7 §8 exists to keep from
+being invented client-side — and a screenshot of a demo build is
+indistinguishable from a screenshot of a real one. It is ADR-0014's argument
+against a simulated collections desk, moved one layer out: a plausible number
+survives review, and a plausible *screen* survives it in front of a committee.
+
 ### Start here
 
 | You want to | Read |
 |---|---|
-| Know what is done and what is blocked | [P4 STATUS](docs/phase4/STATUS.md) · [P2](docs/phase2/STATUS.md) · [P3](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) |
+| Know what is done and what is blocked | [P4 STATUS](docs/phase4/STATUS.md) · [P2](docs/phase2/STATUS.md) · [P3](docs/phase3/STATUS.md) · [P1](docs/phase1/STATUS.md) · [P0](docs/phase0/STATUS.md) · [P7](docs/phase7/STATUS.md) |
 | Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
 | Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) · [ADR-0012](docs/adr/0012-phase3-panel-source.md) |
-| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) · [P4](Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md) |
-| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) |
+| Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) · [P4](Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md) · [P7](Lending_Hub_Phase_Docs/Phase_7_FINDINGS.md) |
+| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) · [P7](docs/phase7/blocking_tickets.md) |
 | Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) · [P4 cards](docs/phase4/model_cards/) |
 | See real numbers from the whole P1 pipeline | `make trackp-p1` → `reports/trackP_p1_home_credit.json` |
 | See real numbers from the whole P3 pipeline | `make trackp-p3` → `reports/trackP_p3_fannie_mae.json` |
@@ -432,6 +481,31 @@ combining LandQualityIndex's six inputs** (LH-411 — six named inputs are not a
 formula, and LQI is what exit criterion (a) tests), and **which crop season a
 default belongs to** (LH-412 — the rule can pass or fail criterion (c) with no
 change to the flag).
+
+**Phase 7's** (Phase 7 §8), all `[POLICY]` and all registered:
+
+> disclosure/consent copy wording (LH-701) · accessibility conformance level
+> (fixed at WCAG 2.2 AA per the phase file, `[SPEC]`, not renegotiable
+> per-surface — the only entry on any list that needed no ticket) · language list
+> (LH-707) · session-timeout values (LH-704) · performance budgets (LH-708) ·
+> **any EMI, eligibility amount, or reason-code sentence composed client-side**
+
+That last one is the only do-not-invent entry with a build gate of its own
+(`frontend/scripts/check-no-client-math.mjs`), because Phase 7 §7 states it as a
+QA observation and QA sees the screens it opened.
+
+Phase 7 implementation added seven more the phase file does not list, each raised
+as a finding: the **override reason-code taxonomy** (LH-702 — mandatory on every
+override, undefined, and not Phase 1's customer-facing dictionary: different
+owner, audience and revision cadence), the **per-panel freshness tolerance**
+(LH-703 — the SRS's five-minute figure is a streaming ingestion SLO, and applying
+it to weekly PSI panels marks four of six views permanently stale), the **client
+retry budget** (LH-705), the **published gateway route contract** (LH-706 — an
+entry criterion with no artifact behind it), the **independent accessibility
+auditor** (LH-710, a process stop like LH-510), **the missing SRS Module 9**
+(LH-711), and the **basemap tile provider** (LH-712 — a DPO decision hiding
+inside a UI requirement, since tile requests for a map centred on a plot disclose
+its location).
 
 Later phases add: alert budgets, action SLAs, pricing (P4) · rates, fees,
 adverse-action sentences (P5).

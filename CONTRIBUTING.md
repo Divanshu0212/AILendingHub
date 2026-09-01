@@ -97,7 +97,7 @@ threshold looks exactly like a real one six months later.
 2. Add a row to **your phase's** register —
    [P0](docs/phase0/blocking_tickets.md), [P1](docs/phase1/blocking_tickets.md),
    [P2](docs/phase2/blocking_tickets.md), [P3](docs/phase3/blocking_tickets.md),
-   [P4](docs/phase4/blocking_tickets.md).
+   [P4](docs/phase4/blocking_tickets.md), [P7](docs/phase7/blocking_tickets.md).
    `make grounding` reads every `docs/phase*/blocking_tickets.md` and fails on any
    `TBD` registered in none of them.
 3. Make the code **raise** where the value would be read, rather than defaulting.
@@ -108,6 +108,34 @@ threshold looks exactly like a real one six months later.
    blocks the code path around it — Phase 1 has ten open tickets and Phase 3 eleven,
    and every workstream
    built.
+
+## Working in `frontend/`
+
+`make check` does **not** test the frontend, and cannot: `make test` runs the
+Python suite, and there is no Node toolchain in this repository's baseline. Run
+it anyway before committing — `make grounding` scans every text file including
+`frontend/`'s `.md` and `.json`, so a malformed `TBD` or an unregistered ticket
+there fails the same gate it fails anywhere else.
+
+Then read [frontend/README.md](frontend/README.md) before touching anything. The
+directory has **never been built or run**, so there is no green baseline to
+regress from and no compiler catching your mistakes. Three rules bind harder
+there than anywhere else in the repo:
+
+1. **No arithmetic in the UI layer.** Not a helper, not a `.toFixed`, not an
+   `index + 1`. Every number is a `{amount, display}` pair and components render
+   `display`. `npm run check:no-client-math` is the gate; it is blunt on purpose
+   and every false positive so far turned out to be a real finding.
+2. **No English strings in components.** Copy comes from the document registry
+   through `<Copy k="...">`, which has no `fallback` prop. If you need a
+   sentence, you need a registry key and a row in the register — not a
+   placeholder you mean to replace.
+3. **No fixture data outside `tests/fixtures/`.** The adapter port has no mock
+   implementation and is not to acquire one casually: a demo build showing a
+   plausible score and EMI is indistinguishable from a real one in a screenshot.
+
+Do not write a commit message claiming the app builds, runs or renders. Nobody
+has evidence for any of that.
 
 ## Adding a dependency
 
