@@ -51,7 +51,7 @@ from .features import PROTECTED_NAMES, ProtectedAttributeAccess, ScreenVerdict
 from .gbm import MonotoneConstraints, fit_gbm
 from .rejects import memo_when_unavailable
 from .scorecard import fit_scorecard, negative_coefficients
-from .splits import Part, holdout_without_time_axis, manifest
+from .splits import Part, carve_calibration, holdout_without_time_axis, manifest
 from .target import LabelProvenance, build_target_table
 from .validation import monotonicity_spot_check, sensitivity, swap_sets, validate
 
@@ -92,6 +92,10 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
     )
 
     splits = holdout_without_time_axis(table, source_id=SOURCE_ID, seed=seed)
+    # Phase 1 §4 Step 5 (v1.1): the calibrator must not be fitted on the rows the
+    # model was selected on, and the challenger early-stops on validation. So a
+    # fourth block comes out of train and is used for calibration and nothing else.
+    carve_calibration(splits)
     split_manifest = manifest(table, splits)
     _log(f"  split {split_manifest.sizes} (out_of_time={splits.out_of_time})")
 
@@ -107,6 +111,7 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
 
     train_rows, train_y, _ = design(Part.TRAIN)
     validation_rows, validation_y, _ = design(Part.VALIDATION)
+    calibration_rows, calibration_y, _ = design(Part.CALIBRATION)
     test_rows, test_y, test_ids = design(Part.TEST)
 
     candidates = (
@@ -181,21 +186,17 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
     _log(f"  {len(challenger.trees)} trees, best iteration {challenger.best_iteration}")
 
     # ---- WS-1.1 Step 5: calibration -----------------------------------------
-    _log("calibrating ...")
-    scorecard_validation = scorecard.predict_all(validation_rows)
-    challenger_validation = challenger.predict_all(validation_rows)
-
+    _log(f"calibrating on {len(calibration_rows)} held-out rows ...")
+    # Neither model has seen these rows: they left the training block before
+    # fitting, and early stopping ran on validation. optimism_risk is therefore
+    # False for both, which is the state Phase 1 §4 Step 5 (v1.1) asks for.
     scorecard_calibration = fit_calibration(
-        scorecard_validation, validation_y,
-        source=CalibrationSource.VALIDATION, model_selected_on_these_rows=False,
+        scorecard.predict_all(calibration_rows), calibration_y,
+        source=CalibrationSource.DEDICATED, model_selected_on_these_rows=False,
     )
     challenger_calibration = fit_calibration(
-        challenger_validation, validation_y,
-        source=CalibrationSource.VALIDATION,
-        # The challenger's early stopping ran on these rows. Phase 1 §4 Steps 4
-        # and 5 use the same set; the flag records what that costs rather than
-        # overruling the phase file.
-        model_selected_on_these_rows=True,
+        challenger.predict_all(calibration_rows), calibration_y,
+        source=CalibrationSource.DEDICATED, model_selected_on_these_rows=False,
     )
 
     # Calibrate *both* sides of every later comparison. The first version of this
@@ -255,18 +256,26 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
         [protected[i]["age_band"] or "unknown" for i in test_ids],
     )
 
+    # Discrimination on the raw score, calibration on the calibrated PD. An
+    # isotonic calibrator quantises the score, so measuring Gini on the PD reports
+    # the calibration sample size as if it were a property of the model.
     scorecard_report = validate(
-        model="champion_woe_scorecard",
-        train_labels=train_y, train_scores=scorecard_train,
-        test_labels=test_y, test_scores=scorecard_test,
+        model="champion_woe_scorecard", role="champion",
+        train_labels=train_y, train_scores=scorecard.predict_all(train_rows),
+        test_labels=test_y, test_scores=scorecard.predict_all(test_rows),
+        train_probabilities=scorecard_train, test_probabilities=scorecard_test,
         out_of_time=splits.out_of_time, dataset=SOURCE_ID, track="P",
+        # Phase 1 §7 (v1.1) gives the champion a bar of its own. There is no
+        # rebuilt legacy scorecard on Track P, so it stays unevaluated — but the
+        # criterion now exists in the report instead of being absent from it.
     )
     challenger_report = validate(
-        model="challenger_gbm",
-        train_labels=train_y, train_scores=challenger_train,
-        test_labels=test_y, test_scores=challenger_test,
+        model="challenger_gbm", role="challenger",
+        train_labels=train_y, train_scores=challenger.predict_all(train_rows),
+        test_labels=test_y, test_scores=challenger.predict_all(test_rows),
+        train_probabilities=challenger_train, test_probabilities=challenger_test,
         out_of_time=splits.out_of_time, dataset=SOURCE_ID, track="P",
-        legacy_test_scores=scorecard_test,
+        legacy_test_scores=scorecard.predict_all(test_rows),
         monotonicity=checks, sensitivity_results=sensitivity_results, swap_set=swap,
     )
 
@@ -303,6 +312,9 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
             "holdout is random, and no metric here is out-of-time evidence.",
             "The challenger is fitted without monotone constraints because the "
             "ratified direction list does not exist (LH-202). It is not promotable.",
+            "The champion's binning directions were inferred from the data for the "
+            "same reason. Phase 1 §4 Step 3 (v1.1) requires the ratified list to "
+            "govern them too, so every characteristic records direction_source.",
             "The comparator for the uplift figure is the champion scorecard fitted "
             "in this same run, not a rebuilt legacy scorecard. The Phase 1 §7 "
             "criterion is not addressed by it.",

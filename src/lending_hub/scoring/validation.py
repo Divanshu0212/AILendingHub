@@ -4,10 +4,14 @@ Phase 1 §4 WS-1.1 Step 9: "Validator reproduces: AUC/Gini/KS on test vintages;
 calibration by decile; train↔test PSI; monotonicity spot-checks; ±10% sensitivity
 perturbations; swap-set analysis vs. the rebuilt legacy scorecard."
 
-Phase 1 §7 then states the gate. Three of its four criteria are numeric `[SPEC]`
-and are evaluated here; the fourth is not, and the difference is preserved rather
-than smoothed over:
+Phase 1 §7 (v1.1) then states the gate. The numeric ones are evaluated here; the
+one without a number is not, and the difference is preserved rather than smoothed
+over:
 
+* **Champion** ≥ rebuilt legacy on out-of-time Gini, and Brier ≤ legacy — `[SPEC]`.
+  Added in Phase 1 v1.1 after finding P1-F9: the champion decides all traffic the
+  challenger is not canarying, and previously had no bar at all, so the model
+  deciding most applications passed the gate on a different model's numbers.
 * Challenger ≥ **+3 Gini** over the rebuilt legacy scorecard, out-of-time — `[SPEC]`.
 * Brier ≤ legacy — `[SPEC]`.
 * Decision-log spot audit: re-scored decisions identical — `[SPEC]`, and already
@@ -17,6 +21,23 @@ than smoothed over:
   `[POLICY: Fair-Lending Committee]` (LH-205). :meth:`SwapSetAnalysis.concentration`
   computes every segment's over-representation and :meth:`ValidationReport.exit_criteria`
   returns the criterion as *unevaluated* rather than guessing a bar.
+
+Which score each metric is computed on
+--------------------------------------
+Discrimination is a property of the **ranking**; calibration is a property of the
+**level**. They are therefore measured on different things, and conflating them
+understates the model:
+
+* AUC / Gini / KS come from the raw model score.
+* Brier / ECE / the reliability diagram come from the calibrated PD.
+
+An isotonic calibrator is a monotone *step* function, so it quantises the score —
+on the Track P run it collapsed 8,969 distinct scores to 31 and cost 0.9 Gini
+points. Nothing about the model changed; only the number of distinct values it
+could express. Report discrimination on the calibrated PD and the loss looks like
+a weaker model, when it is an artifact of how many rows the calibrator was fitted
+on. :func:`validate` therefore takes both series, and falls back to one only when
+the caller has genuinely only one.
 
 An out-of-time claim that is not out of time
 --------------------------------------------
@@ -382,6 +403,10 @@ class ValidationReport:
     legacy_brier: float | None = None
     dataset: str = ""
     track: str = ""
+    role: str = "challenger"
+    """``"champion"`` or ``"challenger"``. They face different §7 bars: the
+    challenger must beat the legacy scorecard by 3 Gini points, the champion must
+    merely not be worse than it."""
 
     @property
     def gini_uplift(self) -> float | None:
@@ -394,9 +419,15 @@ class ValidationReport:
         uplift = self.gini_uplift
         psi_verdict, psi_note = screen_psi(self.score_psi)
 
+        required = GINI_UPLIFT_REQUIRED if self.role == "challenger" else 0.0
+        name = f"{self.role}_gini_uplift"
+
         criteria: dict[str, dict] = {
-            "challenger_gini_uplift": {
-                "required": f">= +{GINI_UPLIFT_REQUIRED} Gini points, out-of-time",
+            name: {
+                "required": (
+                    f">= +{required} Gini points over the rebuilt legacy scorecard, "
+                    "out-of-time"
+                ),
                 "measured": uplift,
                 # "Out-of-time" is part of the criterion, not a caveat beside it.
                 # An in-time uplift can be large and still say nothing about how
@@ -407,7 +438,7 @@ class ValidationReport:
                 "met": (
                     None
                     if uplift is None or not self.out_of_time
-                    else uplift >= GINI_UPLIFT_REQUIRED
+                    else uplift >= required
                 ),
                 "note": (
                     "no rebuilt legacy scorecard supplied"
@@ -487,15 +518,35 @@ def validate(
     test_labels: Sequence[int],
     test_scores: Sequence[float],
     out_of_time: bool,
+    test_probabilities: Sequence[float] | None = None,
+    train_probabilities: Sequence[float] | None = None,
     dataset: str = "",
     track: str = "",
+    role: str = "challenger",
     legacy_test_scores: Sequence[float] | None = None,
     monotonicity: Sequence[MonotonicityCheck] = (),
     sensitivity_results: Sequence[SensitivityResult] = (),
     swap_set: SwapSetAnalysis | None = None,
     bins: int = 10,
 ) -> ValidationReport:
-    """Assemble the WS-1.1 Step 9 report from a model's scores."""
+    """Assemble the WS-1.1 Step 9 report from a model's scores.
+
+    ``role`` decides which §7 bar the uplift criterion applies: ``"challenger"``
+    needs +3 Gini over the rebuilt legacy scorecard, ``"champion"`` needs only to
+    be no worse than it. Passing the wrong one silently applies the wrong bar,
+    which is why it is named rather than inferred from the model's name.
+
+    ``*_scores`` are the raw model scores and drive discrimination; ``*_probabilities``
+    are the calibrated PDs and drive Brier, ECE, the reliability diagram and PSI —
+    PSI on the calibrated PD because that is the artifact production monitors and
+    the bands read. Omitting the probabilities measures everything on the scores,
+    which is right only when no calibrator has been fitted.
+    """
+    test_pd = list(test_probabilities) if test_probabilities is not None else list(test_scores)
+    train_pd = (
+        list(train_probabilities) if train_probabilities is not None else list(train_scores)
+    )
+
     legacy_gini = legacy_brier = None
     if legacy_test_scores is not None:
         legacy_gini = gini(test_labels, legacy_test_scores)
@@ -506,10 +557,10 @@ def validate(
         out_of_time=out_of_time,
         train=discrimination(train_labels, train_scores),
         test=discrimination(test_labels, test_scores),
-        brier=brier_score(test_labels, test_scores),
-        ece=expected_calibration_error(test_labels, test_scores, bins),
-        calibration_deciles=reliability(test_labels, test_scores, bins),
-        score_psi=score_psi(train_scores, test_scores, bins=bins),
+        brier=brier_score(test_labels, test_pd),
+        ece=expected_calibration_error(test_labels, test_pd, bins),
+        calibration_deciles=reliability(test_labels, test_pd, bins),
+        score_psi=score_psi(train_pd, test_pd, bins=bins),
         monotonicity=list(monotonicity),
         sensitivity=list(sensitivity_results),
         swap_set=swap_set,
@@ -517,4 +568,5 @@ def validate(
         legacy_brier=legacy_brier,
         dataset=dataset,
         track=track,
+        role=role,
     )

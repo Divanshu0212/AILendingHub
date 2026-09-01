@@ -15,6 +15,7 @@ from lending_hub.definitions import Label, OutcomeObservation
 from lending_hub.scoring.splits import (
     MINIMUM_BADS_FOR_CHALLENGER,
     Part,
+    carve_calibration,
     RandomSplitForbidden,
     SplitError,
     holdout_without_time_axis,
@@ -236,6 +237,67 @@ class TestVintageSplit(unittest.TestCase):
         self.assertTrue(record.out_of_time)
         self.assertEqual(len(record.hash()), 16)
         self.assertEqual(record.target_manifest_hash, self.table.manifest_hash())
+
+
+class TestCalibrationBlock(unittest.TestCase):
+    """Phase 1 §4 Step 5 (v1.1): the calibrator is not fitted on the selection set."""
+
+    def setUp(self):
+        self.table = population({f"20{18 + i}Q1": (100, 10) for i in range(10)})
+
+    def test_a_splitter_leaves_calibration_empty(self):
+        # It is carved from train afterwards, not filled by the splitter — and an
+        # empty calibration part is not an unfilled split.
+        splits = split_by_vintage(self.table)
+        self.assertEqual(splits.calibration, [])
+
+    def test_carving_moves_rows_out_of_train_rather_than_copying(self):
+        splits = split_by_vintage(self.table)
+        before = len(splits.train)
+        carve_calibration(splits, fraction=0.2)
+        self.assertLess(len(splits.train), before)
+        self.assertEqual(len(splits.train) + len(splits.calibration), before)
+        train_ids = {row.application_id for row in splits.train}
+        calibration_ids = {row.application_id for row in splits.calibration}
+        self.assertEqual(train_ids & calibration_ids, set())
+
+    def test_it_takes_the_newest_end_of_train(self):
+        # Calibrating against the oldest regime the model will never score in is
+        # the wrong end to take.
+        splits = carve_calibration(split_by_vintage(self.table), fraction=0.2)
+        self.assertGreater(
+            min(row.vintage for row in splits.calibration),
+            min(row.vintage for row in splits.train),
+        )
+
+    def test_it_snaps_to_a_vintage_boundary(self):
+        splits = carve_calibration(split_by_vintage(self.table), fraction=0.2)
+        shared = {r.vintage for r in splits.train} & {r.vintage for r in splits.calibration}
+        self.assertEqual(shared, set())
+
+    def test_carving_twice_is_refused(self):
+        splits = carve_calibration(split_by_vintage(self.table), fraction=0.2)
+        with self.assertRaises(SplitError):
+            carve_calibration(splits, fraction=0.1)
+
+    def test_a_fraction_that_yields_no_rows_is_refused(self):
+        splits = split_by_vintage(self.table)
+        with self.assertRaises(SplitError) as caught:
+            carve_calibration(splits, fraction=0.0001)
+        self.assertIn("cross-fitted", str(caught.exception))
+
+    def test_the_manifest_reports_the_calibration_block(self):
+        splits = carve_calibration(split_by_vintage(self.table), fraction=0.2)
+        record = manifest(self.table, splits)
+        self.assertGreater(record.sizes["calibration"], 0)
+
+    def test_carving_shrinks_the_bad_count_the_challenger_sees(self):
+        # challenger_in_scope counts training bads, and the calibration rows are
+        # no longer training rows.
+        splits = split_by_vintage(self.table)
+        before = splits.bads(Part.TRAIN)
+        carve_calibration(splits, fraction=0.2)
+        self.assertLess(splits.bads(Part.TRAIN), before)
 
 
 class TestRandomHoldoutIsGated(unittest.TestCase):

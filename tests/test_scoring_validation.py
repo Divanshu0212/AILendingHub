@@ -169,6 +169,86 @@ class TestSwapSets(unittest.TestCase):
             swap_sets([1, 0], [0, 1], [0, 1], ["A"])
 
 
+class TestScoreVersusProbability(unittest.TestCase):
+    """Discrimination on the ranking, calibration on the level."""
+
+    def setUp(self):
+        self.labels, self.scores = scored(2000, 3.0, 71)
+        # A monotone step calibrator: quantises the score without reordering it.
+        self.probabilities = [round(s, 1) for s in self.scores]
+
+    def test_discrimination_uses_the_raw_score_when_both_are_given(self):
+        report = validate(
+            model="m", train_labels=self.labels, train_scores=self.scores,
+            test_labels=self.labels, test_scores=self.scores,
+            test_probabilities=self.probabilities,
+            train_probabilities=self.probabilities, out_of_time=True,
+        )
+        self.assertAlmostEqual(report.test.gini, gini(self.labels, self.scores))
+
+    def test_quantising_the_score_would_have_cost_discrimination(self):
+        # The reason the two series are separate: a step calibrator collapses
+        # distinct scores into ties, and ties cost Gini.
+        self.assertLess(
+            gini(self.labels, self.probabilities), gini(self.labels, self.scores)
+        )
+
+    def test_calibration_metrics_use_the_probabilities(self):
+        from lending_hub.scoring.calibration import brier_score
+        report = validate(
+            model="m", train_labels=self.labels, train_scores=self.scores,
+            test_labels=self.labels, test_scores=self.scores,
+            test_probabilities=self.probabilities,
+            train_probabilities=self.probabilities, out_of_time=True,
+        )
+        self.assertAlmostEqual(report.brier, brier_score(self.labels, self.probabilities))
+
+    def test_omitting_probabilities_measures_everything_on_the_scores(self):
+        report = validate(
+            model="m", train_labels=self.labels, train_scores=self.scores,
+            test_labels=self.labels, test_scores=self.scores, out_of_time=True,
+        )
+        from lending_hub.scoring.calibration import brier_score
+        self.assertAlmostEqual(report.brier, brier_score(self.labels, self.scores))
+
+
+class TestChampionBar(unittest.TestCase):
+    """Phase 1 §7 (v1.1): the champion has a bar of its own."""
+
+    def setUp(self):
+        self.train_labels, self.train_scores = scored(2000, 3.0, 81)
+        self.test_labels, self.test_scores = scored(1000, 3.0, 82)
+        _, self.legacy = scored(1000, 2.8, 83)
+
+    def report(self, role):
+        return validate(
+            model="m", role=role,
+            train_labels=self.train_labels, train_scores=self.train_scores,
+            test_labels=self.test_labels, test_scores=self.test_scores,
+            out_of_time=True, legacy_test_scores=self.legacy,
+        )
+
+    def test_the_criterion_is_named_for_the_role(self):
+        self.assertIn("champion_gini_uplift", self.report("champion").exit_criteria())
+        self.assertIn("challenger_gini_uplift", self.report("challenger").exit_criteria())
+
+    def test_the_champion_bar_is_no_worse_than_legacy(self):
+        criterion = self.report("champion").exit_criteria()["champion_gini_uplift"]
+        self.assertIn("+0.0 Gini", criterion["required"])
+
+    def test_the_challenger_bar_is_three_points(self):
+        criterion = self.report("challenger").exit_criteria()["challenger_gini_uplift"]
+        self.assertIn(f"+{GINI_UPLIFT_REQUIRED}", criterion["required"])
+
+    def test_a_small_uplift_clears_the_champion_bar_and_not_the_challenger_bar(self):
+        champion = self.report("champion").exit_criteria()["champion_gini_uplift"]
+        challenger = self.report("challenger").exit_criteria()["challenger_gini_uplift"]
+        self.assertAlmostEqual(champion["measured"], challenger["measured"])
+        if 0 <= champion["measured"] < GINI_UPLIFT_REQUIRED:
+            self.assertTrue(champion["met"])
+            self.assertFalse(challenger["met"])
+
+
 class TestExitCriteria(unittest.TestCase):
     def setUp(self):
         self.train_labels, self.train_scores = scored(3000, 3.0, 11)

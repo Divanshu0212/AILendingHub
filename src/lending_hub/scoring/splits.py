@@ -69,6 +69,16 @@ class Part(str, Enum):
     TRAIN = "train"
     VALIDATION = "validation"
     TEST = "test"
+    CALIBRATION = "calibration"
+    """Carved out of train by :func:`carve_calibration`. Empty unless asked for.
+
+    Phase 1 §4 Step 5 forbids calibrating on the validation rows, because Step 4
+    selects the model there. This is the fourth block that instruction needs."""
+
+
+#: The parts a splitter fills directly. CALIBRATION is derived from TRAIN, so a
+#: splitter that left it empty has not failed.
+PRIMARY_PARTS = (Part.TRAIN, Part.VALIDATION, Part.TEST)
 
 
 @dataclass
@@ -78,6 +88,7 @@ class Splits:
     train: list[TargetRow] = field(default_factory=list)
     validation: list[TargetRow] = field(default_factory=list)
     test: list[TargetRow] = field(default_factory=list)
+    calibration: list[TargetRow] = field(default_factory=list)
 
     out_of_time: bool = True
     """False when the test part is not later in time than the train part. Every
@@ -89,7 +100,12 @@ class Splits:
     limitation: str = ""
 
     def part(self, part: Part) -> list[TargetRow]:
-        return {Part.TRAIN: self.train, Part.VALIDATION: self.validation, Part.TEST: self.test}[part]
+        return {
+            Part.TRAIN: self.train,
+            Part.VALIDATION: self.validation,
+            Part.TEST: self.test,
+            Part.CALIBRATION: self.calibration,
+        }[part]
 
     @property
     def sizes(self) -> dict[str, int]:
@@ -203,7 +219,10 @@ def split_by_vintage(
     validation_cut = (train_fraction + validation_fraction) * total
 
     splits = Splits(strategy="vintage", out_of_time=True)
-    assigned: dict[str, list[str]] = {p.value: [] for p in Part}
+    # The three parts this function fills. CALIBRATION is carved out of train
+    # afterwards by carve_calibration, so it is legitimately empty here and must
+    # not be checked for emptiness below.
+    assigned: dict[str, list[str]] = {p.value: [] for p in PRIMARY_PARTS}
 
     seen = 0
     for vintage in vintages:
@@ -222,7 +241,11 @@ def split_by_vintage(
         assigned[part.value].append(vintage)
         seen += len(chunk)
 
-    empty = [name for name, vintages_in in assigned.items() if not vintages_in]
+    empty = [
+        name
+        for name, vintages_in in assigned.items()
+        if not vintages_in and name in {p.value for p in PRIMARY_PARTS}
+    ]
     if empty:
         raise SplitError(
             f"no vintage landed in {', '.join(sorted(empty))}. The vintages are too "
@@ -312,7 +335,7 @@ def holdout_without_time_axis(
         test=rows[validation_end:],
         out_of_time=False,
         strategy=f"random_holdout(seed={seed})",
-        boundaries={p.value: [] for p in Part},
+        boundaries={p.value: [] for p in PRIMARY_PARTS},
         limitation=(
             f"{source_id} is declared point_in_time_unsafe in the source registry: "
             "its time columns are relative offsets with no absolute reference, so no "
@@ -321,6 +344,65 @@ def holdout_without_time_axis(
             "limitation on its card."
         ),
     )
+
+
+def carve_calibration(splits: Splits, *, fraction: float = 0.15) -> Splits:
+    """Move the newest ``fraction`` of the training block into a calibration block.
+
+    Phase 1 §4 Step 5 (v1.1): the calibration sample must not be the sample the
+    model was selected on. Step 4 early-stops and searches hyperparameters on the
+    validation vintages, so a calibrator fitted there is fitted where the model was
+    chosen to look good, and the reliability diagram that results is optimistic —
+    which, since PDs feed pricing and IFRS-9, is a systematic mispricing rather
+    than a cosmetic overstatement.
+
+    Taken from the **newest** end of train, and snapped to whole vintages when the
+    split is temporal. The calibration block should sit as close in time to the
+    scoring population as it can without touching validation; carving it from the
+    oldest end would calibrate against a regime the model will never score in.
+
+    Modifies and returns the same :class:`Splits` — the calibration rows leave the
+    training block rather than being copied, because a row used for both fitting
+    and calibrating reintroduces exactly the optimism this exists to remove.
+    """
+    if not 0.0 < fraction < 1.0:
+        raise SplitError("calibration fraction must be between 0 and 1")
+    if splits.calibration:
+        raise SplitError("this split already has a calibration block")
+    if not splits.train:
+        raise SplitError("cannot carve a calibration block from an empty training set")
+
+    wanted = int(fraction * len(splits.train))
+    if wanted == 0:
+        raise SplitError(
+            f"a {fraction:.0%} calibration block of {len(splits.train)} training rows "
+            "is empty. Below this size, cross-fitted calibration over the whole "
+            "training block is the alternative Phase 1 §4 Step 5 names."
+        )
+
+    if splits.strategy == "vintage":
+        # Snap to a vintage boundary for the same reason the split does: half a
+        # vintage in the fit block and half in the calibration block shares the
+        # macro conditions across the wall.
+        cut = len(splits.train) - wanted
+        boundary = splits.train[cut].vintage
+        while cut > 0 and splits.train[cut - 1].vintage == boundary:
+            cut -= 1
+        if cut == 0:
+            raise SplitError(
+                "snapping the calibration block to a vintage boundary would consume "
+                "the whole training set; use a smaller fraction or cross-fitting"
+            )
+    else:
+        cut = len(splits.train) - wanted
+
+    splits.calibration = splits.train[cut:]
+    splits.train = splits.train[:cut]
+    splits.boundaries[Part.CALIBRATION.value] = sorted(
+        {row.vintage for row in splits.calibration}
+    )
+    splits.boundaries[Part.TRAIN.value] = sorted({row.vintage for row in splits.train})
+    return splits
 
 
 def manifest(table: TargetTable, splits: Splits) -> SplitManifest:

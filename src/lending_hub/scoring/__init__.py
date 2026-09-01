@@ -139,7 +139,9 @@ from .validation import (
 )
 from .splits import (
     MINIMUM_BADS_FOR_CHALLENGER,
+    PRIMARY_PARTS,
     Part,
+    carve_calibration,
     RandomSplitForbidden,
     SplitError,
     SplitManifest,
@@ -174,6 +176,7 @@ __all__ = [
     "IV_FLOOR",
     "MINIMUM_BADS_FOR_CHALLENGER",
     "MITIGATION_LADDER",
+    "PRIMARY_PARTS",
     "PROTECTED_ATTRIBUTES",
     "PSI_ACT",
     "PSI_ALERT",
@@ -251,6 +254,7 @@ __all__ = [
     "assess",
     "brier_score",
     "build_target_table",
+    "carve_calibration",
     "check_directions",
     "demographic_parity_difference",
     "demographic_parity_ratio",
