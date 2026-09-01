@@ -235,15 +235,15 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
 
     # ---- WS-1.1 Step 3: the champion ----------------------------------------
     _log("fitting the WOE scorecard (stepwise sign elimination) ...")
-    scorecard, elimination = fit_scorecard_stepwise(
+    scorecard, elimination, signs_clean = fit_scorecard_stepwise(
         train_rows, train_y, binnings,
         size=min(SCORECARD_CHARACTERISTICS, len(binnings)),
         epochs=15, seed=seed,
     )
     if elimination:
         _log(
-            f"  dropped {len(elimination)} wrong-signed characteristic(s): "
-            + ", ".join(step.dropped for step in elimination)
+            f"  dropped {len(elimination)} wrong-signed characteristic(s); "
+            f"signs {'clean' if signs_clean else 'NOT clean — budget exhausted'}"
         )
 
     # ---- WS-1.1 Step 4: the challenger --------------------------------------
@@ -443,6 +443,7 @@ def run(path: str, *, limit: int | None, seed: int, trees: int, tune: bool = Tru
             **scorecard.to_dict(),
             "characteristics_kept": scorecard.names,
             "sign_elimination": [step.to_dict() for step in elimination],
+            "signs_converged": signs_clean,
             "negative_coefficients": negative_coefficients(scorecard),
             "calibration": scorecard_calibration.to_dict(),
         },

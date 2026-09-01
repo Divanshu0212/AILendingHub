@@ -380,10 +380,10 @@ def fit_scorecard_stepwise(
     pool: Sequence[Binning],
     *,
     size: int,
-    max_rounds: int = 12,
+    max_rounds: int = 25,
     minimum: int = 5,
     **fit_kwargs,
-) -> tuple[Scorecard, list[SelectionStep]]:
+) -> tuple[Scorecard, list[SelectionStep], bool]:
     """Fit, eliminate wrong-signed characteristics, refit, until the signs are clean.
 
     On WOE-transformed inputs every coefficient must be positive: a higher WOE is
@@ -403,6 +403,14 @@ def fit_scorecard_stepwise(
     which is a property of the fit rather than a number someone chose. That matters
     here: correlation-capped selection is the other standard approach and it needs a
     cap, which nobody in this programme has ratified.
+
+    Returns ``(scorecard, log, converged)``. **The third value is not decoration.**
+    The procedure can exhaust its round budget or its spare pool with wrong signs
+    still on the card, and a caller that ignored that would ship a scorecard whose
+    reason codes point the wrong way for some applicants while its own build log
+    said the signs had been cleaned. Non-convergence is also informative in itself:
+    it means the surviving feature set is collinear enough that no subset of this
+    size is cleanly signed.
     """
     if size < minimum:
         raise ScorecardError(f"a scorecard of {size} cannot be reduced below {minimum}")
@@ -416,12 +424,13 @@ def fit_scorecard_stepwise(
         card = fit_scorecard(rows, labels, selected, **fit_kwargs)
         worst = min(card.characteristics, key=lambda c: c.coefficient)
         if worst.coefficient >= 0:
-            return card, log
+            return card, log, True
 
         if len(selected) <= minimum and not spare:
             # Nothing left to trade. Returning the card with its remaining wrong
-            # signs and a log that says so beats silently returning a smaller card.
-            return card, log
+            # signs, a log that says so, and converged=False beats silently
+            # returning a smaller card that looks clean.
+            return card, log, False
 
         selected = [b for b in selected if b.feature != worst.name]
         replacement = spare.pop(0) if spare else None
@@ -437,7 +446,8 @@ def fit_scorecard_stepwise(
             )
         )
 
-    return fit_scorecard(rows, labels, selected, **fit_kwargs), log
+    final = fit_scorecard(rows, labels, selected, **fit_kwargs)
+    return final, log, not negative_coefficients(final)
 
 
 def negative_coefficients(scorecard: Scorecard) -> list[str]:

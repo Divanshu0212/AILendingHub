@@ -365,14 +365,14 @@ class TestStepwiseElimination(unittest.TestCase):
         self.assertTrue(negative_coefficients(card))
 
     def test_stepwise_removes_it(self):
-        card, log = self.stepwise(
+        card, log, converged = self.stepwise(
             self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
         )
         self.assertEqual(negative_coefficients(card), [])
         self.assertTrue(log)
 
     def test_the_log_records_what_was_dropped_and_what_replaced_it(self):
-        _, log = self.stepwise(
+        _, log, _ = self.stepwise(
             self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
         )
         step = log[0].to_dict()
@@ -382,14 +382,14 @@ class TestStepwiseElimination(unittest.TestCase):
 
     def test_a_clean_card_is_returned_unchanged_with_an_empty_log(self):
         clean = [b for b in self.pool if b.feature in ("x1", "x4")]
-        card, log = self.stepwise(
+        card, log, converged = self.stepwise(
             self.rows, self.labels, clean, size=2, minimum=2, epochs=25, seed=0
         )
         self.assertEqual(log, [])
         self.assertEqual(sorted(card.names), ["x1", "x4"])
 
     def test_a_spare_backfills_the_dropped_characteristic(self):
-        _, log = self.stepwise(
+        _, log, _ = self.stepwise(
             self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
         )
         self.assertIsNotNone(log[0].added)
@@ -399,7 +399,7 @@ class TestStepwiseElimination(unittest.TestCase):
         # With no spare left the choice is a smaller clean card or a full card with
         # a characteristic fitted against its own evidence. Smaller and clean wins,
         # and the log says how it got there.
-        card, log = self.stepwise(
+        card, log, converged = self.stepwise(
             self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
         )
         self.assertGreaterEqual(len(card.characteristics), 2)
@@ -409,6 +409,22 @@ class TestStepwiseElimination(unittest.TestCase):
     def test_a_size_below_the_minimum_is_refused(self):
         with self.assertRaises(ScorecardError):
             self.stepwise(self.rows, self.labels, self.pool, size=2, minimum=5)
+
+    def test_it_reports_whether_the_signs_actually_came_out_clean(self):
+        # The procedure can exhaust its round budget with wrong signs still on the
+        # card; a caller that ignored that would ship reason codes pointing the
+        # wrong way while its own build log said otherwise.
+        card, _, converged = self.stepwise(
+            self.rows, self.labels, self.pool, size=3, minimum=2, epochs=25, seed=0
+        )
+        self.assertEqual(converged, not negative_coefficients(card))
+
+    def test_an_exhausted_round_budget_reports_not_converged(self):
+        card, _, converged = self.stepwise(
+            self.rows, self.labels, self.pool, size=3, minimum=2,
+            max_rounds=1, epochs=25, seed=0,
+        )
+        self.assertEqual(converged, not negative_coefficients(card))
 
     def test_the_stopping_rule_needs_no_threshold(self):
         # "No negative coefficients remain" is a property of the fit, not a number
