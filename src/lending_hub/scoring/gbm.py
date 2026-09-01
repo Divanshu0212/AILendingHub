@@ -258,13 +258,80 @@ def _bin_index(edges: list[float], value) -> int:
     return bisect_left(edges, value)
 
 
+def _histograms(
+    indices: list[int],
+    columns: list[list[int]],
+    grads: list[float],
+    hess: list[float],
+    widths: list[int],
+) -> list[tuple[list[float], list[float], list[int]]]:
+    """Gradient/hessian/count histograms for one node, one entry per feature.
+
+    Column-major: ``columns[f]`` is a flat list of bin indices for feature ``f``,
+    so the inner loop does one list lookup per row rather than two. On a wide
+    feature set that single change is most of the difference between a run that
+    iterates and one that does not.
+    """
+    out = []
+    for position, width in enumerate(widths):
+        column = columns[position]
+        hist_g = [0.0] * width
+        hist_h = [0.0] * width
+        hist_n = [0] * width
+        for i in indices:
+            b = column[i]
+            hist_g[b] += grads[i]
+            hist_h[b] += hess[i]
+            hist_n[b] += 1
+        out.append((hist_g, hist_h, hist_n))
+    return out
+
+
+def _subtract(parent, child):
+    """Sibling histograms by subtraction — LightGBM's standard trick.
+
+    A node's two children partition its rows, so one child's histogram is the
+    parent's minus the other's. Building only the *smaller* child and subtracting
+    for the larger turns the per-level cost from "every row" into "the smaller
+    half of every row", and the saving compounds with depth.
+    """
+    out = []
+    for (pg, ph, pn), (cg, ch, cn) in zip(parent, child):
+        out.append((
+            [a - b for a, b in zip(pg, cg)],
+            [a - b for a, b in zip(ph, ch)],
+            [a - b for a, b in zip(pn, cn)],
+        ))
+    return out
+
+
+def _bin_index(edges: list[float], value) -> int:
+    """Histogram bin for one value.
+
+    ``bisect_left`` rather than ``bisect_right`` so that "bin index <= b" is
+    exactly "value <= edges[b]", which is the comparison :meth:`Node.predict`
+    makes at score time. Using the other one puts a value sitting exactly on a
+    split edge in a different child during training than during scoring — a
+    training/serving skew that touches only the rows on the boundary and is
+    invisible in aggregate metrics.
+    """
+    if value is None or _isnan(value):
+        # Missing goes to the lowest bin, which sends it left under every split,
+        # matching Node.predict. The direction matters less than that it is the
+        # same in both places.
+        return 0
+    return bisect_left(edges, value)
+
+
 def _build(
     indices: list[int],
-    binned: list[list[int]],
+    hists,
+    columns: list[list[int]],
     grads: list[float],
     hess: list[float],
     features: Sequence[str],
     edges: dict[str, list[float]],
+    widths: list[int],
     constraints: MonotoneConstraints,
     *,
     depth: int,
@@ -274,16 +341,15 @@ def _build(
     gamma: float,
     bounds: tuple[float, float],
 ) -> Node:
-    """Grow one node by histogram accumulation.
+    """Grow one node from its precomputed histograms.
 
-    One pass over the node's rows per feature builds the gradient/hessian
-    histogram; the split scan then walks bins, not rows. That is LightGBM's
-    structure, and it is the difference between O(rows x bins) and O(rows + bins)
-    per feature per node — which on a real portfolio is the difference between a
-    model that fits and one that does not.
+    The split scan walks bins, not rows — that is LightGBM's structure, and it is
+    the difference between O(rows x bins) and O(rows + bins) per feature per node.
+    Histograms arrive precomputed so a parent can hand a child the result of
+    :func:`_subtract` instead of a second pass over the data.
     """
-    total_g = sum(grads[i] for i in indices)
-    total_h = sum(hess[i] for i in indices)
+    total_g = sum(hists[0][0]) if hists else 0.0
+    total_h = sum(hists[0][1]) if hists else 0.0
     node = Node(
         value=_leaf_value(total_g, total_h, l2, bounds),
         cover=total_h,
@@ -297,24 +363,13 @@ def _build(
     best = None
 
     for position, feature in enumerate(features):
-        feature_edges = edges[feature]
-        if not feature_edges:
+        if widths[position] < 2:
             continue
-
-        n_bins = len(feature_edges) + 1
-        histogram_g = [0.0] * n_bins
-        histogram_h = [0.0] * n_bins
-        histogram_n = [0] * n_bins
-        for i in indices:
-            b = binned[i][position]
-            histogram_g[b] += grads[i]
-            histogram_h[b] += hess[i]
-            histogram_n[b] += 1
-
+        histogram_g, histogram_h, histogram_n = hists[position]
         direction = constraints.direction(feature)
         left_g = left_h = 0.0
         left_n = 0
-        for b in range(n_bins - 1):
+        for b in range(widths[position] - 1):
             left_g += histogram_g[b]
             left_h += histogram_h[b]
             left_n += histogram_n[b]
@@ -346,8 +401,9 @@ def _build(
         return node
 
     _, position, feature, split_bin, left_value, right_value = best
-    left_indices = [i for i in indices if binned[i][position] <= split_bin]
-    right_indices = [i for i in indices if binned[i][position] > split_bin]
+    column = columns[position]
+    left_indices = [i for i in indices if column[i] <= split_bin]
+    right_indices = [i for i in indices if column[i] > split_bin]
 
     direction = constraints.direction(feature)
     left_bounds, right_bounds = bounds, bounds
@@ -363,17 +419,25 @@ def _build(
             left_bounds = (max(bounds[0], midpoint), bounds[1])
             right_bounds = (bounds[0], min(bounds[1], midpoint))
 
+    # Build the smaller child's histograms and subtract for the larger.
+    if len(left_indices) <= len(right_indices):
+        left_hists = _histograms(left_indices, columns, grads, hess, widths)
+        right_hists = _subtract(hists, left_hists)
+    else:
+        right_hists = _histograms(right_indices, columns, grads, hess, widths)
+        left_hists = _subtract(hists, right_hists)
+
     node.feature = feature
     node.threshold = edges[feature][split_bin]
     node.left = _build(
-        left_indices, binned, grads, hess, features, edges, constraints,
-        depth=depth + 1, max_depth=max_depth, min_child_weight=min_child_weight,
-        l2=l2, gamma=gamma, bounds=left_bounds,
+        left_indices, left_hists, columns, grads, hess, features, edges, widths,
+        constraints, depth=depth + 1, max_depth=max_depth,
+        min_child_weight=min_child_weight, l2=l2, gamma=gamma, bounds=left_bounds,
     )
     node.right = _build(
-        right_indices, binned, grads, hess, features, edges, constraints,
-        depth=depth + 1, max_depth=max_depth, min_child_weight=min_child_weight,
-        l2=l2, gamma=gamma, bounds=right_bounds,
+        right_indices, right_hists, columns, grads, hess, features, edges, widths,
+        constraints, depth=depth + 1, max_depth=max_depth,
+        min_child_weight=min_child_weight, l2=l2, gamma=gamma, bounds=right_bounds,
     )
     return node
 
@@ -431,12 +495,14 @@ def fit_gbm(
         feature: _histogram_edges([row.get(feature) for row in rows], max_bins)
         for feature in features
     }
-    # Bin once, up front. Re-deriving bin membership at every node is where a
-    # histogram implementation quietly becomes the naive one.
-    binned = [
-        [_bin_index(edges[feature], row.get(feature)) for feature in features]
-        for row in rows
+    # Bin once, up front, column-major. Re-deriving bin membership at every node
+    # is where a histogram implementation quietly becomes the naive one; storing
+    # it row-major costs a second list lookup on the hottest line in the fit.
+    columns = [
+        [_bin_index(edges[feature], row.get(feature)) for row in rows]
+        for feature in features
     ]
+    widths = [len(edges[feature]) + 1 for feature in features]
 
     # The seed is threaded through even though the fit is deterministic: it is
     # part of the reproducibility triplet (WS-0.2.3), and a model whose card
@@ -458,8 +524,10 @@ def fit_gbm(
             grads.append(weight * (p - label))
             hess.append(weight * max(p * (1 - p), 1e-9))
 
+        root = list(range(len(rows)))
         tree = _build(
-            list(range(len(rows))), binned, grads, hess, features, edges, constraints,
+            root, _histograms(root, columns, grads, hess, widths),
+            columns, grads, hess, features, edges, widths, constraints,
             depth=0, max_depth=max_depth, min_child_weight=min_child_weight,
             l2=l2, gamma=gamma, bounds=(-float("inf"), float("inf")),
         )
