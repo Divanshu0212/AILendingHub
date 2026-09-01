@@ -26,9 +26,12 @@ the defect `recordlinkage` was rejected for, and reproducing it here would teach
 everyone to read the number wrongly before the real one arrives.
 
 The threshold is `[DATA]` and does not exist (LH-209): no labelled duplicate pairs
-have been produced by any workstream. :func:`resolve` therefore requires the
-threshold to be passed explicitly with its provenance, and a run made on an
-unratified threshold is stamped as such all the way into the graph tables.
+have been produced by any workstream. Phase 1 §4 WS-1.2 Step 1 (v1.1) now makes
+the labelling a scheduled task with an owner, and permits shipping v1 on the
+**deterministic rules alone** — exact phone, account, device — which need no
+threshold at all. :func:`resolve` requires the threshold to be passed explicitly
+with its provenance, and a run made on an unratified one is stamped as such all
+the way into the graph tables.
 
 Workstream: WS-1.2 Step 1 · SRS §5.2 (FR-2), §5.3.3
 """

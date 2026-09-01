@@ -5,20 +5,20 @@ fraud-desk dispositions). If `[DATA]` confirmed frauds < 200 → ship rules +
 anomaly layer only; log limitation. Imbalance: ``scale_pos_weight``. Evaluation:
 AUC-PR and **recall @ 0.5% alert rate** on out-of-time months — never accuracy."
 
-The scope test cannot be evaluated yet, and that is the finding
----------------------------------------------------------------
-The instruction reads as though "how many confirmed frauds do we have" is a
-question someone can go and count. It is not. Master Appendix A defines confirmed
-fraud as "a fraud-desk disposition code in the approved taxonomy", and that
-taxonomy is `[POLICY: Fraud Head]` and does not exist (LH-101). Until it does,
-every count is a count of *something*, and which something depends on which codes
-someone decided to include — which is precisely the decision the taxonomy is.
+The scope test is two-part and three-valued (phase file v1.1)
+-------------------------------------------------------------
+The original instruction read as though "how many confirmed frauds do we have" is
+a question someone can go and count. It is not. Master Appendix A defines
+confirmed fraud as "a fraud-desk disposition code in the approved taxonomy", and
+that taxonomy is `[POLICY: Fraud Head]` and does not exist (LH-101). Until it
+does, every count is a count of *something*, and which something depends on which
+codes someone decided to include — which is precisely the decision the taxonomy is.
 
-So the scope test here is three-valued, not two. ``TAXONOMY_BLOCKED`` is a
-different state from ``BELOW_MINIMUM``, and collapsing them lets "we have 150
-frauds, so scorecard-only" be reported when the truth is "nobody has said what
-counts as a fraud". The first is a data limitation; the second is an ungrounded
-definition, and only the second means the number on the slide is meaningless.
+So the test is now three-valued. ``TAXONOMY_BLOCKED`` is a different state from
+``BELOW_MINIMUM``, and collapsing them lets "we have 150 frauds, so
+anomaly-layer-only" be reported when the truth is "nobody has said what counts as
+a fraud". The first is a data limitation; the second is an ungrounded definition,
+and they escalate to different people.
 
 Evaluation rate versus operating budget
 ---------------------------------------

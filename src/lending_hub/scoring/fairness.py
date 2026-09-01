@@ -20,7 +20,8 @@ Two measurement decisions worth review
 **Protected attributes arrive through :class:`ProtectedAttributeAccess`.** Not
 through the feature store, not through the row dict. The training path cannot
 reach them, so "gender is not a feature" is a property of the wiring rather than
-a claim in a document.
+a claim in a document — which is what SRS §4.3.3 and Phase 1 §4 Step 7 (v1.1) now
+require, having previously said only that the metrics must be computed.
 
 **Small groups are flagged, not silently reported.** A 40-applicant group has a
 selection rate with a confidence interval wider than most disparities anyone

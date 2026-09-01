@@ -8,27 +8,37 @@ Calibration is not cosmetic here. SRS §4.3.2 puts it plainly: PDs feed pricing
 and IFRS-9 ECL, so a model that ranks perfectly and predicts 4% where the truth
 is 9% prices every loan wrong while every discrimination metric stays green.
 
-Two departures from the literal instruction, both recorded rather than resolved
----------------------------------------------------------------------------
-**The validation set has already been used.** Step 4 fits hyperparameters and
-early stopping on the validation vintages; Step 5 then fits the calibrator on the
-same rows. The calibrator is therefore fitted where the model was selected to
-look good, and the reliability diagram that results is optimistic — mildly for a
-scorecard, more for an early-stopped challenger. :class:`CalibrationSource` names
-the alternatives and :class:`CalibrationReport` carries ``optimism_risk`` when the
-literal path is taken. This module does **not** refuse it: the phase file is a
-binding contract and an implementer does not overrule it (Master §1). It is
-raised as a Phase 1 finding, and the cross-fitted path is available for the day
-the finding is accepted.
+Two rules the phase file makes binding (v1.1)
+--------------------------------------------
+Both began as findings against the original wording, which fitted the calibrator
+on the validation set and mandated isotonic unconditionally. Both were accepted.
 
-**Isotonic is not always the right calibrator.** The paper Phase 1 cites is also
-the source of the caveat: isotonic regression needs more data than Platt scaling
-and overfits on small samples, where its step function chases noise. On a rare
-default with a 15% validation slice, "small" is the normal case, not the exotic
-one. So :func:`recommend_calibrator` returns a recommendation *with its citation*
-and the caller decides — the choice is recorded on the report either way, because
-a calibrator swapped silently between retrains is a change nobody can see in the
-metrics.
+**The calibration sample is not the model-selection sample.** Step 4 fits
+hyperparameters and early stopping on the validation vintages, so a calibrator
+fitted on those same rows is fitted where the model was selected to look good, and
+the reliability diagram that results is optimistic — mildly for a scorecard, more
+for an early-stopped challenger. Since PDs feed pricing and IFRS-9, that is a
+systematic mispricing rather than a cosmetic overstatement.
+:class:`CalibrationSource` names the sanctioned alternatives:
+``CROSS_FITTED_TRAIN`` (preferred on a thin-bad portfolio, because it uses the
+largest sample available) and ``DEDICATED`` (a fourth block carved from train by
+:func:`lending_hub.scoring.splits.carve_calibration`). ``VALIDATION`` remains
+available and :class:`CalibrationReport` carries ``optimism_risk`` when it is used
+on rows that drove model selection — a run that has to take that path must report
+what it costs, not hide it.
+
+**Isotonic is not automatic.** The paper Phase 1 cites is also the source of the
+caveat: isotonic regression needs more data than Platt scaling and overfits small
+samples, where its step function chases noise. On a rare default the binding
+constraint is the **event count**, not the row count. :func:`recommend_calibrator`
+returns a recommendation *with its citation*, the caller decides, and the choice
+is recorded either way — a calibrator swapped silently between retrains is a
+change nobody can see in the metrics.
+
+One consequence worth knowing before reading a Gini: isotonic is a monotone *step*
+function, so it quantises the score. It cannot reorder, but it collapses distinct
+values into ties, and ties cost discrimination. SRS §4.3.4 therefore measures
+discrimination on the raw score and calibration on the PD.
 
 Workstream: WS-1.1 Step 5 · SRS §4.3.2, §4.3.4
 """
@@ -68,8 +78,9 @@ class CalibrationSource(str, Enum):
     """Which rows the calibrator was fitted on, and what that costs."""
 
     VALIDATION = "validation"
-    """Phase 1's literal instruction. The same rows drove early stopping and
-    hyperparameter choice, so the fitted calibration is optimistic."""
+    """The validation split. Permitted, but if those rows drove early stopping or
+    hyperparameter choice the calibration is optimistic and must be reported as
+    such — Phase 1 §4 Step 5 (v1.1) directs the other two sources instead."""
 
     CROSS_FITTED_TRAIN = "cross_fitted_train"
     """Out-of-fold predictions over the training set: each row is predicted by a
@@ -347,7 +358,9 @@ def fit_calibration(
     ``model_selected_on_these_rows`` is not a warning flag to be ignored — it is
     the difference between a reliability diagram that describes the model and one
     that describes the selection. It is recorded, never silently corrected, and
-    when it is set the report says so in a field a gate reviewer reads.
+    when it is set the report says so in a field a gate reviewer reads. Under
+    Phase 1 §4 Step 5 (v1.1) a run that sets it is taking a path the phase file
+    directs away from, and owes an explanation.
     """
     if len(scores) != len(labels):
         raise CalibrationError("scores and labels must be the same length")
@@ -380,9 +393,8 @@ def fit_calibration(
         optimism_risk=optimism,
         optimism_note=(
             "fitted on the rows that drove early stopping and hyperparameter "
-            "choice (Phase 1 §4 Steps 4 and 5 use the same set), so this "
-            "reliability diagram is optimistic. Raised as a Phase 1 finding; "
-            "CROSS_FITTED_TRAIN is the alternative."
+            "choice, so this reliability diagram is optimistic. Phase 1 §4 Step 5 "
+            "(v1.1) directs CROSS_FITTED_TRAIN or a DEDICATED block instead."
             if optimism
             else ""
         ),

@@ -260,10 +260,11 @@ def check_balance_continuity(months: Sequence[StatementMonth]) -> list[CheckResu
 def check_ifsc(code: str) -> CheckResult:
     """Validate an IFSC's *format*. Existence is a lookup, and it is blocked.
 
-    The distinction matters more than it looks. A forger who knows the format
-    passes the regex every time, so a green "IFSC valid" on a format check alone
-    is close to worthless as a fraud control while reading exactly like a
-    meaningful one on a checklist.
+    The distinction matters more than it looks, and Phase 1 §4 WS-1.2 Step 5
+    (v1.1) now names both halves separately: a forger who knows the format passes
+    the regex every time, so a green "IFSC valid" on a format check alone is close
+    to worthless as a fraud control while reading exactly like a meaningful one on
+    a checklist. Report which of the two was performed.
     """
     normalised = (code or "").strip().upper()
     if not normalised:

@@ -25,10 +25,16 @@ The direction question
 OptBinning's default picks the monotone direction from the data. That is the
 right default for exploration and the wrong one for a shipped scorecard, because
 a direction read off the training sample is not a constraint — it is a
-restatement of the fit. The ratified direction list is `[POLICY]` (LH-202), so
-:class:`Binning` records ``direction_source``: ``"policy"`` when a direction was
-imposed, ``"data"`` when it was inferred. A scorecard built entirely on inferred
-directions is buildable, reportable, and not promotable.
+restatement of the fit. Phase 1 §4 Step 3 (v1.1) settles it: the **same ratified
+list that constrains the challenger governs the champion's binning direction**,
+so that the two models cannot encode opposite risk relationships for one
+characteristic and leave the Step 9 swap-set analysis comparing models that
+disagree about the direction of risk.
+
+The list is `[POLICY]` and does not exist yet (LH-202), so :class:`Binning`
+records ``direction_source``: ``"policy"`` when a direction was imposed,
+``"data"`` when it was inferred. A scorecard built entirely on inferred directions
+is buildable, reportable, and not promotable.
 
 Workstream: WS-1.1 Step 3 · SRS §4.3.1
 """

@@ -18,16 +18,17 @@ is supplied, while :meth:`Scorecard.log_odds` and :meth:`Scorecard.predict` — 
 calibrated PD, which is what pricing and IFRS-9 actually consume — work today.
 Registered as LH-208.
 
-**Reason codes are points-below-max, not largest negative contribution.**
-Phase 1 §4 Step 3 says "reason codes = largest negative point contributions".
-Taken literally that ranks characteristics by their weight range rather than by
-this applicant's shortfall: a heavily-weighted characteristic on which the
-applicant scores *averagely* outranks a lightly-weighted one on which they score
-worst. The scorecard convention — and what Reg-B-style adverse action asks for,
-"the principal reasons why" — is the distance from the points this applicant got
-to the best points attainable on that characteristic. Both are implemented;
-points-below-max is the default and the divergence is recorded as a finding
-against the phase file rather than silently resolved.
+**Reason codes are points-below-max.**
+Phase 1 §4 Step 3 (v1.1) and SRS §4.3.1 require ranking by the distance from the
+points this applicant got to the best points attainable on that characteristic.
+Both documents originally said "largest negative point contributions", which
+ranks characteristics by their *weight range* rather than by this applicant's
+shortfall: a heavily-weighted characteristic on which the applicant scores
+averagely outranks a lightly-weighted one on which they score worst, and the
+customer is told the principal reason for their decline is something they are
+unremarkable at. "The principal reasons why" is a question about the applicant.
+The superseded rule is still implemented as ``method="largest_negative"``, because
+a model validated under it needs to be reproducible under it.
 
 Workstream: WS-1.1 Steps 3 and 6 · SRS §4.3.1, §11.2
 """
@@ -212,11 +213,11 @@ class Scorecard:
         """Ranked adverse-action reasons.
 
         ``points_below_max`` (default) ranks by how far this applicant's bin falls
-        short of the best bin on the same characteristic — the scorecard
-        convention, and the one that answers "why *you*". ``largest_negative``
-        implements Phase 1's literal wording and ranks by raw contribution, which
-        on a real scorecard is dominated by whichever characteristics carry the
-        widest weight range.
+        short of the best bin on the same characteristic — what Phase 1 §4 Step 3
+        (v1.1) requires, and the one that answers "why *you*".
+        ``largest_negative`` is the superseded rule, kept so a model validated
+        under it stays reproducible; on a real scorecard it is dominated by
+        whichever characteristics carry the widest weight range.
 
         Units are log-odds when no anchor is set and points when one is, so the
         ranking is identical either way — the anchor is a positive linear rescale.

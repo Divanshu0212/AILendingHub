@@ -13,8 +13,8 @@ prediction. It is not observation; it is the model's own belief fed back as data
 Read one way, the paragraph's last sentence forbids the method its previous
 sentence schedules.
 
-The reconciliation this module implements, and which is raised as a Phase 1
-finding rather than assumed to be what was meant:
+SRS §4.3.2.4 and Phase 1 §4 Step 8 (v1.1) settle it, and this module implements
+the settlement:
 
 * **Bureau retro is inference from evidence.** Someone else lent to the applicant
   and observed the outcome. It belongs in the target table, labelled as
