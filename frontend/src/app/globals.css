@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Phase 7 §1 scope note: no visual design system in this phase. What is here is
+ * accessibility infrastructure, not styling.
+ */
+
+/* WCAG 2.2 AA 2.4.11 "Focus Not Obscured" and 2.4.13 "Focus Appearance": a
+   visible focus indicator on every interactive element, never removed. The
+   two new 2.2 criteria are the ones a 2.1-era codebase misses. */
+:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+/* WCAG 2.2 AA 2.3.3 respects reduced motion. There is no motion in this build,
+   which is the easiest way to satisfy it and is stated so that adding some
+   later is a deliberate act. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  color: #171717;
+  background: #fafafa;
+}
