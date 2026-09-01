@@ -66,6 +66,15 @@ export interface ReasonCode {
   readonly contribution: number | null;
   /** "model" | "rule" - mirrors ReasonCode.source. */
   readonly source: string;
+  /**
+   * Display rank within the reason set, server-supplied.
+   *
+   * Not derived from array position. SRS §4.3.1 defines the ranking rule
+   * (points-below-max) and the SRS change log records that rule being corrected
+   * in v1.2 — a frontend that numbers the array has adopted the transport order
+   * as the adverse-action order. See P7-F6.
+   */
+  readonly rankDisplay: string;
   /** Legally templated sentence from the document registry. Null = unratified. */
   readonly sentence: string | null;
   /** Registry document id + version the sentence came from. Null iff sentence is. */
