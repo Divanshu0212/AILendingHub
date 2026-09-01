@@ -67,8 +67,9 @@ to capture, silently, on the majority of the book.
 `portfolio.staging.classify()` returns an `Undeterminable` that is deliberately
 **not** a `Stage` — it cannot be summed into a provision and will not compare
 equal to `Stage.ONE` in a reporting query that forgot to check — and `stage()`
-raises. On the Track P panel this is not a corner case: **85% of accounts are
-undeterminable**, 0 are Stage 1, 0 are Stage 2, and 179 are Stage 3.
+raises. On the Track P panel this is not a corner case: **84% of accounts are
+undeterminable** (4,253 of 5,081), 0 are Stage 1, 1 is Stage 2, and 827 are
+Stage 3.
 
 **Proposed wording.** Add to Step 7: *"Stage 1 is assigned only when every
 Stage 2 arm has been evaluated and none fired. Where an arm is unevaluable the

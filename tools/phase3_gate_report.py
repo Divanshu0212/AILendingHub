@@ -155,10 +155,17 @@ def _criterion_state(name: str, run: dict | None) -> tuple[str, str]:
         book = (run.get("aggregates") or {}).get("book") or {}
         if not book:
             return "—", "**not measured**"
+        # Deliberately not the batch pass's own freshness figure. Computing an
+        # aggregate from a static extract makes as_of and computed_at the same
+        # instant, so it reads 0.0s — which on a freshness panel looks like a
+        # perfect score and is instead the absence of a measurement.
         return (
-            f"{book.get('freshness_seconds')}s on one batch pass",
+            "no meaningful figure — batch pass over a static extract",
             "not evaluable — the criterion is 30 *consecutive days* of a live "
-            "streaming surface; a batch computation cannot produce it",
+            "streaming surface. The freshness *machinery* is built and tested "
+            "(`Aggregate` cannot be constructed without a timezone-aware "
+            "`as_of`, and every serialisation carries the SLO comparison); what "
+            "is missing is a stream to measure",
         )
 
     if name.startswith("Staging provenance"):

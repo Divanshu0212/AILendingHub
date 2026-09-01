@@ -33,7 +33,7 @@ appear in the same column.
 |---|---|
 | Competing risks are decisive on a prepayment-heavy book: 60-month CIF of default **0.115** against a naive **0.169** — a **47% relative overstatement** | `observed_incidence` |
 | The **LGD loss basis flips the sign of the LTV effect** (`oltv` −0.76 net of credit enhancement, **+2.55** gross) — a value nobody specified, now LH-311 | `lgd.by_basis`, `lgd.credit_enhancement_finding` |
-| **85% of accounts cannot be staged at all**, and 0 are Stage 1 | `staging` |
+| **84% of accounts cannot be staged at all** (4,253 of 5,081), and 0 are Stage 1 | `staging` |
 | Cox ties at ~0.85 on a monthly panel; Efron and Breslow disagree materially | `cox`, `cox_tie_sensitivity` |
 | The §7 challenger-vs-Cox uplift **changed sign** between sample sizes (+0.075 at 0.8%, −0.119 at 2.0%) — the criterion is not measurable to the precision it is stated at | `survival_metrics`; finding D6 |
 | Current DPD **separates** a Cox model at monthly granularity | `cox_excluded_covariates` |
@@ -66,7 +66,7 @@ Generated live by `make gate3` into `reports/phase3_gate.md`. Summary:
 | 3 | LGD MAE ≤ incumbent | **not measurable** — there is no incumbent |
 | 4 | Dashboard freshness over 30 consecutive days | not evaluable — needs a live streaming surface |
 | 5 | ECL parallel-run memo signed | **not measurable** — needs a bank deployment |
-| 6 | Staging provenance audit clean | not evaluable — 85% of accounts have no stage to audit |
+| 6 | Staging provenance audit clean | not evaluable — 84% of accounts have no stage to audit |
 
 **Track B evidence: 0 of 6.**
 

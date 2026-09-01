@@ -1,6 +1,6 @@
 # Phase 3 — gate evidence pack
 
-Generated 2026-09-01T12:35:23.358593+00:00 by `tools/phase3_gate_report.py`.
+Generated 2026-09-01T12:37:00.353252+00:00 by `tools/phase3_gate_report.py`.
 
 Per ADR-0003 and ADR-0004, **only Track B numbers are gate evidence.**
 Track P results below prove the code paths against real mortgage
@@ -13,7 +13,7 @@ performance data and say nothing about this bank's portfolio.
 | 1 | Hazard GBM C-index ≥ Cox + 0.02 and ≥ 0.75 absolute | WS-3.1 Step 3 | P | C 0.5517 vs Cox 0.6708, uplift -0.1191 (Track P) | **not decidable at this event count** — the same configuration produced an uplift of +0.075 at one sample size and −0.119 at another, a sign change of 0.19 against a criterion stated at +0.02 (Phase 3 finding D6). Read the number above as one draw, not as a result. Not gate evidence either way: Track P is US conforming mortgages, not this bank's book (ADR-0012). Also: 87% of subjects are censored; Harrell's C is biased upward at this level (Uno et al. 2011). Read it as an upper bound and compare only against other Harrell's C values on the same censoring pattern. |
 | 2 | PD calibration by grade within ±15% relative on backtest years | WS-3.1 Step 1 | P | out-of-time Gini 91.89 (Track P) | not evaluable — the criterion is calibration by *grade*, and grades need the score bands that LH-204 has not ratified |
 | 3 | LGD MAE ≤ incumbent | WS-3.1 Step 5 | — | — | **not measurable** — there is no incumbent LGD model to compare against, and the comparison is against this bank's provisioning model (LH-120) |
-| 4 | Dashboard freshness SLO met over 30 consecutive days | WS-3.2 Step 1 | P | 0.0s on one batch pass | not evaluable — the criterion is 30 *consecutive days* of a live streaming surface; a batch computation cannot produce it |
+| 4 | Dashboard freshness SLO met over 30 consecutive days | WS-3.2 Step 1 | P | no meaningful figure — batch pass over a static extract | not evaluable — the criterion is 30 *consecutive days* of a live streaming surface. The freshness *machinery* is built and tested (`Aggregate` cannot be constructed without a timezone-aware `as_of`, and every serialisation carries the SLO comparison); what is missing is a stream to measure |
 | 5 | ECL parallel-run memo signed | Phase 3 §5 | — | — | **not measurable** — a parallel run needs a live provisioning process and a Finance signatory; neither exists outside a bank deployment |
 | 6 | Staging provenance audit clean | WS-3.1 Step 7 | P | 4,253 of 5,081 undeterminable (84%) | not evaluable — provenance is logged on every decision, but Stage 1 cannot be assigned at all without LH-301 and LH-308, so most accounts have no stage to audit |
 
