@@ -212,6 +212,35 @@ class TestScoreVersusProbability(unittest.TestCase):
         self.assertAlmostEqual(report.brier, brier_score(self.labels, self.scores))
 
 
+class TestLegacyComparator(unittest.TestCase):
+    def test_the_legacy_brier_uses_its_own_calibrated_pd(self):
+        # Comparing a calibrated Brier against an uncalibrated one compares a model
+        # to an uncalibrated version of another model, and flatters whichever side
+        # was calibrated.
+        from lending_hub.scoring.calibration import brier_score
+        labels, scores = scored(1200, 3.0, 91)
+        _, legacy_raw = scored(1200, 2.5, 92)
+        legacy_pd = [0.05 + 0.1 * s for s in legacy_raw]
+        report = validate(
+            model="m", train_labels=labels, train_scores=scores,
+            test_labels=labels, test_scores=scores, out_of_time=True,
+            legacy_test_scores=legacy_raw, legacy_test_probabilities=legacy_pd,
+        )
+        self.assertAlmostEqual(report.legacy_brier, brier_score(labels, legacy_pd))
+        self.assertAlmostEqual(report.legacy_gini, gini(labels, legacy_raw))
+
+    def test_omitting_the_legacy_pd_falls_back_to_its_score(self):
+        from lending_hub.scoring.calibration import brier_score
+        labels, scores = scored(800, 3.0, 93)
+        _, legacy_raw = scored(800, 2.5, 94)
+        report = validate(
+            model="m", train_labels=labels, train_scores=scores,
+            test_labels=labels, test_scores=scores, out_of_time=True,
+            legacy_test_scores=legacy_raw,
+        )
+        self.assertAlmostEqual(report.legacy_brier, brier_score(labels, legacy_raw))
+
+
 class TestChampionBar(unittest.TestCase):
     """Phase 1 §7 (v1.1): the champion has a bar of its own."""
 

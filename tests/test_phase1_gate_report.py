@@ -29,7 +29,7 @@ class TestWithNoRun(unittest.TestCase):
         self.assertEqual(self.text.count("**not measured**"), len(gate.CRITERIA))
 
     def test_it_never_claims_track_b_evidence(self):
-        self.assertIn("Track B evidence: 0 of 7", self.text)
+        self.assertIn(f"Track B evidence: 0 of {len(gate.CRITERIA)}", self.text)
         self.assertIn("not exitable", self.text)
 
     def test_the_fraud_criteria_are_called_unevaluable_not_unmeasured(self):
@@ -43,22 +43,28 @@ class TestWithATrackPRun(unittest.TestCase):
             "run": {"dataset": "home_credit_default_risk", "seed": 1, "seconds": 1.0},
             "validation": {
                 "champion": {
-                    "test": {"gini_points": 47.66}, "brier": 0.06906,
-                    "ece": 0.005, "score_psi": 0.0017,
+                    "test": {"gini_points": 44.45}, "brier": 0.06996,
+                    "ece": 0.009, "score_psi": 0.0005,
+                    "exit_criteria": {
+                        "champion_gini_uplift": {
+                            "measured": None, "evaluated": False, "met": None,
+                            "note": "no rebuilt legacy scorecard supplied",
+                        },
+                    },
                 },
                 "challenger": {
-                    "test": {"gini_points": 47.60}, "brier": 0.06961,
+                    "test": {"gini_points": 47.73}, "brier": 0.06954,
                     "ece": 0.008, "score_psi": 0.0013,
                     "exit_criteria": {
                         "challenger_gini_uplift": {
-                            "measured": -0.07, "evaluated": False, "met": None,
+                            "measured": 3.28, "evaluated": False, "met": None,
                             "note": "measured on a test set that is NOT out of time",
                         },
                         "brier_no_worse_than_legacy": {
-                            "measured": 0.06961, "legacy": 0.06906, "met": False,
+                            "measured": 0.06954, "legacy": 0.06996, "met": True,
                         },
                         "swap_set_no_adverse_concentration": {
-                            "measured": {"60-69": 1.86, "50-59": 1.02}, "met": None,
+                            "measured": {"20-29": 1.32, "40-49": 1.07}, "met": None,
                         },
                     },
                 },
@@ -70,19 +76,20 @@ class TestWithATrackPRun(unittest.TestCase):
 
     def test_track_p_numbers_are_labelled_track_p(self):
         self.assertIn("not gate evidence", self.text)
-        self.assertIn("| 1 | Challenger", self.text)
+        self.assertIn("| 2 | Challenger", self.text)
+        self.assertIn("| 1 | Champion", self.text)
 
     def test_an_in_time_uplift_is_reported_as_not_evaluable(self):
         # The number exists and still cannot satisfy the criterion as written.
-        self.assertIn("-0.07 pts", self.text)
+        self.assertIn("+3.28 pts", self.text)
         self.assertIn("NOT out of time", self.text)
 
     def test_the_swap_set_criterion_reports_the_worst_segment_and_no_bar(self):
-        self.assertIn("60-69 at 1.86x", self.text)
+        self.assertIn("20-29 at 1.32x", self.text)
         self.assertIn("no bar (LH-205)", self.text)
 
-    def test_a_failed_brier_is_reported_as_failed(self):
-        self.assertIn("fail (Track P)", self.text)
+    def test_a_passing_brier_is_reported_as_passing(self):
+        self.assertIn("pass (Track P)", self.text)
 
 
 class TestModelCards(unittest.TestCase):

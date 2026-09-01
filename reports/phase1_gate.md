@@ -1,6 +1,6 @@
 # Phase 1 — gate evidence pack
 
-Generated 2026-08-31T21:21:51.665796+00:00 by `tools/phase1_gate_report.py`.
+Generated 2026-09-01T06:07:56.853132+00:00 by `tools/phase1_gate_report.py`.
 
 Per ADR-0003 and ADR-0004, **only Track B numbers are gate evidence.**
 Track P results below prove the code paths against real applications and
@@ -10,15 +10,16 @@ say nothing about this bank's portfolio.
 
 | # | Criterion | Workstream | Track | Measured | State |
 |---|---|---|---|---|---|
-| 1 | Challenger ≥ +3 Gini over rebuilt legacy, out-of-time | WS-1.1 Step 9 | P | -0.07 pts | not evaluable — measured on a test set that is NOT out of time; this number cannot satisfy the criterion as written |
-| 2 | Brier ≤ legacy | WS-1.1 Step 9 | P | 0.06961 vs 0.06906 | fail (Track P) |
-| 3 | Swap set shows no adverse-segment concentration | WS-1.1 Step 9 | P | worst segment 60-69 at 1.86x | not evaluable — no bar (LH-205) |
-| 4 | Fraud precision at operating alert budget ≥ incumbent rules | WS-1.2 Step 3 | — | — | **not measured** |
-| 5 | Step-up friction on eventual-good customers < 3% | WS-1.2 Step 6 | — | — | **not measured** |
-| 6 | Decision-log spot audit: 100 re-scored decisions identical | Master §3.3 | — | — | **not measured** |
-| 7 | Model cards + independent validation signed for every shipped model | Master §2 rule 5 | — | — | **not measured** |
+| 1 | Champion ≥ rebuilt legacy on out-of-time Gini and Brier | WS-1.1 Step 9 | P | — | not evaluable — no rebuilt legacy scorecard supplied |
+| 2 | Challenger ≥ +3 Gini over rebuilt legacy, out-of-time | WS-1.1 Step 9 | P | +3.28 pts | not evaluable — measured on a test set that is NOT out of time; this number cannot satisfy the criterion as written |
+| 3 | Brier ≤ legacy | WS-1.1 Step 9 | P | 0.06954 vs 0.06996 | pass (Track P) |
+| 4 | Swap set shows no adverse-segment concentration | WS-1.1 Step 9 | P | worst segment 20-29 at 1.32x | not evaluable — no bar (LH-205) |
+| 5 | Fraud precision at operating alert budget ≥ incumbent rules | WS-1.2 Step 3 | — | — | **not measured** |
+| 6 | Step-up friction on eventual-good customers < 3% | WS-1.2 Step 6 | — | — | **not measured** |
+| 7 | Decision-log spot audit: 100 re-scored decisions identical | Master §3.3 | — | — | **not measured** |
+| 8 | Model cards + independent validation signed for every shipped model | Master §2 rule 5 | — | — | **not measured** |
 
-Criteria with **Track B evidence: 0 of 7.** Phase 1 is not exitable, and the
+Criteria with **Track B evidence: 0 of 8.** Phase 1 is not exitable, and the
 reason is upstream: Phase 0 has not started (LH-120, written data-sharing
 approvals) so no bank data exists to measure against.
 
@@ -71,12 +72,12 @@ Full register: [docs/phase1/blocking_tickets.md](../docs/phase1/blocking_tickets
 
 ## Track P run (not gate evidence)
 
-Dataset `home_credit_default_risk`, seed 20260901, 43.8s.
+Dataset `home_credit_default_risk`, seed 20260901, 45.8s.
 
 | Model | Test Gini | Brier | ECE | Score PSI |
 |---|---|---|---|---|
-| Champion (WOE scorecard) | 47.66 | 0.06906 | 0.00537 | 0.0017 |
-| Challenger (monotone GBM) | 47.60 | 0.06961 | 0.00785 | 0.0013 |
+| Champion (WOE scorecard) | 44.45 | 0.06996 | 0.00935 | 0.0005 |
+| Challenger (monotone GBM) | 47.73 | 0.06954 | 0.00600 | 0.0018 |
 
 Reproduce with `make trackp-p1`. Every limitation is listed in the run
 report's `limitations` block — the split is not out of time, the label is

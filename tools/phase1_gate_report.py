@@ -32,6 +32,7 @@ TICKETS = REPO / "docs/phase1/blocking_tickets.md"
 
 #: Phase 1 §7, verbatim, with the workstream each belongs to.
 CRITERIA = [
+    ("Champion ≥ rebuilt legacy on out-of-time Gini and Brier", "WS-1.1 Step 9"),
     ("Challenger ≥ +3 Gini over rebuilt legacy, out-of-time", "WS-1.1 Step 9"),
     ("Brier ≤ legacy", "WS-1.1 Step 9"),
     ("Swap set shows no adverse-segment concentration", "WS-1.1 Step 9"),
@@ -101,17 +102,29 @@ def build(run: dict | None) -> list[str]:
 
     measured: dict[str, tuple[str, str, str]] = {}
     if run:
+        champion = run.get("validation", {}).get("champion", {})
+        champion_uplift = champion.get("exit_criteria", {}).get(
+            "champion_gini_uplift", {}
+        )
+        measured[CRITERIA[0][0]] = (
+            "P",
+            "—"
+            if champion_uplift.get("measured") is None
+            else f"{champion_uplift['measured']:+.2f} pts",
+            "not evaluable — " + str(champion_uplift.get("note", "no comparator")),
+        )
+
         challenger = run.get("validation", {}).get("challenger", {})
         criteria = challenger.get("exit_criteria", {})
 
         uplift = criteria.get("challenger_gini_uplift", {})
-        measured[CRITERIA[0][0]] = (
+        measured[CRITERIA[1][0]] = (
             "P",
             "—" if uplift.get("measured") is None else f"{uplift['measured']:+.2f} pts",
             "not evaluable — " + str(uplift.get("note", "")),
         )
         brier = criteria.get("brier_no_worse_than_legacy", {})
-        measured[CRITERIA[1][0]] = (
+        measured[CRITERIA[2][0]] = (
             "P",
             f"{brier.get('measured', float('nan')):.5f} vs {brier.get('legacy'):.5f}"
             if brier.get("legacy") is not None
@@ -123,7 +136,7 @@ def build(run: dict | None) -> list[str]:
         if isinstance(swap.get("measured"), dict) and swap["measured"]:
             segment, value = next(iter(swap["measured"].items()))
             worst = f"worst segment {segment} at {value:.2f}x"
-        measured[CRITERIA[2][0]] = (
+        measured[CRITERIA[3][0]] = (
             "P", worst or "—", "not evaluable — no bar (LH-205)",
         )
 
@@ -133,7 +146,8 @@ def build(run: dict | None) -> list[str]:
 
     lines += [
         "",
-        "Criteria with **Track B evidence: 0 of 7.** Phase 1 is not exitable, and the",
+        f"Criteria with **Track B evidence: 0 of {len(CRITERIA)}.** Phase 1 is not "
+        "exitable, and the",
         "reason is upstream: Phase 0 has not started (LH-120, written data-sharing",
         "approvals) so no bank data exists to measure against.",
         "",
@@ -233,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     out.write_text("\n".join(build(run)) + "\n", encoding="utf-8")
 
     print(f"Phase 1 gate evidence pack written to {out}")
-    print("  0 of 7 exit criteria have Track B evidence")
+    print(f"  0 of {len(CRITERIA)} exit criteria have Track B evidence")
     print("  Phase 1 is not exitable — see docs/phase1/STATUS.md")
     return 0
 

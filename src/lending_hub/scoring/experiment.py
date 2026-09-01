@@ -276,6 +276,7 @@ def run(path: str, *, limit: int | None, seed: int, trees: int) -> dict:
         train_probabilities=challenger_train, test_probabilities=challenger_test,
         out_of_time=splits.out_of_time, dataset=SOURCE_ID, track="P",
         legacy_test_scores=scorecard.predict_all(test_rows),
+        legacy_test_probabilities=scorecard_test,
         monotonicity=checks, sensitivity_results=sensitivity_results, swap_set=swap,
     )
 

@@ -25,7 +25,7 @@
 |---|---|
 | Code commit SHA | The commit that produced `reports/trackP_p1_home_credit.json` |
 | Data snapshot | Home Credit `application_train.csv`, first 60,000 rows, `--seed 20260901` |
-| Config hash | `--limit 60000 --seed 20260901 --trees 120`; scorecard `epochs=15` |
+| Config hash | `--limit 60000 --seed 20260901 --trees 120`; scorecard `epochs=15`; 15% calibration block carved from train |
 | Definitions fingerprint | Recorded in the run report under `run.definitions_fingerprint` (Appendix A v1.1) |
 
 Regenerate with `make trackp-p1`. The fit is deterministic given the seed.
@@ -53,6 +53,10 @@ estimate, because it was not fitted to an Appendix A target (§4).
   reports `appendix_a_aligned: false`.
 - **Population**: 60,000 applications read; 60,000 labelled and kept; 0
   undetermined; 0 excluded. Bad rate **8.02%** (4,813 bads).
+- **Split** (random holdout, seed 20260901): train 35,700 · calibration 6,300 ·
+  validation 9,000 · test 9,000. The calibration block is carved out of train per
+  Phase 1 §4 Step 5 (v1.1) so that no row is used for both fitting and
+  calibrating.
 - **Exclusions**: all three Phase 1 exclusions (fraud-tagged, staff loan,
   restructure) are **unenforceable** on this source — a public extract carries
   none of the flags. Accepted deliberately via `require_enforceable=False` and
@@ -88,31 +92,42 @@ estimate, because it was not fitted to an Appendix A target (§4).
 
 ## 6. Performance
 
-Test split, 9,000 applications, 727 bads.
+Test split, 9,000 applications, 727 bads. Discrimination on the raw score,
+calibration on the calibrated PD (SRS §4.3.4 v1.2).
 
 | Metric | Train | Test |
 |---|---|---|
-| AUC | — | **0.7383** |
-| Gini (points) | 44.69 | **47.66** |
-| KS | — | 0.3548 |
-| Brier (calibrated) | — | **0.06906** |
-| ECE | — | 0.00537 |
-| Score PSI, train → test | — | 0.0017 |
+| AUC | — | **0.7222** |
+| Gini (points) | 42.95 | **44.45** |
+| KS | — | 0.3247 |
+| Brier (calibrated PD) | — | **0.06996** |
+| ECE | — | 0.00935 |
+| PSI, train → test (calibrated PD) | — | 0.0005 |
 
 **The test split is not out of time.** The source has no clock, so the holdout is
 random and stamped `out_of_time: false`. These numbers say nothing about how the
 model travels across a macro regime, which is the question an out-of-time test
-exists to answer.
+exists to answer. The §7 champion criterion is therefore unevaluated — as is the
+Brier comparison, since there is no rebuilt legacy scorecard on Track P.
 
-Test Gini above train Gini is expected here rather than surprising: a heavily
-regularised linear model on 15 characteristics does not have the capacity to
-overfit 42,000 rows.
+**This model is unusually sensitive to training-set size, and that is the most
+important thing on this card.** Refitting on 42,000 rows instead of 35,700 raises
+its test Gini from 44.45 to **47.77** — 3.3 points from 15% more data. The
+challenger over the same change moves 47.78 → 47.73, i.e. not at all. The
+mechanism is in the method: a 15-characteristic scorecard rests on bin-level event
+rates, and a bin holding 5% of the sample has a materially noisier WOE at 35,700
+rows than at 42,000. Do not read 44.45 as this model's ceiling, and do not compare
+it to a challenger fitted on a different number of rows. Finding P1-F8.
 
-**Calibration is not optional for this model.** Raw Brier 0.2095 → calibrated
-0.0687, a factor of three. Inverse-base-rate class weighting makes the raw output
-a ranking, not a probability. SRS §4.3.2.2 makes this point about GBMs; it
-applies more strongly to a class-weighted scorecard, and a pipeline that
-calibrated only the challenger would ship an uncalibrated champion.
+**Calibration is not optional for this model.** Raw Brier 0.1368 → calibrated
+0.0672, a factor of two. Inverse-base-rate class weighting makes the raw output a
+ranking, not a probability. SRS §4.3.2.2 makes this point about GBMs; it applies
+more strongly to a class-weighted scorecard, and a pipeline that calibrated only
+the challenger would ship an uncalibrated champion.
+
+The calibrator was fitted on the dedicated 6,300-row block, which neither model
+saw — so `optimism_risk` is False, and the reliability diagram describes the model
+rather than the selection.
 
 ## 7. Fairness
 
@@ -121,9 +136,9 @@ Measured on the test split (`assess`, protected attributes read only through
 
 | Attribute | Demographic parity difference | Parity ratio | Equalized-odds difference |
 |---|---|---|---|
-| Age band | 0.4046 | 0.4293 | 0.3954 |
-| Gender | 0.1030 | 0.8248 | 0.0990 |
-| Region rating (pincode proxy) | 0.2620 | 0.6195 | 0.2442 |
+| Age band | 0.4166 | 0.3974 | 0.4059 |
+| Gender | 0.1035 | 0.8127 | 0.0985 |
+| Region rating (pincode proxy) | 0.2667 | 0.5930 | 0.2521 |
 
 No group was flagged as statistically indistinguishable from noise.
 
@@ -159,13 +174,18 @@ Every sentence there is `TBD[Compliance, LH-203]` and `render()` raises on one.
    approved*, not through-the-door risk. Full memo in the run report.
 5. No indeterminate band, so the sharpness of the good/bad boundary is the
    vendor's choice, not a modelled one.
-6. Two characteristics carry **negative fitted coefficients** — `AMT_CREDIT` and
-   `DAYS_EMPLOYED`. On WOE inputs every coefficient should be positive; a
-   negative one means the characteristic is fighting the others through a
-   correlation, and its reason codes point the wrong way. Standard practice is to
-   drop and refit. Not done here because the run exists to exercise the pipeline,
-   and `negative_coefficients()` surfacing them is the behaviour being tested.
-7. Thin-file and new-to-credit populations are not separately validated (SRS
+6. **Five** characteristics carry negative fitted coefficients — `AMT_CREDIT`,
+   `AMT_GOODS_PRICE`, `DAYS_ID_PUBLISH`, `DAYS_REGISTRATION` and
+   `NAME_INCOME_TYPE=Pensioner`. On WOE inputs every coefficient should be
+   positive; a negative one means the characteristic is fighting the others
+   through a correlation, and its reason codes point the wrong way. Standard
+   practice is to drop and refit. Not done here because the run exists to exercise
+   the pipeline, and `negative_coefficients()` surfacing them is the behaviour
+   being tested. Note that this count rose from two when the training set shrank —
+   the same instability as the Gini finding, seen from another angle.
+7. **Its Track P numbers depend on the training-set size** (see §6). Any
+   comparison against the challenger must hold that constant.
+8. Thin-file and new-to-credit populations are not separately validated (SRS
    CS-3 requires segment models; out of scope for P1's single product).
 
 ## 10. Monitoring and fallback

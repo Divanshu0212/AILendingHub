@@ -524,6 +524,7 @@ def validate(
     track: str = "",
     role: str = "challenger",
     legacy_test_scores: Sequence[float] | None = None,
+    legacy_test_probabilities: Sequence[float] | None = None,
     monotonicity: Sequence[MonotonicityCheck] = (),
     sensitivity_results: Sequence[SensitivityResult] = (),
     swap_set: SwapSetAnalysis | None = None,
@@ -549,8 +550,18 @@ def validate(
 
     legacy_gini = legacy_brier = None
     if legacy_test_scores is not None:
+        # The comparator obeys the same split as the model under test: its Gini
+        # from its raw score, its Brier from its calibrated PD. Comparing a
+        # calibrated Brier against an uncalibrated one is not a comparison of two
+        # models — it is a comparison of one model against an uncalibrated version
+        # of another, and it flatters whichever side was calibrated.
         legacy_gini = gini(test_labels, legacy_test_scores)
-        legacy_brier = brier_score(test_labels, legacy_test_scores)
+        legacy_brier = brier_score(
+            test_labels,
+            legacy_test_probabilities
+            if legacy_test_probabilities is not None
+            else legacy_test_scores,
+        )
 
     return ValidationReport(
         model=model,

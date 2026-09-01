@@ -1,35 +1,43 @@
 # Phase 1 — implementation findings against the phase documents
 
 Produced while building Phase 1. Master §1: "conflicts are raised as tickets,
-never resolved silently by an implementer." So every finding below is **raised
-and unapplied** — the code implements what the documents say, and where it does
-something else it says so at the point of use and stamps the difference into its
-own output. Applying any of these is the document owner's call, not the
-implementer's.
+never resolved silently by an implementer." Every finding below was first raised
+and left unapplied. **The document owner has since accepted them and they are now
+applied** — to SRS **v1.2**, Master **v1.2** and Phase 1 **v1.1** — which is the
+route Master §1 reserves the change for.
 
-The Phase 1 document is good. Its workstream decomposition is right, its
+The narrative is kept in the tense it was written in, because *why* each finding
+exists is the part that survives longer than the edit. One of them (P1-F8) was
+wrong on its own headline number and is corrected in place; the correction is
+worth more than the original.
+
+**The documents held up well.** The Phase 1 document is good. Its workstream decomposition is right, its
 do-not-invent list is unusually complete, and the fraud section's insistence that
 the anomaly layer feeds the supervised layer rather than alerting separately is
 the kind of detail that only comes from having run a fraud desk. Most of what
 follows is not "this is wrong" but "this is under-specified in a way that becomes
 a decision somebody makes silently".
 
-## Status
+## Status of each finding
 
-| # | Finding | Kind | Raised as |
-|---|---|---|---|
-| P1-F1 | The score scale is not computable — PDO fixes the slope, nothing fixes the intercept | Gap | LH-208 |
-| P1-F2 | Calibration is fitted on the set the model was selected on | Correction | Recorded on every `CalibrationReport` |
-| P1-F3 | "Largest negative point contribution" is the wrong reason-code rule | Correction | Both implemented; points-below-max is the default |
-| P1-F4 | Reject inference: the same paragraph schedules parcelling and forbids it | Correction | `Parcelled` is not a `TargetRow` |
-| P1-F5 | The fraud scope test cannot be evaluated at all | Gap | Three-valued `Scope`; LH-101 |
-| P1-F6 | Monotonicity is imposed on the challenger and inferred for the champion | Gap | `direction_source` on every binning; LH-202 |
-| P1-F7 | ER threshold requires labelled pairs no workstream produces | Gap | LH-209 |
-| P1-F8 | The challenger's expected Gini uplift did not reproduce | Track P observation | Recorded, not a doc change |
-| P1-F9 | The champion has no acceptance bar of its own | Gap | Recorded below |
-| P1-F10 | Where protected attributes live is unstated | Gap | `ProtectedAttributeAccess` |
-| P1-F11 | Isotonic is mandated where the cited paper advises against it | Correction | `recommend_calibrator` |
-| P1-F12 | "IFSC validity" is two different checks | Gap | LH-210 |
+| # | Finding | Applied in |
+|---|---|---|
+| P1-F1 | The score scale is not computable — PDO fixes the slope, nothing fixes the intercept | SRS **v1.2** §4.3.1.4 and CS-2; Phase 1 §4 Step 3 and §8; Master Appendix B. Ticket LH-208 stays open on the committee for the value |
+| P1-F2 | Calibration is fitted on the set the model was selected on | SRS §4.3.2.2 and Phase 1 §4 Step 5 now forbid it; `Part.CALIBRATION` + `carve_calibration()` implement the fourth block |
+| P1-F3 | "Largest negative point contribution" is the wrong reason-code rule | SRS §4.3.1 and Phase 1 §4 Step 3 corrected to points-below-max |
+| P1-F4 | Reject inference: the same paragraph schedules parcelling and forbids it | SRS §4.3.2.4 and Phase 1 §4 Step 8 separate evidence from belief |
+| P1-F5 | The fraud scope test cannot be evaluated at all | Phase 1 §4 WS-1.2 Step 3 is now a two-part, three-valued test; LH-101 open |
+| P1-F6 | Monotonicity is imposed on the challenger and inferred for the champion | Phase 1 §4 Step 3 — the ratified list governs the binning direction too; LH-202 open |
+| P1-F7 | ER threshold requires labelled pairs no workstream produces | Phase 1 §4 WS-1.2 Step 1 makes it a scheduled task and permits a deterministic-only v1; LH-209 open |
+| P1-F8 | **Corrected.** The challenger's uplift is unstable, not absent — and the champion's data sensitivity is why | Phase 1 §7 now requires recording what the challenger bought. See C1 |
+| P1-F9 | The champion has no acceptance bar of its own | Phase 1 §7 gives it one; `ValidationReport.role` applies it |
+| P1-F10 | Where protected attributes live is unstated | SRS §4.3.3 and Phase 1 §4 Step 7 state the separation, the proxy rule and the ladder's order |
+| P1-F11 | Isotonic is mandated where the cited paper advises against it | SRS §4.3.2.2 and Phase 1 §4 Step 5 — chosen by event count and recorded |
+| P1-F12 | "IFSC validity" is two different checks | Phase 1 §4 WS-1.2 Step 5 splits them; LH-210 open |
+| P1-F13 | Which score each metric class is computed on was unstated | SRS **v1.2** §4.3.4; `validate()` takes score and PD separately. See C2 |
+
+Every `[POLICY]` ticket remains **open** — the documents now say the value is
+required and who owns it, which is not the same as having it.
 
 ---
 
@@ -285,37 +293,78 @@ existence was not checked, and cites LH-210 for the directory.
 
 ## C. Track P observations — evidence, not document changes
 
-### C1 (P1-F8). The challenger's expected Gini uplift did not reproduce
+### C1 (P1-F8). The challenger's uplift is not stable, and the champion is why
 
-SRS §4.3.2 cites Lessmann et al. (EJOR 2015) for GBMs delivering "typically +2–6
-Gini points over logistic scorecards". On the Track P run (Home Credit, 60,000
-applications, 8.0% bad rate, 17 IV-screened features) the challenger scored
-**47.60 Gini against the champion's 47.66** — an uplift of −0.07 points — with a
-worse Brier (0.06961 vs 0.06906).
+**An earlier version of this finding reported an uplift of −0.07 Gini points and
+concluded the benchmark had not reproduced. That number was measured wrongly and
+the conclusion did not survive the correction.** What replaced it is more useful.
 
-**What this is not.** It is not evidence that the SRS is wrong, and it must not
-be quoted as a reason to drop the challenger. Four confounds, any of which could
-account for it:
+Two defects in the harness produced it: discrimination was computed on the
+calibrated PD rather than the raw score (finding P1-F13), and the calibrator was
+fitted on the validation rows the challenger had been early-stopped on (P1-F2).
+Fixing both changes the measurement, and fixing the *second* changes the answer —
+because carving a dedicated calibration block takes 15% of the rows out of
+training, and the two models do not react to that equally:
 
-1. The challenger was **not tuned**. Fixed hyperparameters against a scorecard
-   whose binning is optimal by construction is not a fair fight.
-2. Three of the seventeen features are `EXT_SOURCE_1/2/3` — externally supplied
-   credit scores that already aggregate the non-linear structure a GBM would
-   otherwise discover. Global SHAP confirms they dominate (0.403, 0.309, 0.190
-   mean |SHAP| against 0.170 for the next feature).
-3. The split is **not out of time**, and the benchmark's uplift is largest
-   exactly where relationships shift.
-4. Only 17 features survived the IV screen out of 56 candidates. A GBM's
-   advantage is interactions, and there are fewer interactions available.
+| Training rows | Champion (raw Gini) | Challenger (raw Gini) | Uplift |
+|---|---|---|---|
+| 42,000 (calibrating on validation) | 47.77 | 47.78 | **+0.01** |
+| 35,700 (dedicated calibration block) | **44.45** | 47.73 | **+3.28** |
 
-**What it is.** A reason to treat "+2–6 Gini" as a hypothesis this bank tests on
-its own data rather than a result it can assume. Phase 1 §3 already reduces scope
-to scorecard-only below 1,500 bads; this suggests the gate should also record
-what the challenger actually bought, because on a bureau-score-dominated feature
-set the answer may be "very little, at the cost of monotonicity and
-explainability".
+The challenger is essentially unmoved by losing 15% of its training data
+(47.78 → 47.73). The champion loses **3.3 Gini points**. The uplift is not a
+property of the challenger at all on this dataset; it is a property of how much
+data the champion has.
 
-### C2. Swap-set concentration is measurable and non-trivial
+That is the opposite of the usual intuition, which expects the high-capacity model
+to be the data-hungry one. The mechanism is visible in the method: a 15-
+characteristic WOE scorecard rests on bin-level event rates, and a bin holding 5%
+of a 35,700-row sample has a noisier WOE than the same bin at 42,000 — whereas a
+depth-3 ensemble is averaging over 76 trees and absorbs it.
+
+**What follows.**
+
+1. **A single-run uplift figure is not evidence.** It moved from +0.01 to +3.28
+   under a change that was about calibration hygiene, not about either model. Any
+   gate that turns on "+3 Gini" needs the figure computed under a fixed, stated
+   split protocol, and needs to be reported with the training-set size that
+   produced it.
+2. **The confounds still stand** and still argue against generalising in either
+   direction: the challenger was not tuned; three of the seventeen features are
+   `EXT_SOURCE_1/2/3`, externally-supplied credit scores that already aggregate
+   the non-linear structure a GBM would otherwise find (global SHAP: 0.403, 0.309,
+   0.190 against 0.170 for the next feature); the split is not out of time; and
+   only 17 of 56 candidates survived the IV screen, so there are fewer
+   interactions available than a GBM's advantage assumes.
+3. **§7 should record what the challenger bought, not only whether it cleared the
+   bar** — applied in Phase 1 v1.1.
+4. **The champion's data sensitivity is a scorecard-design finding in its own
+   right.** It argues for fewer, better-populated bins, and for checking bin
+   stability across resamples before a scorecard is called stable. Not raised as a
+   document change, because it is a modelling practice rather than a specification
+   gap — but it is the reason the champion's Track P numbers should not be read as
+   its ceiling.
+
+### C2 (P1-F13). Discrimination measured on a calibrated PD understates it
+
+Isotonic regression is monotone, so it cannot reorder a score — but it is a
+*step* function, so it collapses distinct scores into ties. On the Track P run it
+took **8,969 distinct scores down to 31**, and Gini fell 0.9 points as a result.
+Nothing about the model changed; only the number of distinct values it could
+express.
+
+The size of the loss depends on how many rows the calibrator saw — 42 distinct PDs
+from a 9,000-row calibration sample, 31 from 6,300 — so a model reported this way
+appears to get worse when its calibration sample shrinks. That is a reporting
+artifact wearing the shape of a model property, and it would be read as evidence
+about the model in any review that did not know to look.
+
+Neither SRS §4.3.4 nor Phase 1 §4 Step 9 said which score each metric class is
+computed on. **Applied in SRS v1.2**: discrimination on the raw score, calibration
+and PSI on the deployed PD, and explicit tie handling required in every rank-based
+metric.
+
+### C3. Swap-set concentration is measurable and non-trivial
 
 At a common approval rate the challenger swapped out 505 applicants the champion
 approved. The 60–69 age band took **1.86×** its population share of those new
@@ -323,7 +372,7 @@ declines. Whether that fails §7's "no adverse-segment concentration" is not
 computable — the criterion has no number (LH-205) — but the measurement is real
 and the criterion is the only one of the five with no bar.
 
-### C3. Age re-enters through elapsed-time proxies
+### C4. Age re-enters through elapsed-time proxies
 
 Age is excluded as a feature. The fitted models nonetheless show an age-band
 demographic parity difference of **0.40** (parity ratio 0.43), because

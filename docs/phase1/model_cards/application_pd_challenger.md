@@ -26,7 +26,7 @@
 | Config hash | `n_trees=120, max_depth=3, max_bins=32, l2=1.0, gamma=0.0, min_child_weight=1.0, early_stopping_rounds=15, scale_pos_weight=1.0, seed=20260901` |
 | Definitions fingerprint | `run.definitions_fingerprint` in the report (Appendix A v1.1) |
 
-91 trees grown; **best iteration 76** by validation log-loss. Scoring truncates
+95 trees grown; **best iteration 80** by validation log-loss. Scoring truncates
 at the best iteration.
 
 ## 3. Purpose and scope
@@ -41,11 +41,11 @@ outside the fitted one; any Appendix A default estimate.
 ## 4. Data
 
 Identical to the champion card §4: the same 60,000-row target table, the same
-random holdout (42,000 / 9,000 / 9,000), the same vendor label, the same three
-unenforceable exclusions. Base rates 8.02% / 7.96% / 8.08% across train,
-validation and test.
+random holdout (train 35,700 / calibration 6,300 / validation 9,000 / test 9,000),
+the same vendor label, the same three unenforceable exclusions. Training bads
+2,884; test bads 727.
 
-The challenger uses **all 17 IV-screened features**; the champion keeps the top
+The challenger uses **all 16 IV-screened features**; the champion keeps the top
 15. That asymmetry is deliberate — a scorecard is a document a credit officer
 reads and a tree ensemble is not — and it is a difference between the models that
 the swap-set analysis in §6 partly reflects.
@@ -75,31 +75,35 @@ the swap-set analysis in §6 partly reflects.
 
 Test split, 9,000 applications, 727 bads.
 
+Discrimination on the raw score, calibration on the calibrated PD (SRS §4.3.4 v1.2).
+
 | Metric | Champion | Challenger |
 |---|---|---|
-| AUC | 0.7383 | **0.7380** |
-| Gini (points) | 47.66 | **47.60** |
-| KS | 0.3548 | 0.3497 |
-| Brier | 0.06906 | **0.06961** |
-| ECE | 0.00537 | 0.00785 |
-| Score PSI (train → test) | 0.0017 | 0.0013 |
-| Train Gini | 44.69 | 50.64 |
+| AUC | 0.7222 | **0.7387** |
+| Gini (points) | 44.45 | **47.73** |
+| KS | 0.3247 | 0.3608 |
+| Brier (calibrated PD) | 0.06996 | **0.06954** |
+| ECE | 0.00935 | 0.00600 |
+| PSI (train → test) | 0.0005 | 0.0018 |
+| Train Gini | 42.95 | 51.43 |
 
-**The challenger's uplift is −0.07 Gini points.** SRS §4.3.2 cites the Lessmann
-et al. benchmark for "typically +2–6 Gini points" over logistic scorecards, and
-on this dataset that did not reproduce. Recorded as Track P finding P1-F8 with
-what does and does not follow from it.
+**The challenger's uplift is +3.28 Gini points**, inside the +2–6 range SRS §4.3.2
+cites from the Lessmann benchmark — but the figure is not stable and must not be
+quoted alone. On a 42,000-row training set the same pair scores 47.77 / 47.78, an
+uplift of **+0.01**. The whole difference is the champion's degradation on 15%
+less data; the challenger moves 47.78 → 47.73, i.e. not at all. Finding P1-F8
+gives the numbers and what follows from them.
 
-Train Gini 50.64 against test 47.60 is a 3-point in-sample gap the champion does
-not have, which is the expected shape: the ensemble has the capacity to fit noise
-the linear model cannot, and early stopping bounded but did not remove it.
+Train Gini 51.43 against test 47.73 is a 3.7-point in-sample gap the champion does
+not have, which is the expected shape: the ensemble has capacity to fit noise the
+linear model cannot, and early stopping bounded but did not remove it.
 
 **Exit criteria** (`ValidationReport.exit_criteria`):
 
 | Criterion | Evaluated | Met |
 |---|---|---|
 | Challenger ≥ +3 Gini over legacy, out-of-time | **No** — split is not out of time, and the comparator is the champion, not a rebuilt legacy scorecard | — |
-| Brier ≤ legacy | Yes | **No** (0.06961 > 0.06906) |
+| Brier ≤ legacy | Yes | Yes (0.06954 ≤ 0.06996) |
 | Monotonicity holds | Yes | **No** — see below |
 | Score stability | Yes | Yes |
 | Swap set: no adverse-segment concentration | **No** — the criterion has no numeric bar (LH-205) | — |
@@ -110,14 +114,17 @@ characteristics across its bin edges with the rest held fixed:
 | Feature | Violations |
 |---|---|
 | EXT_SOURCE_3 | 0 |
-| EXT_SOURCE_2 | **2** |
+| EXT_SOURCE_2 | 0 |
 | EXT_SOURCE_1 | **1** |
 | DAYS_EMPLOYED | 0 |
 | credit_to_goods | 0 |
 
-The ±10% sensitivity sweep says the same thing from another direction: 9 of 400
-test rows move the same way under both a +10% and a −10% perturbation of
-`EXT_SOURCE_3`, and 11 under `EXT_SOURCE_2` — locally non-monotone responses.
+The ±10% sensitivity sweep says the same thing from another direction, and says
+it louder: out of 400 test rows, a +10% and a −10% perturbation move the score the
+*same* way for 10 rows on `EXT_SOURCE_3`, 14 on `EXT_SOURCE_2` and 17 on
+`credit_to_goods` — locally non-monotone responses on characteristics whose grid
+spot-check passed. A spot check walks one slice; the sweep walks 400, and the
+disagreement between them is the reason both are run.
 
 This is the concrete cost of LH-202. An unconstrained challenger *is*
 non-monotone in features whose binned relationship is monotone, and the
@@ -128,29 +135,35 @@ live rather than hypothetical.
 
 | Cell | Count | Bad rate |
 |---|---|---|
-| Both approve | 4,009 | — |
-| Both decline | 3,525 | — |
-| Swap in (champion declines, challenger approves) | 961 | 6.97% |
-| Swap out (champion approves, challenger declines) | 505 | 6.53% |
+| Both approve | 4,157 | — |
+| Both decline | 3,097 | — |
+| Swap in (champion declines, challenger approves) | 493 | **4.26%** |
+| Swap out (champion approves, challenger declines) | 1,253 | **8.46%** |
 
-The swap-out set's bad rate is *lower* than the swap-in set's — the challenger is
-declining slightly better credits than it is accepting, which is consistent with
-its not beating the champion.
+The swap sets are the clearest evidence in this card. The challenger accepts 493
+applicants the champion declined and they default at 4.26%; it declines 1,253 the
+champion approved and they default at 8.46% — twice the rate. Both moves are in
+the profitable direction, which is what a genuine +3.28 uplift should look like
+from the business side rather than only in a Gini.
 
 Segment concentration in the swap-out set (share of swap-outs ÷ share of
 population):
 
 | Age band | Concentration |
 |---|---|
-| 60–69 | **1.86** |
-| 50–59 | 1.02 |
+| 20–29 | **1.32** |
+| 40–49 | 1.07 |
 | 30–39 | 1.01 |
-| 20–29 | 0.86 |
-| 40–49 | 0.66 |
+| 50–59 | 0.88 |
+| 60–69 | 0.65 |
 
-The 60–69 band takes 1.86× its population share of the challenger's new declines.
+The 20–29 band takes 1.32× its population share of the challenger's new declines.
 Whether that fails Phase 1 §7 is not computable — the bar is LH-205 — but the
-measurement is exactly what that criterion needs, and it is not zero.
+measurement is exactly what that criterion needs, and it is not zero. Note that
+this concentration was on a *different* band (60–69, at 1.86×) before the
+calibration fix changed which applicants sit either side of the approval line:
+swap-set concentration is a property of the operating point as much as of the
+model, and a single measurement of it is a snapshot.
 
 ## 7. Fairness
 
@@ -158,9 +171,9 @@ Measured on the challenger's approvals (test split):
 
 | Attribute | Demographic parity difference | Parity ratio | Equalized-odds difference |
 |---|---|---|---|
-| Age band | 0.4046 | 0.4293 | 0.3954 |
-| Gender | 0.1030 | 0.8248 | 0.0990 |
-| Region rating (pincode proxy) | 0.2620 | 0.6195 | 0.2442 |
+| Age band | 0.4166 | 0.3974 | 0.4059 |
+| Gender | 0.1035 | 0.8127 | 0.0985 |
+| Region rating (pincode proxy) | 0.2667 | 0.5930 | 0.2521 |
 
 No verdict — LH-205. The age-band mechanism is analysed in the champion card §7
 and applies identically here: elapsed-time features act as age proxies.
@@ -176,11 +189,11 @@ Global mean |SHAP| on a 200-row sample of the test split:
 
 | Feature | Mean abs SHAP (log-odds) |
 |---|---|
-| EXT_SOURCE_3 | 0.403 |
-| EXT_SOURCE_2 | 0.309 |
+| EXT_SOURCE_3 | 0.393 |
+| EXT_SOURCE_2 | 0.315 |
 | EXT_SOURCE_1 | 0.190 |
-| DAYS_EMPLOYED | 0.170 |
-| AMT_GOODS_PRICE | 0.118 |
+| DAYS_EMPLOYED | 0.177 |
+| credit_to_goods | 0.117 |
 
 Three externally-supplied credit scores dominate. That is a limitation of the
 dataset, not of the model, and it is why the uplift result in §6 should not be
@@ -194,16 +207,20 @@ Reason codes map through `config/reason_codes.yaml`; every sentence is
 Everything in the champion card §9, plus:
 
 1. **Not promotable by construction.** No ratified monotone directions (LH-202).
-2. **Its calibration is optimistic.** Early stopping ran on the validation split
-   and the calibrator was then fitted on the same rows — Phase 1 §4 Steps 4 and 5
-   use one set. `CalibrationReport.optimism_risk` is True on this run. The effect
-   here is small (Brier 0.0690 → 0.0684) because `scale_pos_weight` was 1.0, but
-   it would not be small at a production imbalance weighting. Finding P1-F2.
-3. **No hyperparameter search.** The comparison against the champion is therefore
-   between a tuned-by-construction scorecard and an untuned ensemble, which is a
-   reason to treat the −0.07 uplift as weak evidence in either direction.
-4. Feature-set asymmetry with the champion (17 vs 15) confounds the comparison
+2. **The uplift figure is unstable** and swings from +0.01 to +3.28 on a 15%
+   change in training-set size — a change that was about calibration hygiene, not
+   about either model. Quote it only with the split protocol and training-set size
+   attached. Finding P1-F8.
+3. **No hyperparameter search.** The comparison is between a scorecard whose
+   binning is optimal by construction and an untuned ensemble, which is a reason
+   to treat the uplift as weak evidence in either direction.
+4. Feature-set asymmetry with the champion (16 vs 15) confounds the comparison
    slightly.
+5. Its calibration is **not** optimistic on this run — the calibrator was fitted
+   on a dedicated 6,300-row block neither model saw (Phase 1 §4 Step 5 v1.1), and
+   `optimism_risk` is False. That block is small enough that the isotonic fit
+   expresses only ~50 distinct PDs, which is why discrimination is reported on the
+   raw score (finding P1-F13).
 
 ## 10. Monitoring and fallback
 
