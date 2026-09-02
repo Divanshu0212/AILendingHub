@@ -23,7 +23,8 @@
  */
 
 import assert from "node:assert/strict";
-import { GatewayClient, MissingAttributionError } from "../../src/lib/gateway/client";
+import { GatewayClient } from "../../src/lib/gateway/client";
+import { MissingAttributionError } from "../../src/lib/gateway/provenance";
 import type { Session } from "../../src/lib/auth/session";
 
 const SESSION: Session = {

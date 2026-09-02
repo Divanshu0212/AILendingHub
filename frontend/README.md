@@ -1,43 +1,58 @@
 # Phase 7 — Frontend Applications
 
-> ## UNVERIFIED — never built or run, no Node toolchain on the authoring machine
+> ## BUILDS AND PASSES ITS GATES — but has never been rendered or audited
 >
-> **Nothing in this directory has been compiled, executed, type-checked, linted,
-> tested, or rendered.** There is no Node.js and no npm on the machine this was
-> authored on, so `npm install`, `next build`, `next dev`, `tsc --noEmit`,
-> `eslint` and every test in `tests/` have all never run — not once, not
-> partially.
+> Node 26.8.1 / npm 12.0.2. As of 2026-09-02 the following **have been run and
+> pass**:
 >
-> This means, concretely:
+> * `npm install` — 389 packages, lockfile now committed
+> * `npm run typecheck` (`tsc --noEmit`) — clean
+> * `npm run build` (`next build`) — compiles; 10 routes; static generation OK
+> * `npm run lint` (`next lint`) — no warnings or errors
+> * `npm run check:no-client-math` — clean
+> * `npm test` — 6 of 6 contract tests pass
 >
-> * The dependency versions in `package.json` were written from memory and no
->   lockfile exists. They may not resolve together.
-> * TypeScript types are unchecked. There are almost certainly type errors.
-> * JSX and import paths are unverified. A wrong relative path is invisible here.
-> * Tailwind class names are unverified against the installed version.
-> * The `check-no-client-math.mjs` gate has never executed. Its regexes may not
->   fire, or may fire on the wrong things.
-> * The accessibility claims below are **design intentions**, not measurements.
->   No axe-core run, no screen-reader pass, no contrast check. WCAG 2.2 AA is the
->   target this was written toward; nothing here is evidence it is met.
+> `npm run verify` runs all four checks in sequence.
 >
-> **What *was* checked**, by hand-written Python scripts rather than a
-> toolchain, across all 34 source files: every relative import path resolves to
-> a file that exists; every named import corresponds to an actual export in the
-> module it names; braces, parens and brackets balance in every file; and every
-> JSX element opens and closes. Those four passes found and fixed three real
-> defects — a `rank={index + 1}` that turned out to be a genuine correctness
-> finding (P7-F6), an `attributedPaths: [""]` that would have passed the
-> attribution guard vacuously, and a `//` comment inside a JSX attribute list.
+> **What that does NOT establish**, and these are the limits that matter:
 >
-> That is a much weaker guarantee than a compiler. It says nothing about types,
-> nothing about React semantics, nothing about whether any of it renders. Type
-> errors are near-certain.
+> * **Nothing has been rendered or clicked.** A compiling page is not a working
+>   page. No screen has been opened in a browser, and `AbsentAdapter` rejects
+>   every gateway call by design, so no screen has ever displayed data.
+> * **The accessibility claims below are design intentions, not measurements.**
+>   No axe-core run, no screen-reader pass, no contrast check. WCAG 2.2 AA is
+>   the target this was written toward; nothing here is evidence it is met.
+> * **Every endpoint path is provisional** (LH-706). P0's gateway contract is
+>   not published, so `endpoints.ts` records the routes this client *expects*,
+>   not routes anyone ratified.
+> * **`next@14.2.5` has a published security advisory** and must be upgraded
+>   before this is deployed anywhere — see
+>   [the Next.js advisory](https://nextjs.org/blog/security-update-2025-12-11).
+>   Left pinned here because upgrading is a change to the app's runtime, not a
+>   verification step, and the version bump belongs to whoever owns the deploy.
 >
-> Treat this directory as a design document that happens to be written in
-> TypeScript. The first job of anyone picking it up is in
-> [Getting it to run](#getting-it-to-run) — expect to fix errors, not to
-> find none.
+> **Four real defects were found by running the toolchain**, none of which the
+> authoring-time static checks could have caught:
+>
+> 1. `MissingAttributionError` was imported from `client` where it is declared
+>    in `provenance` — the only type error in 34 files.
+> 2. The `check-no-client-math` C4 rule reported **62 violations, all false
+>    positives**: it classified Tailwind class strings as customer copy, so the
+>    gate's entire output was noise and its four real rules were invisible
+>    behind it. Now decided structurally rather than by word shape.
+> 3. C4 also scanned comments, so a phase-file quotation in a doc comment was
+>    reported as hardcoded copy — a gate that argued against documenting the
+>    clause a component implements.
+> 4. **The contract tests could not fail.** `attribution.contract.ts` exported
+>    six tests and nothing invoked them, so the suite ran zero assertions and
+>    exited 0. With a runner attached, five of the six failed immediately (a
+>    missing gateway-origin env var, which the client correctly refuses to
+>    default). All six pass now.
+>
+> The C4 fix was verified in both directions: the gate is clean on this tree,
+> **and** it still fires when a real adverse-action sentence is injected into a
+> component. A gate that passes everything is worse than one that fails
+> everything.
 
 ---
 
@@ -188,7 +203,8 @@ frontend/
     components/collections/ disposition form
     app/               App Router routes for all four surfaces
   scripts/check-no-client-math.mjs   the §8 do-not-invent rule as a build gate
-  tests/contract/      WS-7.1.1 contract tests (never run)
+  tests/contract/      WS-7.1.1 contract tests (6, passing)
+  tests/run.mjs        the runner — without it the suite could not fail
 ```
 
 ### The seven shared components (SRS §11.5)
