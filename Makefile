@@ -83,6 +83,10 @@ gate5:  ## Assemble the Phase 5 gate evidence pack (Phase 5 §7)
 	$(PY) tools/phase5_gate_report.py --output reports/phase5_gate.md
 	$(PY) tools/phase6_gate_report.py --output reports/phase6_gate.md
 
+.PHONY: demo6
+demo6:  ## Run the Phase 6 computations interactively (no model is fitted)
+	PYTHONPATH=src $(PY) -m lending_hub.learning.demo $(ARGS)
+
 .PHONY: gate6
 gate6:  ## Assemble the Phase 6 gate evidence pack (Phase 6 §4)
 	$(PY) tools/phase6_gate_report.py --output reports/phase6_gate.md
