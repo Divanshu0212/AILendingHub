@@ -21,6 +21,16 @@ So the refusal is explicit. Every response carries `X-Auth-Verified: false`, and
 header is there so that a capture taken against it cannot be mistaken for one
 taken against something that is.
 
+WHAT IDEMPOTENCY IS NOT
+-----------------------
+`endpoints.ts` sends `Idempotency-Key` on the three state-changing calls and
+this server accepts the header in CORS and honours nothing. That is safe only
+because all three routes are blocked: a refusal is idempotent by construction.
+It stops being safe the day one of them starts writing, and the contract that
+would make it safe — retention window, replay response, and what a key replayed
+with a different body means — is LH-714. A header nobody honours is worse than
+no header, because the caller believes it is protected.
+
 WHY CORS IS NARROW
 ------------------
 `http://localhost:3000` only, and configurable to one origin at a time via

@@ -103,9 +103,15 @@ def _rupees(amount: float) -> FormattedNumber:
     for a repayment figure precisely because that choice is a disclosure
     decision, and moving it here does not make it a ratified one. The real
     convention belongs to the loan management system alongside fees and the odd
-    first period, which `reco.feasible` says explicitly it does not model. Until
-    that lands, this is a display of a computed number and never a quoted
-    instalment on a sanction letter.
+    first period, which `reco.feasible` says explicitly it does not model.
+
+    So this is an ungrounded choice, registered as LH-713 rather than left as a
+    comment. It does not *raise* — unlike a missing FOIR cap, an absent rounding
+    convention does not change which side of a limit a number falls on, and
+    refusing to render a computed EMI at all would hide the one real
+    computation this gateway performs. But it bounds what the string may be used
+    for: a display of a computed number, never a quoted instalment on a sanction
+    letter or a Key Fact Statement.
     """
     return FormattedNumber(amount=amount, display=f"₹{amount:,.2f}", currency="INR")
 
