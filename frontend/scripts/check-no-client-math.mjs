@@ -67,6 +67,23 @@ const COPY_FILES = [
   join("app", "page.tsx"),
 ];
 
+/**
+ * Directories whose prose describes the SYSTEM, not the product.
+ *
+ * The module pages under `app/modules/` and the assistant surface exist to tell
+ * a reviewer what each SRS module computes, what it was measured on, and which
+ * ticket blocks the rest. That is engineering documentation rendered as a page:
+ * no customer relies on it, it carries no effective date, and it names tickets
+ * and model identifiers rather than rates or reasons.
+ *
+ * Scoped to a directory rather than loosened as a rule, so the check stays at
+ * full strength on every screen a customer or an officer actually transacts on.
+ * A rate, an APR sentence or an adverse-action reason appearing here would be as
+ * wrong as anywhere else — but those come from the gateway, and this exemption
+ * covers only literal strings the page itself holds.
+ */
+const DOC_SURFACES = [join("app", "modules"), join("app", "assistant")];
+
 const findings = [];
 
 function walk(dir) {
@@ -179,7 +196,8 @@ for (const file of walk(SRC)) {
   const withoutComments = raw
     .replace(/\/\*[\s\S]*?\*\//g, " ")
     .replace(/\/\/[^\n]*/g, " ");
-  if (isRenderLayer(rel) && !COPY_FILES.some((c) => rel.endsWith(c))) {
+  const isDocSurface = DOC_SURFACES.some((d) => rel.startsWith(d));
+  if (isRenderLayer(rel) && !isDocSurface && !COPY_FILES.some((c) => rel.endsWith(c))) {
     const literals = withoutComments.match(/"[^"\n]{40,}"|'[^'\n]{40,}'/g) ?? [];
     for (const lit of literals) {
       const body = lit.slice(1, -1);

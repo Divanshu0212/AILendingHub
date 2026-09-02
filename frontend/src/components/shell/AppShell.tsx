@@ -41,6 +41,10 @@ export const SECTIONS: readonly ShellSection[] = [
   { label: "Collections", href: "/collections/queue", surface: "WS-7.5" },
   { label: "Risk dashboards", href: "/dashboards/portfolio-overview", surface: "WS-7.4" },
   { label: "Customer", href: "/apply/APP-1/decision", surface: "WS-7.2" },
+  { label: "Assistant", href: "/assistant/CONV-1", surface: "WS-7.2.7" },
+  { label: "Agri", href: "/modules/agri/APP-1", surface: "SRS M1" },
+  { label: "Fraud", href: "/modules/fraud/APP-1", surface: "SRS M3" },
+  { label: "Risk models", href: "/modules/risk", surface: "SRS M5" },
 ];
 
 export function AppShell({
