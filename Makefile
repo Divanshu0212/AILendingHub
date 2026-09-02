@@ -81,9 +81,14 @@ gate3:  ## Assemble the Phase 3 gate evidence pack (Phase 3 §7)
 .PHONY: gate5
 gate5:  ## Assemble the Phase 5 gate evidence pack (Phase 5 §7)
 	$(PY) tools/phase5_gate_report.py --output reports/phase5_gate.md
+	$(PY) tools/phase6_gate_report.py --output reports/phase6_gate.md
+
+.PHONY: gate6
+gate6:  ## Assemble the Phase 6 gate evidence pack (Phase 6 §4)
+	$(PY) tools/phase6_gate_report.py --output reports/phase6_gate.md
 
 .PHONY: gate
-gate: check schemas  ## Run every gate script and assemble all six gate packs
+gate: check schemas  ## Run every gate script and assemble all seven gate packs
 	-$(PY) -m lending_hub.identity.audit --out reports/join_rate_audit.json
 	-$(PY) -m lending_hub.lakehouse.reconcile --out reports/gl_reconciliation.json
 	-$(PY) -m lending_hub.mlops.reproducibility_test

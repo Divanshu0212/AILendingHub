@@ -266,7 +266,7 @@ class CommunityScore:
         Needs a fraud label per node, which is a fraud-desk disposition. Phase 1
         enforced disposition capture from day one precisely so this would exist
         later; no alert has been dispositioned because the alert budget (LH-206)
-        is unratified, so the desk was never staffed. LH-801 tracks the feed.
+        is unratified, so the desk was never staffed. LH-810 tracks the feed.
         """
         raise CommunityError(
             "fraud-label density needs a disposition per node. WS-6.1's feed is "

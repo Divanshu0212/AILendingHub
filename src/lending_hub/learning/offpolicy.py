@@ -50,7 +50,10 @@ hoping the logging policy happened to be diverse.
 What this module does not decide
 ----------------------------------
 **The exploration percentage.** `[POLICY]` in the phase file with no number, and
-it decides how much revenue is deliberately spent on learning. LH-803.
+it decides how much revenue is deliberately spent on learning. Already registered
+as LH-503, which names P6 off-policy evaluation among what it blocks — it is what
+*guarantees* the positivity below, rather than leaving it to whether the logging
+policy happened to be diverse.
 
 **The canary threshold.** "Only positive-DR-estimate policies proceed" is a sign
 test, which this module implements. How *much* positive, and against what
