@@ -31,6 +31,7 @@ import { ReasonCodeList } from "../../../../components/shared/ReasonCodeCard";
 import { AuditLink } from "../../../../components/shared/AuditLink";
 import { Copy } from "../../../../components/shared/Copy";
 import type { DecisionSummary } from "../../../../lib/gateway/types";
+import { AppShell } from "../../../../components/shell/AppShell";
 
 export default function DecisionPage({ params }: { params: { applicationId: string } }) {
   const adapter = useAdapter();
@@ -54,21 +55,21 @@ export default function DecisionPage({ params }: { params: { applicationId: stri
 
   if (error) {
     return (
-      <div className="p-6">
+      <AppShell active="/apply" title="Your application" subtitleKey="customer.decision.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {error}
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   if (decision === null) {
     return (
-      <div className="p-6">
+      <AppShell active="/apply" title="Your application" subtitleKey="customer.decision.subtitle">
         <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      </div>
+      </AppShell>
     );
   }
 
@@ -76,9 +77,6 @@ export default function DecisionPage({ params }: { params: { applicationId: stri
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <h1 className="text-lg font-semibold text-neutral-900">
-        <Copy k="customer.decision.title" />
-      </h1>
 
       {/* No score is shown to the customer. The score scale has no ratified
           anchor (LH-208) and a number on a scale nobody defined is worse than no

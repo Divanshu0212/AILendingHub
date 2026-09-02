@@ -37,6 +37,7 @@ import { ReasonCodeList } from "../../../components/shared/ReasonCodeCard";
 import { Copy } from "../../../components/shared/Copy";
 import type { AuditEntry } from "../../../lib/gateway/endpoints";
 import type { DecisionSummary } from "../../../lib/gateway/types";
+import { AppShell } from "../../../components/shell/AppShell";
 
 export default function AuditTrailPage({ params }: { params: { decisionLogId: string } }) {
   const adapter = useAdapter();
@@ -63,32 +64,32 @@ export default function AuditTrailPage({ params }: { params: { decisionLogId: st
 
   if (error) {
     return (
-      <div className="p-6">
+      <AppShell title="Audit trail" subtitleKey="workbench.audit.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {error}
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   if (data === null) {
     return (
-      <div className="p-6">
+      <AppShell title="Audit trail" subtitleKey="workbench.audit.subtitle">
         <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   const { decision, entries } = data;
 
   return (
-    <div className="p-6">
-      <h1 className="text-lg font-semibold text-neutral-900">
+    <AppShell title="Audit trail" subtitleKey="workbench.audit.subtitle">
+      <h2 className="text-lg font-semibold text-neutral-900">
         <Copy k="workbench.audit.title" />{" "}
         <span className="font-mono text-sm text-neutral-600">{params.decisionLogId}</span>
-      </h1>
+      </h2>
 
       <section className="mt-4 rounded border border-neutral-300 bg-white p-4" aria-label="decision">
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
@@ -224,6 +225,6 @@ export default function AuditTrailPage({ params }: { params: { decisionLogId: st
           ))}
         </ol>
       </section>
-    </div>
+    </AppShell>
   );
 }

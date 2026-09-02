@@ -20,13 +20,11 @@
  */
 
 import { Copy } from "../../../components/shared/Copy";
+import { AppShell } from "../../../components/shell/AppShell";
 
 export default function SlaTrackerPage() {
   return (
-    <div className="p-6">
-      <h1 className="text-lg font-semibold text-neutral-900">
-        <Copy k="collections.sla.title" />
-      </h1>
+    <AppShell active="/collections" title="SLA & ownership" subtitleKey="collections.sla.subtitle">
 
       <p
         role="note"
@@ -38,6 +36,6 @@ export default function SlaTrackerPage() {
         reads as &quot;no outcomes yet&quot; where the truth is &quot;no
         pipeline&quot;.
       </p>
-    </div>
+    </AppShell>
   );
 }

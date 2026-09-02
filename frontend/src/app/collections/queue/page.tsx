@@ -21,6 +21,7 @@ import type { AlertQueueFilters, Page } from "../../../lib/gateway/endpoints";
 import type { Alert } from "../../../lib/gateway/types";
 import { TierBadge } from "../../../components/shared/AlertViewer";
 import { Copy } from "../../../components/shared/Copy";
+import { AppShell } from "../../../components/shell/AppShell";
 
 export default function CollectionsQueuePage() {
   const adapter = useAdapter();
@@ -46,10 +47,7 @@ export default function CollectionsQueuePage() {
   const undisposed = page ? page.items.filter((a) => a.disposition === null) : [];
 
   return (
-    <div className="p-6">
-      <h1 className="text-lg font-semibold text-neutral-900">
-        <Copy k="collections.queue.title" />
-      </h1>
+    <AppShell active="/collections" title="Collections queue" subtitleKey="collections.queue.subtitle">
 
       <div className="mt-4 flex flex-wrap gap-3">
         <label className="text-xs text-neutral-700">
@@ -156,6 +154,6 @@ export default function CollectionsQueuePage() {
           </div>
         </>
       )}
-    </div>
+    </AppShell>
   );
 }

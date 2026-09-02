@@ -28,6 +28,7 @@ import { useAdapter } from "../../../../adapters/context";
 import { OfferComparisonTable } from "../../../../components/shared/OfferComparisonTable";
 import { Copy } from "../../../../components/shared/Copy";
 import type { FeasibleSet } from "../../../../lib/gateway/types";
+import { AppShell } from "../../../../components/shell/AppShell";
 
 export default function OffersPage({ params }: { params: { applicationId: string } }) {
   const adapter = useAdapter();
@@ -51,29 +52,26 @@ export default function OffersPage({ params }: { params: { applicationId: string
 
   if (error) {
     return (
-      <div className="p-6">
+      <AppShell active="/apply" title="Your offers" subtitleKey="customer.offers.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {error}
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   if (set === null) {
     return (
-      <div className="p-6">
+      <AppShell active="/apply" title="Your offers" subtitleKey="customer.offers.subtitle">
         <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="text-lg font-semibold text-neutral-900">
-        <Copy k="customer.offers.title" />
-      </h1>
       <div className="mt-4">
         <OfferComparisonTable
           set={set}

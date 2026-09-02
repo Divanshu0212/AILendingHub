@@ -112,6 +112,17 @@ const CHROME: Readonly<Record<string, string>> = {
   "collections.alert.title": "Alert detail",
   "collections.disposition.title": "Disposition",
   "collections.sla.title": "SLA & ownership",
+
+  // Page subtitles. Structural orientation text: they name what a screen is
+  // for, carry no effective date, and nobody relies on them.
+  "workbench.queue.subtitle": "Applications awaiting an underwriting decision.",
+  "collections.queue.subtitle": "Accounts prioritised by early-warning tier.",
+  "collections.sla.subtitle": "Alert ownership and service-level state.",
+  "workbench.case.subtitle": "Bureau, cash-flow, agri evidence, fraud and reasons on one screen.",
+  "dashboards.portfolio.subtitle": "Rendered from portfolio metrics; no figure is computed here.",
+  "workbench.audit.subtitle": "Every decision-log entry for this case.",
+  "customer.offers.subtitle": "Only offers the backend confirmed you are eligible for.",
+  "collections.alert.subtitle": "Trigger reasons, recommended action and disposition.",
 };
 
 /**

@@ -42,6 +42,7 @@ import { Panel } from "../../../components/shared/FreshnessBadge";
 import { AuditLink } from "../../../components/shared/AuditLink";
 import { Copy } from "../../../components/shared/Copy";
 import type { DashboardPanel } from "../../../lib/gateway/types";
+import { AppShell } from "../../../components/shell/AppShell";
 
 export default function DashboardPage({ params }: { params: { dashboardId: string } }) {
   const adapter = useAdapter();
@@ -65,29 +66,29 @@ export default function DashboardPage({ params }: { params: { dashboardId: strin
 
   if (error) {
     return (
-      <div className="p-6">
+      <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {error}
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   if (panels === null) {
     return (
-      <div className="p-6">
+      <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
         <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-4 text-lg font-semibold text-neutral-900">
+    <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
+      <h2 className="mb-4 text-lg font-semibold text-neutral-900">
         <Copy k="dashboards.portfolio.title" />
-      </h1>
+      </h2>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {panels.map((panel) => (
@@ -124,6 +125,6 @@ export default function DashboardPage({ params }: { params: { dashboardId: strin
           </Panel>
         ))}
       </div>
-    </div>
+    </AppShell>
   );
 }

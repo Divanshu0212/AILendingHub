@@ -27,6 +27,7 @@ import { Copy } from "../../../../components/shared/Copy";
 import { can } from "../../../../lib/auth/session";
 import type { UnifiedCaseFile as CaseFileData } from "../../../../lib/gateway/endpoints";
 import type { Offer, OverrideReasonOption, OverrideRequest } from "../../../../lib/gateway/types";
+import { AppShell } from "../../../../components/shell/AppShell";
 
 export default function CasePage({ params }: { params: { applicationId: string } }) {
   const adapter = useAdapter();
@@ -77,21 +78,21 @@ export default function CasePage({ params }: { params: { applicationId: string }
 
   if (error) {
     return (
-      <div className="p-6">
+      <AppShell active="/workbench" title="Case file" subtitleKey="workbench.case.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {error}
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   if (caseFile === null) {
     return (
-      <div className="p-6">
+      <AppShell active="/workbench" title="Case file" subtitleKey="workbench.case.subtitle">
         <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      </div>
+      </AppShell>
     );
   }
 

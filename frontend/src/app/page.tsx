@@ -123,10 +123,21 @@ function RouteList({ routes }: { readonly routes: readonly Route[] }) {
 
 export default function IndexPage() {
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <h1 className="text-lg font-semibold text-neutral-900">
-        Lending Hub — Phase 7 interface surfaces
-      </h1>
+    <div className="min-h-screen bg-neutral-50">
+      <header className="border-b border-brand-800 bg-brand-700">
+        <div className="mx-auto max-w-3xl px-4 py-8">
+          <p className="text-xs font-medium uppercase tracking-widest text-brand-200">
+            AI-Powered Smart Lending Decision Hub
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+            Lending Hub
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-brand-100">
+            Four interface surfaces over the Decision Orchestrator gateway.
+          </p>
+        </div>
+      </header>
+      <div className="mx-auto max-w-3xl p-6">
 
       <p
         role="note"
@@ -152,6 +163,7 @@ export default function IndexPage() {
         The identifiers below are placeholders; any value routes.
       </p>
       <RouteList routes={DYNAMIC_ROUTES} />
+      </div>
     </div>
   );
 }

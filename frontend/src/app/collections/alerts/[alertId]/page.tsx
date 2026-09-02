@@ -23,6 +23,7 @@ import { AlertViewer } from "../../../../components/shared/AlertViewer";
 import { DispositionForm } from "../../../../components/collections/DispositionForm";
 import { Copy } from "../../../../components/shared/Copy";
 import type { ActionOption, Alert, DispositionRequest, OutcomeCodeOption } from "../../../../lib/gateway/types";
+import { AppShell } from "../../../../components/shell/AppShell";
 
 export default function AlertDetailPage({ params }: { params: { alertId: string } }) {
   const adapter = useAdapter();
@@ -82,29 +83,29 @@ export default function AlertDetailPage({ params }: { params: { alertId: string 
 
   if (error) {
     return (
-      <div className="p-6">
+      <AppShell active="/collections" title="Alert detail" subtitleKey="collections.alert.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {error}
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   if (alert === null) {
     return (
-      <div className="p-6">
+      <AppShell active="/collections" title="Alert detail" subtitleKey="collections.alert.subtitle">
         <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-4 text-lg font-semibold text-neutral-900">
+    <AppShell active="/collections" title="Alert detail" subtitleKey="collections.alert.subtitle">
+      <h2 className="mb-4 text-lg font-semibold text-neutral-900">
         <Copy k="collections.alert.title" />
-      </h1>
+      </h2>
       <AlertViewer alert={alert} subgraph={null}>
         {alert.disposition === null ? (
           <DispositionForm
@@ -116,6 +117,6 @@ export default function AlertDetailPage({ params }: { params: { alertId: string 
           />
         ) : null}
       </AlertViewer>
-    </div>
+    </AppShell>
   );
 }
