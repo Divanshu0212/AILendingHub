@@ -206,10 +206,24 @@ export interface Transport {
   (url: string, init: RequestInit): Promise<Response>;
 }
 
+/**
+ * The default transport.
+ *
+ * `fetch` is bound to `globalThis` rather than passed bare. Stored as a class
+ * property and invoked as `this.transport(...)`, an unbound `fetch` receives
+ * the client instance as its `this` and the browser rejects it with
+ * "Failed to execute 'fetch' on 'Window': Illegal invocation".
+ *
+ * Nothing caught this before the two halves were run together: every test
+ * injects a stub transport (an ordinary function, which does not care about
+ * `this`), so the default path was the one path never exercised.
+ */
+const defaultTransport: Transport = (url, init) => globalThis.fetch(url, init);
+
 export class GatewayClient {
   constructor(
     private readonly session: Session | null,
-    private readonly transport: Transport = fetch
+    private readonly transport: Transport = defaultTransport
   ) {}
 
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {

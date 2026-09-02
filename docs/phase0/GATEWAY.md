@@ -222,10 +222,36 @@ gateway (Track A) on http://127.0.0.1:8787  CORS: http://localhost:3000
 
 ```bash
 cd frontend
-NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:8787 npm run dev
+NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:8787 \
+NEXT_PUBLIC_DEV_SESSION_ROLE=officer \
+npm run dev
 ```
 
-The variable has **no default** on either side. `client.ts` refuses to invent an
+**Both variables are required, and the second is easy to miss.**
+`selectAdapter` returns `AbsentAdapter` unless a gateway URL is configured *and*
+a session exists, so with only the first set the gateway runs, answers, and is
+never called — the wiring is complete and inert. `NEXT_PUBLIC_DEV_SESSION_ROLE`
+supplies the local session (`adapters/devSession.ts`); valid values are
+`officer`, `customer`, `risk-viewer`, `collections-agent`.
+
+That session is **not authentication and not a fixture**. It carries a role so
+role-scoped routes can be exercised and produces no data of any kind; the
+gateway does not verify bearer tokens either (`authVerified: false`). It is
+guarded twice — `NODE_ENV === "production"` yields `null`, and an unset role
+yields `null` — so a production build cannot pick it up. Real session
+establishment is LH-714.
+
+Two things worth knowing, both found by running it:
+
+- **Use port 3000.** CORS allows one origin at a time and defaults to
+  `http://localhost:3000`. On any other port the preflight succeeds and the
+  real request is blocked by the browser, which presents as `Failed to fetch`
+  with no server-side error. Pass `--origin` if you need a different port.
+- **`npm run dev`, not `npm run build && npm start`.** `next build` sets
+  `NODE_ENV=production`, so the dev session is `null` by design and the app
+  falls back to `AbsentAdapter`.
+
+The gateway URL has **no default** on either side. `client.ts` refuses to invent an
 origin (*"a lending client that falls back to a built-in host is a client that
 can be pointed at the wrong environment silently"*), and `adapters/http.ts` reads
 the same variable so the two cannot disagree about whether a gateway exists.

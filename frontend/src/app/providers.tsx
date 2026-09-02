@@ -21,15 +21,32 @@
 
 import type { ReactNode } from "react";
 
+import { AppProviders } from "../adapters/context";
+import { devSession } from "../adapters/devSession";
+import { selectAdapter } from "../adapters/http";
 import { ChromeCopyRegistry, CHROME_LOCALE } from "../i18n/chrome";
 import { LocaleProvider } from "../i18n/context";
 
 const REGISTRY = new ChromeCopyRegistry();
 
+/**
+ * The adapter, chosen once.
+ *
+ * `selectAdapter` returns `AbsentAdapter` unless a gateway URL is configured
+ * AND a session exists, so the default with nothing set up is unchanged: every
+ * call refuses, and each screen renders its own ticket. Mounting it here is
+ * what makes the HTTP path reachable at all — the wiring existed and nothing
+ * used it, so the gateway could be running and answering and never be called.
+ */
+const SESSION = devSession();
+const ADAPTER = selectAdapter(SESSION);
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <LocaleProvider registry={REGISTRY} locale={CHROME_LOCALE}>
-      {children}
+      <AppProviders adapter={ADAPTER} session={SESSION}>
+        {children}
+      </AppProviders>
     </LocaleProvider>
   );
 }
