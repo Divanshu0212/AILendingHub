@@ -81,9 +81,14 @@ Two honest limits travel with that:
 
 ## Findings
 
-Six findings were raised while building, in
-[Phase_5_FINDINGS.md](../../Lending_Hub_Phase_Docs/Phase_5_FINDINGS.md), and
-six of the eleven open tickets were **found by building** — LH-606
+Nine findings were raised while building, in
+[Phase_5_FINDINGS.md](../../Lending_Hub_Phase_Docs/Phase_5_FINDINGS.md). Six
+carry a new ticket; the other three carry none because there is nothing for a
+committee to rule on — a deliberate deviation on table chunking (P5-F1), a scope
+note that ratifying LH-203 does not unblock LH-603 (P5-F8), and the boundary
+that has to travel with the leak-rate guarantee (P5-F9).
+
+Six of the twelve open tickets were **found by building** — LH-606
 (conversational PII is not schema PII), LH-607 (an injection defence with no
 stated response), LH-608 (partial supersession, which effective dates cannot
 express), LH-610 (a language slice with no minimum size), LH-611 (tool-sourced
