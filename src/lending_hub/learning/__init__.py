@@ -7,6 +7,17 @@ needs unchanged.
 Workstream: WS-6.1 … WS-6.7
 """
 
+from .uplift import (
+    ActionLog,
+    ActionRecord,
+    Assignment,
+    BalanceReport,
+    UpliftError,
+    check_randomization,
+    estimate_uplift,
+    qini_coefficient,
+    qini_curve,
+)
 from .promotion import (
     AbTestFeasibility,
     EvaluationWindow,
@@ -20,11 +31,20 @@ from .promotion import (
 
 __all__ = [
     "AbTestFeasibility",
+    "ActionLog",
+    "ActionRecord",
+    "Assignment",
+    "BalanceReport",
     "EvaluationWindow",
     "LiftMeasurement",
     "PromotionError",
     "PromotionRequest",
     "RollbackPlan",
     "StandingDecision",
+    "UpliftError",
+    "check_randomization",
+    "estimate_uplift",
     "evaluate_promotion",
+    "qini_coefficient",
+    "qini_curve",
 ]
