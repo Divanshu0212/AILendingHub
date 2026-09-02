@@ -18,6 +18,14 @@ from .uplift import (
     qini_coefficient,
     qini_curve,
 )
+from .graph import (
+    CommunityError,
+    CommunityScore,
+    Partition,
+    louvain,
+    modularity,
+    score_communities,
+)
 from .offpolicy import (
     DoublyRobustEstimate,
     LoggedDecision,
@@ -44,9 +52,12 @@ __all__ = [
     "ActionRecord",
     "Assignment",
     "BalanceReport",
+    "CommunityError",
+    "CommunityScore",
     "DoublyRobustEstimate",
     "LoggedDecision",
     "OffPolicyError",
+    "Partition",
     "PositivityReport",
     "EvaluationWindow",
     "LiftMeasurement",
@@ -60,6 +71,9 @@ __all__ = [
     "evaluate_policy",
     "from_bandit_decisions",
     "estimate_uplift",
+    "louvain",
+    "modularity",
+    "score_communities",
     "evaluate_promotion",
     "qini_coefficient",
     "qini_curve",
