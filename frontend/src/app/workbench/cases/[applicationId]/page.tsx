@@ -24,6 +24,8 @@ import { OverrideControl } from "../../../../components/workbench/OverrideContro
 import { OfferComparisonTable } from "../../../../components/shared/OfferComparisonTable";
 import { AuditLink } from "../../../../components/shared/AuditLink";
 import { Copy } from "../../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../../components/shared/UnavailableNotice";
+import { CapabilityUnavailableError } from "../../../../lib/gateway/unavailable";
 import { can } from "../../../../lib/auth/session";
 import type { UnifiedCaseFile as CaseFileData } from "../../../../lib/gateway/endpoints";
 import type { Offer, OverrideReasonOption, OverrideRequest } from "../../../../lib/gateway/types";
@@ -36,6 +38,15 @@ export default function CasePage({ params }: { params: { applicationId: string }
   const [reasonOptions, setReasonOptions] = useState<readonly OverrideReasonOption[]>([]);
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A blocked capability, held apart from `error`.
+   *
+   * Both loads on this screen can be refused — the case file on LH-706, the
+   * override taxonomy on LH-702 — and so can the override POST. A refusal in
+   * the red alert box would tell an officer to retry an action that no retry
+   * can complete.
+   */
+  const [unavailable, setUnavailable] = useState<CapabilityUnavailableError | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const idempotencyKey = useRef<string>("");
@@ -52,7 +63,12 @@ export default function CasePage({ params }: { params: { applicationId: string }
         setReasonOptions(reasons);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (cancelled) return;
+        if (e instanceof CapabilityUnavailableError) {
+          setUnavailable(e);
+          return;
+        }
+        setError(e instanceof Error ? e.message : String(e));
       });
     return () => {
       cancelled = true;
@@ -69,12 +85,21 @@ export default function CasePage({ params }: { params: { applicationId: string }
           setSubmitting(false);
         })
         .catch((e: unknown) => {
-          setError(e instanceof Error ? e.message : String(e));
+          if (e instanceof CapabilityUnavailableError) setUnavailable(e);
+          else setError(e instanceof Error ? e.message : String(e));
           setSubmitting(false);
         });
     },
     [adapter]
   );
+
+  if (unavailable) {
+    return (
+      <AppShell active="/workbench" title="Case file" subtitleKey="workbench.case.subtitle">
+        <UnavailableNotice error={unavailable} />
+      </AppShell>
+    );
+  }
 
   if (error) {
     return (

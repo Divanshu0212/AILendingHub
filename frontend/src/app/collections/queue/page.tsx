@@ -15,35 +15,22 @@
  * appears in a monthly pack is a metric nobody is accountable for on the day.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAdapter } from "../../../adapters/context";
 import type { AlertQueueFilters, Page } from "../../../lib/gateway/endpoints";
 import type { Alert } from "../../../lib/gateway/types";
 import { TierBadge } from "../../../components/shared/AlertViewer";
 import { Copy } from "../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
+import { useLoad } from "../../../lib/gateway/useLoad";
 import { AppShell } from "../../../components/shell/AppShell";
 
 export default function CollectionsQueuePage() {
   const adapter = useAdapter();
   const [filters, setFilters] = useState<AlertQueueFilters>({});
-  const [page, setPage] = useState<Page<Alert> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const state = useLoad<Page<Alert>>(() => adapter.fetchAlertQueue(filters), [adapter, filters]);
 
-  useEffect(() => {
-    let cancelled = false;
-    adapter
-      .fetchAlertQueue(filters)
-      .then((p) => {
-        if (!cancelled) setPage(p);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, filters]);
-
+  const page = state.kind === "ready" ? state.data : null;
   const undisposed = page ? page.items.filter((a) => a.disposition === null) : [];
 
   return (
@@ -84,16 +71,20 @@ export default function CollectionsQueuePage() {
         </label>
       </div>
 
-      {error ? (
+      {state.kind === "unavailable" ? <UnavailableNotice error={state.error} /> : null}
+
+      {state.kind === "error" ? (
         <p role="alert" className="mt-4 rounded border border-tier-red p-3 text-sm text-tier-red">
-          {error}
+          {state.message}
         </p>
       ) : null}
 
       {page === null ? (
-        <p className="mt-4 text-sm text-neutral-600">
-          <Copy k="common.loading" />
-        </p>
+        state.kind === "loading" ? (
+          <p className="mt-4 text-sm text-neutral-600">
+            <Copy k="common.loading" />
+          </p>
+        ) : null
       ) : (
         <>
           {/* The §8 completeness figure, on the screen of the person who moves it.

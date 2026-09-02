@@ -23,38 +23,33 @@
  * Raised as P7-F9 rather than resolved by inventing an endpoint.
  */
 
-import { useEffect, useState } from "react";
+
 import { useAdapter } from "../../../../adapters/context";
 import { OfferComparisonTable } from "../../../../components/shared/OfferComparisonTable";
 import { Copy } from "../../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../../components/shared/UnavailableNotice";
+import { useLoad } from "../../../../lib/gateway/useLoad";
 import type { FeasibleSet } from "../../../../lib/gateway/types";
 import { AppShell } from "../../../../components/shell/AppShell";
 
 export default function OffersPage({ params }: { params: { applicationId: string } }) {
   const adapter = useAdapter();
-  const [set, setSet] = useState<FeasibleSet | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const state = useLoad<FeasibleSet>(() => adapter.fetchFeasibleSet(params.applicationId), [adapter, params.applicationId]);
+  const set = state.kind === "ready" ? state.data : null;
 
-  useEffect(() => {
-    let cancelled = false;
-    adapter
-      .fetchFeasibleSet(params.applicationId)
-      .then((s) => {
-        if (!cancelled) setSet(s);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, params.applicationId]);
+  if (state.kind === "unavailable") {
+    return (
+      <AppShell active="/apply" title="Your offers" subtitleKey="customer.offers.subtitle">
+        <UnavailableNotice error={state.error} />
+      </AppShell>
+    );
+  }
 
-  if (error) {
+  if (state.kind === "error") {
     return (
       <AppShell active="/apply" title="Your offers" subtitleKey="customer.offers.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
-          {error}
+          {state.message}
         </p>
       </AppShell>
     );

@@ -18,6 +18,15 @@
  * 2. Any request without a role-scoped session -> `UnauthenticatedError`.
  * 3. Any request whose telemetry would carry PII -> see `logSafe` below.
  *
+ * WHAT IT SEPARATES OUT RATHER THAN REFUSING
+ * ------------------------------------------
+ * A gateway refusal — a 200 carrying `{status:"unavailable", ticket, owner}` —
+ * becomes `CapabilityUnavailableError`, which is deliberately not a
+ * `GatewayError`. An unratified policy value is not a server fault, and a screen
+ * that renders both in the same red box teaches an officer to ignore both. The
+ * check runs BEFORE the attribution guard, because a refusal legitimately has no
+ * triplet: see the comment at the call site.
+ *
  * WHAT IT DOES NOT DO
  * -------------------
  * No retry policy: the retry budget on a decisioning path is an SLO decision
@@ -27,6 +36,7 @@
  */
 
 import { hasAttribution, MissingAttributionError } from "./provenance";
+import { CapabilityUnavailableError, isUnavailableBody } from "./unavailable";
 import type { JobStatus } from "./types";
 import type { Session } from "../auth/session";
 
@@ -246,6 +256,18 @@ export class GatewayClient {
         p.errorCode ?? "unknown",
         p.message ?? `${endpoint} failed with ${response.status}`
       );
+    }
+
+    // BEFORE the attribution check, and the order is load-bearing.
+    //
+    // A refusal is a 200 carrying no score, so it carries no triplet either.
+    // Running `enforceAttribution` first would throw `MissingAttributionError`
+    // on it — reporting "the backend dropped decision_log_id" for a response
+    // whose actual message is "Credit Policy has not ratified LH-504". The
+    // wrong diagnosis sends someone to the gateway team instead of to the
+    // committee, and the gateway team finds nothing wrong.
+    if (isUnavailableBody(payload)) {
+      throw new CapabilityUnavailableError(endpoint, payload);
     }
 
     if (options.modelDerived) {

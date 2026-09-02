@@ -14,32 +14,18 @@
  * of band names would be the band taxonomy, hardcoded, in a dropdown.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAdapter } from "../../../adapters/context";
 import type { Page, QueueItem, QueueFilters } from "../../../lib/gateway/endpoints";
+import { useLoad } from "../../../lib/gateway/useLoad";
 import { Copy } from "../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
 import { AppShell } from "../../../components/shell/AppShell";
 
 export default function QueuePage() {
   const adapter = useAdapter();
   const [filters, setFilters] = useState<QueueFilters>({});
-  const [page, setPage] = useState<Page<QueueItem> | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    adapter
-      .fetchQueue(filters)
-      .then((p) => {
-        if (!cancelled) setPage(p);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, filters]);
+  const state = useLoad<Page<QueueItem>>(() => adapter.fetchQueue(filters), [adapter, filters]);
 
   return (
     <AppShell active="/workbench" title="Officer queue" subtitleKey="workbench.queue.subtitle">
@@ -65,17 +51,19 @@ export default function QueuePage() {
         </label>
       </div>
 
-      {error ? (
+      {state.kind === "unavailable" ? <UnavailableNotice error={state.error} /> : null}
+
+      {state.kind === "error" ? (
         <p role="alert" className="mt-4 rounded border border-tier-red p-3 text-sm text-tier-red">
-          {error}
+          {state.message}
         </p>
       ) : null}
 
-      {page === null ? (
+      {state.kind === "loading" ? (
         <p className="mt-4 text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      ) : (
+      ) : state.kind === "ready" ? (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -88,7 +76,7 @@ export default function QueuePage() {
               </tr>
             </thead>
             <tbody>
-              {page.items.map((item) => (
+              {state.data.items.map((item) => (
                 <tr key={item.applicationId} className="border-b border-neutral-200">
                   <td className="p-2">
                     <a
@@ -116,7 +104,7 @@ export default function QueuePage() {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </AppShell>
   );
 }

@@ -22,6 +22,8 @@ import { useAdapter } from "../../../../adapters/context";
 import { AlertViewer } from "../../../../components/shared/AlertViewer";
 import { DispositionForm } from "../../../../components/collections/DispositionForm";
 import { Copy } from "../../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../../components/shared/UnavailableNotice";
+import { CapabilityUnavailableError } from "../../../../lib/gateway/unavailable";
 import type { ActionOption, Alert, DispositionRequest, OutcomeCodeOption } from "../../../../lib/gateway/types";
 import { AppShell } from "../../../../components/shell/AppShell";
 
@@ -31,6 +33,17 @@ export default function AlertDetailPage({ params }: { params: { alertId: string 
   const [outcomeCodes, setOutcomeCodes] = useState<readonly OutcomeCodeOption[]>([]);
   const [actions, setActions] = useState<readonly ActionOption[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A blocked capability, held separately from `error`.
+   *
+   * Both this screen's loads and its disposition POST can come back refused —
+   * the action library and the outcome-code vocabulary are LH-502 — and a
+   * refusal must not land in the red alert box beside a genuine failure. Two
+   * fields rather than one tagged union here because the disposition path
+   * writes to them from a callback, and keeping the shapes flat is what makes
+   * that legible.
+   */
+  const [unavailable, setUnavailable] = useState<CapabilityUnavailableError | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   /**
@@ -57,7 +70,12 @@ export default function AlertDetailPage({ params }: { params: { alertId: string 
         setActions(acts);
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (cancelled) return;
+        if (e instanceof CapabilityUnavailableError) {
+          setUnavailable(e);
+          return;
+        }
+        setError(e instanceof Error ? e.message : String(e));
       });
     return () => {
       cancelled = true;
@@ -74,12 +92,21 @@ export default function AlertDetailPage({ params }: { params: { alertId: string 
           setSubmitting(false);
         })
         .catch((e: unknown) => {
-          setError(e instanceof Error ? e.message : String(e));
+          if (e instanceof CapabilityUnavailableError) setUnavailable(e);
+          else setError(e instanceof Error ? e.message : String(e));
           setSubmitting(false);
         });
     },
     [adapter]
   );
+
+  if (unavailable) {
+    return (
+      <AppShell active="/collections" title="Alert detail" subtitleKey="collections.alert.subtitle">
+        <UnavailableNotice error={unavailable} />
+      </AppShell>
+    );
+  }
 
   if (error) {
     return (

@@ -36,39 +36,37 @@
  * are P3/P2-gated and neither has a data source here, so neither is built.
  */
 
-import { useEffect, useState } from "react";
+
 import { useAdapter } from "../../../adapters/context";
 import { Panel } from "../../../components/shared/FreshnessBadge";
 import { AuditLink } from "../../../components/shared/AuditLink";
 import { Copy } from "../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
+import { useLoad } from "../../../lib/gateway/useLoad";
 import type { DashboardPanel } from "../../../lib/gateway/types";
 import { AppShell } from "../../../components/shell/AppShell";
 
 export default function DashboardPage({ params }: { params: { dashboardId: string } }) {
   const adapter = useAdapter();
-  const [panels, setPanels] = useState<readonly DashboardPanel[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const state = useLoad<{ readonly panels: readonly DashboardPanel[] }>(
+    () => adapter.fetchDashboardPanels(params.dashboardId),
+    [adapter, params.dashboardId]
+  );
+  const panels = state.kind === "ready" ? state.data.panels : null;
 
-  useEffect(() => {
-    let cancelled = false;
-    adapter
-      .fetchDashboardPanels(params.dashboardId)
-      .then((r) => {
-        if (!cancelled) setPanels(r.panels);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, params.dashboardId]);
+  if (state.kind === "unavailable") {
+    return (
+      <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
+        <UnavailableNotice error={state.error} />
+      </AppShell>
+    );
+  }
 
-  if (error) {
+  if (state.kind === "error") {
     return (
       <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
-          {error}
+          {state.message}
         </p>
       </AppShell>
     );

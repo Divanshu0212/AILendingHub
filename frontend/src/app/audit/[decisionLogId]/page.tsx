@@ -31,42 +31,37 @@
  * someone re-running the decision in 2034 needs.
  */
 
-import { useEffect, useState } from "react";
+
 import { useAdapter } from "../../../adapters/context";
 import { ReasonCodeList } from "../../../components/shared/ReasonCodeCard";
 import { Copy } from "../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
+import { useLoad } from "../../../lib/gateway/useLoad";
 import type { AuditEntry } from "../../../lib/gateway/endpoints";
 import type { DecisionSummary } from "../../../lib/gateway/types";
 import { AppShell } from "../../../components/shell/AppShell";
 
 export default function AuditTrailPage({ params }: { params: { decisionLogId: string } }) {
   const adapter = useAdapter();
-  const [data, setData] = useState<{
+  const state = useLoad<{
     entries: readonly AuditEntry[];
     decision: DecisionSummary;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  }>(() => adapter.fetchAuditTrail(params.decisionLogId), [adapter, params.decisionLogId]);
+  const data = state.kind === "ready" ? state.data : null;
 
-  useEffect(() => {
-    let cancelled = false;
-    adapter
-      .fetchAuditTrail(params.decisionLogId)
-      .then((r) => {
-        if (!cancelled) setData(r);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, params.decisionLogId]);
+  if (state.kind === "unavailable") {
+    return (
+      <AppShell title="Audit trail" subtitleKey="workbench.audit.subtitle">
+        <UnavailableNotice error={state.error} />
+      </AppShell>
+    );
+  }
 
-  if (error) {
+  if (state.kind === "error") {
     return (
       <AppShell title="Audit trail" subtitleKey="workbench.audit.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
-          {error}
+          {state.message}
         </p>
       </AppShell>
     );

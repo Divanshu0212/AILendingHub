@@ -25,39 +25,34 @@
  * not in the phase file - P7-F5.
  */
 
-import { useEffect, useState } from "react";
+
 import { useAdapter } from "../../../../adapters/context";
 import { ReasonCodeList } from "../../../../components/shared/ReasonCodeCard";
 import { AuditLink } from "../../../../components/shared/AuditLink";
 import { Copy } from "../../../../components/shared/Copy";
+import { UnavailableNotice } from "../../../../components/shared/UnavailableNotice";
+import { useLoad } from "../../../../lib/gateway/useLoad";
 import type { DecisionSummary } from "../../../../lib/gateway/types";
 import { AppShell } from "../../../../components/shell/AppShell";
 
 export default function DecisionPage({ params }: { params: { applicationId: string } }) {
   const adapter = useAdapter();
-  const [decision, setDecision] = useState<DecisionSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const state = useLoad<DecisionSummary>(() => adapter.fetchDecision(params.applicationId), [adapter, params.applicationId]);
+  const decision = state.kind === "ready" ? state.data : null;
 
-  useEffect(() => {
-    let cancelled = false;
-    adapter
-      .fetchDecision(params.applicationId)
-      .then((d) => {
-        if (!cancelled) setDecision(d);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, params.applicationId]);
+  if (state.kind === "unavailable") {
+    return (
+      <AppShell active="/apply" title="Your application" subtitleKey="customer.decision.subtitle">
+        <UnavailableNotice error={state.error} />
+      </AppShell>
+    );
+  }
 
-  if (error) {
+  if (state.kind === "error") {
     return (
       <AppShell active="/apply" title="Your application" subtitleKey="customer.decision.subtitle">
         <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
-          {error}
+          {state.message}
         </p>
       </AppShell>
     );
