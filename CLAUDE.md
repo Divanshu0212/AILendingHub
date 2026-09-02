@@ -24,8 +24,9 @@ SRS and a phase file disagree, the SRS wins and the phase file gets a ticket.
 To work a phase you load: **the Master + that one phase file + this CLAUDE.md.** Nothing
 outside them may be assumed.
 
-**Current phase: P4 — EWS + Recommendations (the first phase that *acts*).**
-Status: [docs/phase4/STATUS.md](docs/phase4/STATUS.md). P2
+**Current phase: P5 — GenAI assistant, with P7 (frontend) built alongside it.**
+Status: [P5](docs/phase5/STATUS.md) · [P7](docs/phase7/STATUS.md). P4
+([docs/phase4/STATUS.md](docs/phase4/STATUS.md)), P2
 ([docs/phase2/STATUS.md](docs/phase2/STATUS.md)), P3
 ([docs/phase3/STATUS.md](docs/phase3/STATUS.md)), P1
 ([docs/phase1/STATUS.md](docs/phase1/STATUS.md)) and P0
@@ -83,6 +84,29 @@ passing ship gate and a bandit that visibly learns — every number a property o
 the simulator. It would be worse than P3's in-sample error, because the simulator
 would be authored by the same person as the detector, so a signal would score
 well exactly to the extent that the simulator shared its theory of default.
+
+Phase 5 adds a sixth, and it is about what a *guarantee* is: **a structural
+property and a measurement are not interchangeable, even when both are true.**
+P5 satisfies one exit criterion outright — the uncited-numeric leak rate is zero
+because `validate()` returns the only servable answer type and an instance
+holding an uncited number cannot exist. That is stronger than a measurement, and
+narrower: it guards a code path rather than a product, and it checks citation
+rather than truth. Reported without those two boundaries it reads as a passing
+audit, which is why the gate pack computes it by calling the code it describes.
+
+The same phase carries the programme's easiest temptation. A corpus, a golden
+set and a set of adverse-action sentences could all be written in an afternoon,
+and the assistant would then post a faithfulness number — **measuring its own
+author**. Nothing in `assistant/` is fabricated and no LLM is called
+([ADR-0015](docs/adr/0015-phase5-assistant-track.md)).
+
+Phase 7 adds the last one, and it is a documentation finding rather than a
+modelling one: **a phase file can cite clauses that do not exist.** P7 treats
+SRS §11.4, §11.5, §11.6a–d and UX-1..UX-9 as binding; the SRS runs Module 1 (§3)
+to Module 8 (§10), its §11 is *Cross-Cutting Concerns*, and there is no Module 9
+anywhere in the tree. The component specifications and the information
+architecture are therefore unrecoverable, and P7's own entry criterion cannot be
+met (LH-711). It surfaced only because someone tried to build against them.
 
 ---
 
@@ -175,6 +199,7 @@ src/lending_hub/
   agri/                      P2 agri intelligence, WS-2.1/2.2/2.3/2.4 (SRS §3) — see below
   ews/                       P4 early warning, WS-4.A (SRS §10) — see below
   reco/                      P4 recommendation engine, WS-4.B (SRS §6) — see below
+  assistant/                 P5 RAG loan assistant, WS-5.1/5.2/5.3/5.4 (SRS §8) — see below
 
 frontend/                    P7 interface surfaces, Next.js — NEVER BUILT OR RUN (no Node
                              toolchain here); see frontend/README.md before quoting anything
@@ -182,7 +207,8 @@ frontend/                    P7 interface surfaces, Next.js — NEVER BUILT OR R
 tools/                       CI gates: check_grounding, validate_source_registry,
                              check_schema_compatibility, gate_report,
                              phase1_gate_report, phase2_gate_report,
-                             phase3_gate_report, phase4_gate_report
+                             phase3_gate_report, phase4_gate_report,
+                             phase5_gate_report
 config/sources/              one YAML per SRS §2.1 source
 config/retention.yaml        per-table retention (every period pending on LH-111)
 config/reason_codes.yaml     reason-code dictionary — DATA, editable by legal (LH-203)
@@ -306,6 +332,49 @@ detector could not have reached, measuring the train/test split rather than the
 detector (P4-F11) — the same failure as P3's in-sample comparison, pointing the
 other way.
 
+### The Phase 5 package
+
+`assistant/` is WS-5.1 through WS-5.4 (SRS §8), and Master §2 rule 7 — **LLM
+output is never a fact** — is not a caution here but the type system. It runs
+`ports` → `registry` → `chunking` → `retrieval` → `answer` → `tools` →
+`templates` → `guardrails` → `goldenset` → `faithfulness`.
+
+**No LLM is called anywhere in it, and there is no corpus.** `ports.py` is the
+model seam and nothing binds it ([ADR-0015](docs/adr/0015-phase5-assistant-track.md)).
+That is the phase's central refusal, and it is sharper than P2's or P4's because
+Phase 5 is the easiest phase in the programme to demo convincingly: a faithfulness
+number computed over a fabricated corpus measures the fabricator. Worse than a
+simulated collections desk, because the corpus author, the golden-set author and
+the retrieval author would be the same person — so the assistant would score well
+exactly to the extent that the questions were written against documents written
+to answer them. And a synthetic rate circular is the *specific* failure this
+phase exists to prevent.
+
+**The guarantee that does hold is structural.** `validate()` drops uncited
+numeric claims and returns a `ValidatedAnswer`, the only servable type — so an
+instance holding an uncited number cannot exist, and Phase 5 §7's "uncited-numeric
+leak rate = 0" is a property of the type rather than a weekly audit. Quote it only
+with its boundary: it guards **a code path, not a product**, and it checks
+**citation, not truth** — a cited number is still wrong if the citation is to a
+superseded circular (LH-608). §7 also makes it a *hard* gate with no target for
+over-refusal, so a validator that dropped every number would pass it perfectly.
+
+**`templates` is defined by what it does not contain.** There is no code path
+that produces a decision-explanation sentence: `explain_decision()` selects
+template ids and orders them, the rendering call raises while sentences are
+unratified, and no branch falls back to composing prose. Most modules in this
+repo refuse a *number*; this one refuses a sentence, because a model that
+paraphrased an approved adverse-action statement into something clearer would
+produce a sentence Compliance never approved — and it would be *better written*,
+which makes it likelier to survive review and reach a customer.
+
+**Two things a reader should not misread.** `InjectionScan` reports what matched
+and never returns a verdict of safety, because "no injection detected" from a
+pattern matcher is the most dangerous sentence this package could produce. And
+`chunk_document` emits a table **over** the 800-token ceiling rather than split
+one — a deliberate deviation (P5-F1), because a split rate table retrieves fine
+in halves and answers with one product's rate under another's heading.
+
 ### The Phase 7 frontend
 
 `frontend/` is WS-7.1 through WS-7.5 and it is the only directory in this
@@ -359,8 +428,8 @@ survives review, and a plausible *screen* survives it in front of a committee.
 | Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
 | Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) · [ADR-0012](docs/adr/0012-phase3-panel-source.md) |
 | Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) · [P4](Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md) · [P7](Lending_Hub_Phase_Docs/Phase_7_FINDINGS.md) |
-| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) · [P7](docs/phase7/blocking_tickets.md) |
-| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) · [P4 cards](docs/phase4/model_cards/) |
+| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) · [P5](docs/phase5/blocking_tickets.md) · [P7](docs/phase7/blocking_tickets.md) |
+| Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) · [P4 cards](docs/phase4/model_cards/) · [P5 cards](docs/phase5/model_cards/) |
 | See real numbers from the whole P1 pipeline | `make trackp-p1` → `reports/trackP_p1_home_credit.json` |
 | See real numbers from the whole P3 pipeline | `make trackp-p3` → `reports/trackP_p3_fannie_mae.json` |
 | See whether deterioration precedes default, and by how long | `make trackp-p4` → `reports/trackP_p4_fannie_mae.json` |
@@ -507,8 +576,33 @@ auditor** (LH-710, a process stop like LH-510), **the missing SRS Module 9**
 inside a UI requirement, since tile requests for a map centred on a plot disclose
 its location).
 
-Later phases add: alert budgets, action SLAs, pricing (P4) · rates, fees,
-adverse-action sentences (P5).
+**Phase 5's** (Phase 5 §8), all `[POLICY]` and all registered:
+
+> rates, fees and charges — retrieval/tool-only, never generated ·
+> adverse-action sentences — templates-only (LH-603) · eligibility rules —
+> retrieval-only · containment targets (LH-605) · log retention periods (LH-111)
+> · **any answer where retrieval returned nothing** — refuse and escalate, never
+> improvise
+
+The last entry is the one the code makes structural: `templates` contains no
+branch that composes a decision-explanation sentence, so "never composes" is a
+property of the module rather than an instruction in a prompt.
+
+Phase 5 implementation added six more the phase file does not list, each raised
+as a finding: the **document supersession rule** (LH-608 — effective dates filter
+but cannot express the common case, where a later circular amends an earlier one
+*in part*), the **injection quarantine threshold and response** (LH-607 — the
+defence is required, and what happens on a detection decides whether anyone ever
+learns the corpus was poisoned), the **conversational PII class list** (LH-606 —
+Phase 0's LH-110 classified table columns, and a column classification cannot
+tell a redactor what to look for in prose), the **per-language slice size**
+(LH-610 — a 20-triple slice passing at 95% is four misses and a coin flip,
+reported in the same column as English's 500), the **tool-result citation policy**
+(LH-611 — "a citation or a tool call" cannot separate a tool run on a retrieved
+rate from one run on a rate the customer supplied), and the **per-session tool
+ceiling** (LH-612).
+
+Later phases add: alert budgets, action SLAs, pricing (P4).
 
 If a task seems to require one of these, the correct output is a **blocking ticket**, not
 a best guess. Write `TBD[owner, ticket-id]`, add the row to your phase's register
