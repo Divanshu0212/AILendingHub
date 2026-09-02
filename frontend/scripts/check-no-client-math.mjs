@@ -52,8 +52,20 @@ const SRC = join(ROOT, "src");
 /** Directories where NO arithmetic may appear at all. */
 const RENDER_LAYER = ["components", "app"];
 
-/** Files exempt from C4 because they ARE the string catalogue. */
-const COPY_FILES = [join("i18n", "keys.ts"), join("i18n", "registry.ts")];
+/**
+ * Files exempt from C4.
+ *
+ * The i18n modules ARE the string catalogue. `app/page.tsx` is the developer
+ * route directory — it is not in Phase 7's screen inventory, renders no gateway
+ * value, and its strings are route names and workstream ids rather than customer
+ * copy. Exempting one known file by name is the narrow fix; loosening C4's rule
+ * to accommodate it would have blunted the check for every real screen.
+ */
+const COPY_FILES = [
+  join("i18n", "keys.ts"),
+  join("i18n", "registry.ts"),
+  join("app", "page.tsx"),
+];
 
 const findings = [];
 
