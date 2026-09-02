@@ -24,8 +24,9 @@ SRS and a phase file disagree, the SRS wins and the phase file gets a ticket.
 To work a phase you load: **the Master + that one phase file + this CLAUDE.md.** Nothing
 outside them may be assumed.
 
-**Current phase: P5 — GenAI assistant, with P7 (frontend) built alongside it.**
-Status: [P5](docs/phase5/STATUS.md) · [P7](docs/phase7/STATUS.md). P4
+**Current phase: P6 — learning loops, the first phase that does not end.**
+Status: [P6](docs/phase6/STATUS.md) · [P5](docs/phase5/STATUS.md) ·
+[P7](docs/phase7/STATUS.md). P4
 ([docs/phase4/STATUS.md](docs/phase4/STATUS.md)), P2
 ([docs/phase2/STATUS.md](docs/phase2/STATUS.md)), P3
 ([docs/phase3/STATUS.md](docs/phase3/STATUS.md)), P1
@@ -107,6 +108,24 @@ to Module 8 (§10), its §11 is *Cross-Cutting Concerns*, and there is no Module
 anywhere in the tree. The component specifications and the information
 architecture are therefore unrecoverable, and P7's own entry criterion cannot be
 met (LH-711). It surfaced only because someone tried to build against them.
+
+Phase 6 adds the last rule, and it is a third gate state: **unidentifiable.**
+Not measured and not measurable are both about missing *data* — given the right
+dataset, the number appears. WS-6.4's uplift is missing **randomization**, and no
+quantity of observational action logs supplies it, because the officer's
+selection is the confounder and it is recorded nowhere. The consequence inverts
+what every other blocked ticket here teaches: **more data makes a confounded
+estimate tighter, not truer**, narrowing the interval around the wrong number and
+converting a visible uncertainty into an invisible bias. That is why
+`uplift.estimate_uplift()` raises rather than returning a flagged number, and why
+LH-811 is the one ticket where waiting makes the answer worse.
+
+P6 is also **the first phase that does not end**
+([ADR-0016](docs/adr/0016-phase6-learning-loops-track.md)). Its card says
+"steady-state operating rhythm, not a fixed project" and its §4 criterion is
+*standing* — it governs every promotion, forever. So its gate pack reports
+readiness to learn rather than learning having happened, and its outcome row
+reads **not applicable**, which is not a euphemism for fail.
 
 ---
 
@@ -200,6 +219,7 @@ src/lending_hub/
   ews/                       P4 early warning, WS-4.A (SRS §10) — see below
   reco/                      P4 recommendation engine, WS-4.B (SRS §6) — see below
   assistant/                 P5 RAG loan assistant, WS-5.1/5.2/5.3/5.4 (SRS §8) — see below
+  learning/                  P6 learning loops, WS-6.1…6.7 (SRS §5-§7, §10-§11) — see below
 
 frontend/                    P7 interface surfaces, Next.js — NEVER BUILT OR RUN (no Node
                              toolchain here); see frontend/README.md before quoting anything
@@ -208,7 +228,7 @@ tools/                       CI gates: check_grounding, validate_source_registry
                              check_schema_compatibility, gate_report,
                              phase1_gate_report, phase2_gate_report,
                              phase3_gate_report, phase4_gate_report,
-                             phase5_gate_report
+                             phase5_gate_report, phase6_gate_report
 config/sources/              one YAML per SRS §2.1 source
 config/retention.yaml        per-table retention (every period pending on LH-111)
 config/reason_codes.yaml     reason-code dictionary — DATA, editable by legal (LH-203)
@@ -375,6 +395,42 @@ pattern matcher is the most dangerous sentence this package could produce. And
 one — a deliberate deviation (P5-F1), because a split rate table retrieves fine
 in halves and answers with one product's rate under another's heading.
 
+### The Phase 6 package
+
+`learning/` is WS-6.1 through WS-6.7, and it is the only package here built for
+a phase that **never reaches a gate**. Read
+[ADR-0016](docs/adr/0016-phase6-learning-loops-track.md) before quoting anything
+from it: the protocol layer is complete and **no challenger model is fitted**,
+so the package measures no lift of any kind.
+
+That is not an omission. Every challenger §2 names — CARE-GNN, GraphSAGE,
+Noiseprint, DeepSurv, a sequence model, a causal forest — feeds on a loop that
+has never iterated: fraud-desk dispositions, action-outcome logs, randomized
+holdouts, a labelled forgery set. **A learning loop with no prior iteration has
+nothing to learn from.** But §4's standing rule governs those challengers and is
+pure logic, and a promotion rule written under pressure by whoever ships the
+first challenger is a rule shaped by that challenger.
+
+So what is built is `promotion` (§4's criterion, composed onto Phase 0's gate),
+`challenger`, `uplift`, `offpolicy`, `graph` and `cadence`.
+
+**Two refusals are track-independent** — they are statements about what a log can
+support, so they hold unchanged in a real deployment. `uplift.estimate_uplift()`
+raises on a log it cannot verify was randomized (P6-F1), and
+`offpolicy.evaluate_policy()` refuses a log violating positivity rather than
+returning a wide interval, because an unsupported estimate is not an imprecise
+one. `BalanceReport.proves_randomization` is always `False`, the same shape as
+P5's `InjectionScan`: a confounded log balances on whichever columns someone
+happened to record.
+
+**Two things read wrong if quoted without context.** `graph.louvain()` runs on
+the real P1 entity graph today — community detection is unsupervised, so it is
+the one component here with real input — but `CommunityScore.fraud_label_density`
+*raises*, because WS-6.1's scorer names two inputs and only one is computable
+without dispositions. And `challenger.assess()` applies a sign test with **no
+minimum lift**, because §4 says *measured* rather than *sufficient* and no
+workstream quantifies its gate (LH-801).
+
 ### The Phase 7 frontend
 
 `frontend/` is WS-7.1 through WS-7.5 and it is the only directory in this
@@ -428,7 +484,7 @@ survives review, and a plausible *screen* survives it in front of a committee.
 | Pick up a task | [CONTRIBUTING.md](CONTRIBUTING.md), then STATUS |
 | Know what data is fake, what is real, and what neither proves | [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md) · [ADR-0012](docs/adr/0012-phase3-panel-source.md) |
 | Know why the phase docs were not followed literally | [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) · [P1](Lending_Hub_Phase_Docs/Phase_1_FINDINGS.md) · [P2](Lending_Hub_Phase_Docs/Phase_2_FINDINGS.md) · [P3](Lending_Hub_Phase_Docs/Phase_3_FINDINGS.md) · [P4](Lending_Hub_Phase_Docs/Phase_4_FINDINGS.md) · [P7](Lending_Hub_Phase_Docs/Phase_7_FINDINGS.md) |
-| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) · [P5](docs/phase5/blocking_tickets.md) · [P7](docs/phase7/blocking_tickets.md) |
+| Know what is waiting on a committee | [P0](docs/phase0/blocking_tickets.md) · [P1](docs/phase1/blocking_tickets.md) · [P2](docs/phase2/blocking_tickets.md) · [P3](docs/phase3/blocking_tickets.md) · [P4](docs/phase4/blocking_tickets.md) · [P5](docs/phase5/blocking_tickets.md) · [P6](docs/phase6/blocking_tickets.md) · [P7](docs/phase7/blocking_tickets.md) |
 | Know what a model may and may not be used for | [P1 cards](docs/phase1/model_cards/) · [P2 cards](docs/phase2/model_cards/) · [P3 cards](docs/phase3/model_cards/) · [P4 cards](docs/phase4/model_cards/) · [P5 cards](docs/phase5/model_cards/) |
 | See real numbers from the whole P1 pipeline | `make trackp-p1` → `reports/trackP_p1_home_credit.json` |
 | See real numbers from the whole P3 pipeline | `make trackp-p3` → `reports/trackP_p3_fannie_mae.json` |
@@ -601,6 +657,27 @@ reported in the same column as English's 500), the **tool-result citation policy
 (LH-611 — "a citation or a tool call" cannot separate a tool run on a retrieved
 rate from one run on a rate the customer supplied), and the **per-session tool
 ceiling** (LH-612).
+
+**Phase 6's** (Phase 6 §5), all `[POLICY]` and all registered:
+
+> **causal claims from observational data** — holdouts required · alert budgets,
+> floors, exploration % (LH-503) · any "improvement" not evidenced on
+> out-of-time or online data · training on undispositioned alerts
+
+The first entry is the only do-not-invent item in this repository that is a
+*mathematical* prohibition rather than a governance one. Every other entry is
+something a committee could ratify tomorrow; no committee can make τ
+identifiable from a confounded log.
+
+Phase 6 implementation added five more the phase file does not list, each raised
+as a finding: the **minimum lift** every comparative gate is stated against
+(LH-801 — "+recall" is a sign, and a challenger winning by 0.0001 satisfies it
+literally), the **Qini threshold** as distinct from that (LH-802 — not on the
+same scale as a recall difference), the **canary confidence requirement**
+(LH-804 — "only positive-DR-estimate policies proceed" is a sign test on a point
+estimate whose interval may span zero), the **ring alerting threshold** (LH-805,
+downstream of LH-206), and the **per-cadence overdue tolerance** (LH-807 — the
+WS-6.7 table gives intervals and no grace, and the two are different questions).
 
 Later phases add: alert budgets, action SLAs, pricing (P4).
 
