@@ -18,6 +18,15 @@ from .uplift import (
     qini_coefficient,
     qini_curve,
 )
+from .offpolicy import (
+    DoublyRobustEstimate,
+    LoggedDecision,
+    OffPolicyError,
+    PositivityReport,
+    check_positivity,
+    evaluate_policy,
+    from_bandit_decisions,
+)
 from .promotion import (
     AbTestFeasibility,
     EvaluationWindow,
@@ -35,6 +44,10 @@ __all__ = [
     "ActionRecord",
     "Assignment",
     "BalanceReport",
+    "DoublyRobustEstimate",
+    "LoggedDecision",
+    "OffPolicyError",
+    "PositivityReport",
     "EvaluationWindow",
     "LiftMeasurement",
     "PromotionError",
@@ -42,7 +55,10 @@ __all__ = [
     "RollbackPlan",
     "StandingDecision",
     "UpliftError",
+    "check_positivity",
     "check_randomization",
+    "evaluate_policy",
+    "from_bandit_decisions",
     "estimate_uplift",
     "evaluate_promotion",
     "qini_coefficient",
