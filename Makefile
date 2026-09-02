@@ -91,6 +91,10 @@ demo6:  ## Run the Phase 6 computations interactively (no model is fitted)
 gate6:  ## Assemble the Phase 6 gate evidence pack (Phase 6 §4)
 	$(PY) tools/phase6_gate_report.py --output reports/phase6_gate.md
 
+.PHONY: serve
+serve:  ## Run the Phase 7 API gateway (Track A, stdlib http.server, CORS localhost:3000)
+	$(PY) -m lending_hub.gateway.server $(ARGS)
+
 .PHONY: gate
 gate: check schemas  ## Run every gate script and assemble all seven gate packs
 	-$(PY) -m lending_hub.identity.audit --out reports/join_rate_audit.json
