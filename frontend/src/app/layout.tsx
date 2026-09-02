@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 /**
  * Root layout for all four surfaces.
@@ -11,10 +12,12 @@ import "./globals.css";
  * with English phonemes, which is a worse accessibility outcome than the missing
  * attribute this replaces.
  *
- * It is therefore set from the resolved locale at request time. Until the
- * registry exists, that resolves to "und" (BCP-47 "undetermined"), which is the
- * correct tag for content whose language is not known and is honest in a way
- * that "en" is not.
+ * It is therefore set from the resolved locale at request time. That is now
+ * `CHROME_LOCALE` ("en-IN"), because `i18n/chrome.ts` resolves the structural
+ * labels in English and the tag must describe the text actually on screen. It
+ * is NOT a claim that the platform launched in English: regulated copy still
+ * resolves against the absent registry, and the launch language list is still
+ * unratified (LH-707).
  */
 export const metadata: Metadata = {
   title: "Lending Hub",
@@ -27,7 +30,10 @@ export default function RootLayout({
   children: React.ReactNode;
   params?: { locale?: string };
 }) {
-  const locale = params?.locale ?? "und";
+  // Chrome labels resolve in CHROME_LOCALE (see i18n/chrome.ts). Regulated copy
+  // still resolves against the absent registry and renders its ticket, so this
+  // tag describes the language of the text actually on screen.
+  const locale = params?.locale ?? "en-IN";
   return (
     <html lang={locale}>
       <body className="min-h-screen">
@@ -39,16 +45,20 @@ export default function RootLayout({
             registry fetch has resolved. A skip link that renders the
             missing-copy placeholder is a skip link a screen-reader user cannot
             identify, which fails the criterion the link exists to satisfy.
-            Resolved in favour of accessibility and raised as P7-F8: the registry
-            needs a small set of chrome keys resolvable at build time, which is a
-            registry capability nobody has specified. */}
+            Raised as P7-F8, whose stated resolution was "the registry needs a
+            small set of chrome keys resolvable at build time". That set now
+            exists as `i18n/chrome.ts`, so this link is the last remaining
+            hardcoded string — it must render before any provider mounts, which
+            is the one case a registry cannot serve. */}
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:outline focus:outline-2 focus:outline-blue-700"
         >
           Skip to content
         </a>
-        <main id="main">{children}</main>
+        <Providers>
+          <main id="main">{children}</main>
+        </Providers>
       </body>
     </html>
   );
