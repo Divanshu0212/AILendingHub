@@ -128,6 +128,8 @@
             role="tab" aria-selected="true">Credit scoring</button>
     <button class="tab" data-src="../reports/survival_progress.json"
             role="tab" aria-selected="false">Behavioural PD &amp; early warning</button>
+    <button class="tab" data-src="../reports/fraud_progress.json"
+            role="tab" aria-selected="false">Fraud detection</button>
   </div>
 
   <div class="grid cols-4" id="stats" style="margin-bottom:16px"></div>
@@ -145,6 +147,7 @@
 
   <div class="card" id="winner-card" style="display:none; margin-bottom:16px"></div>
   <div class="card" id="ew-card" style="display:none; margin-bottom:16px"></div>
+  <div class="card" id="ab-card" style="display:none; margin-bottom:16px"></div>
 
   <div class="card">
     <h2>Log</h2>
@@ -303,6 +306,28 @@ function render(d) {
 
   // -- early warning (survival run only) ----------------------------------
   const ew = d.ensemble?.earlyWarning;
+  const ab = d.ensemble?.alertBudget;
+  const abCard = document.getElementById("ab-card");
+  if (ab && ab.length) {
+    abCard.style.display = "";
+    abCard.innerHTML = `<h2>What a review desk would see</h2>
+      <table class="ew"><thead><tr>
+        <th>review</th><th>fraud caught</th><th>capture</th><th>precision</th><th>false alerts</th>
+      </tr></thead><tbody>${ab.map(r => `<tr>
+        <td class="mono">top ${(r.reviewFraction * 100).toFixed(1)}%</td>
+        <td class="mono">${r.fraudCaught.toLocaleString()} / ${r.fraudTotal.toLocaleString()}</td>
+        <td class="mono" style="color:var(--good)">${(r.captureRate * 100).toFixed(1)}%</td>
+        <td class="mono">${(r.precision * 100).toFixed(1)}%</td>
+        <td class="mono" style="color:var(--warn)">${r.falsePositives.toLocaleString()}</td>
+      </tr>`).join("")}</tbody></table>
+      <p style="margin:12px 0 0;font-size:11.5px;color:var(--ink-2)">
+        A desk cannot act on a ranking. False alerts are customers stopped
+        wrongly, which is why the alert budget is a business decision (LH-206)
+        rather than a modelling one.
+      </p>`;
+  } else if (abCard) {
+    abCard.style.display = "none";
+  }
   const ewCard = document.getElementById("ew-card");
   if (ew && ew.length) {
     ewCard.style.display = "";

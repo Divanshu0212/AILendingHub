@@ -580,6 +580,12 @@ def run(args) -> dict[str, Any]:
         key=lambda t: t[2],
     )
 
+    # NOT a like-for-like comparison, and the report says so rather than
+    # printing a flattering delta. The committed P3 run scores a c-index over a
+    # 48-month forward window on 1,400 subjects; this scores an AUC over a
+    # 12-month window on ~230,000. A longer horizon is a harder problem — later
+    # defaults are less predictable from month 12 — so subtracting one from the
+    # other measures the horizon as much as the model.
     base = state["baseline"].get("coxCIndex") or 0.0
     state["ensemble"] = {
         "equalWeightTestAuc": equal_auc,
@@ -589,7 +595,14 @@ def run(args) -> dict[str, Any]:
         "winner": winner_name,
         "winnerTestAuc": winner_auc,
         "winnerGiniPoints": (winner_auc * 2 - 1) * 100,
-        "liftOverBaseline": winner_auc - base,
+        "baselineCIndex": base,
+        "comparableToBaseline": False,
+        "comparisonNote": (
+            "The committed P3 c-index is measured over a 48-month forward window "
+            "on 1,400 subjects; this AUC is over a 12-month window on ~230,000. "
+            "Different horizons and different cohorts — the two numbers are not "
+            "subtractable, and no lift is reported against it."
+        ),
         "roc": {
             "winner": roc_points(y_te, winner_scores),
             "bestSingle": roc_points(y_te, np.array(best["test"])),
@@ -605,8 +618,9 @@ def run(args) -> dict[str, Any]:
     state["elapsedSeconds"] = round(time.time() - started, 1)
 
     ew = state["ensemble"]["earlyWarning"][1]
-    _log(state, f"WINNER {winner_name} · test AUC {winner_auc:.4f} · "
-                f"vs committed Cox c-index {base:.4f}")
+    _log(state, f"WINNER {winner_name} · test AUC {winner_auc:.4f} "
+                f"(12-month horizon; the committed Cox c-index {base:.4f} is over "
+                f"48 months and is not comparable)")
     _log(state, f"early warning at the top 10%: catches {ew['captureRate']:.1%} of "
                 f"defaults, median {ew['medianLeadMonths']} months ahead")
 

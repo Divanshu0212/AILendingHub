@@ -513,7 +513,7 @@ def results(prs):
 
     heads = ["MODEL", "DATASET", "ROWS", "TEST GINI", "TEST AUC"]
     widths = [Inches(3.5), Inches(2.5), Inches(1.8), Inches(2.0), Inches(2.0)]
-    y = Inches(2.5)
+    y = Inches(2.32)
     x = M
     for h, w in zip(heads, widths):
         tf = box(s, x, y, w, Inches(0.25))
@@ -523,13 +523,15 @@ def results(prs):
          fill=RGBColor(0xB9, 0xC8, 0xD8))
 
     rows = [
-        ("WoE scorecard  (champion)", "Home Credit", "150,000", "46.86", "0.7343"),
-        ("GBM  (challenger)", "Home Credit", "150,000", "51.94", "0.7597"),
+        ("Scorecard, plain-English rules", "Home Credit", "150,000", "46.86", "0.7343"),
+        ("Boosted trees", "Home Credit", "150,000", "51.94", "0.7597"),
+        ("Ensemble of 7 models", "Home Credit", "307,511", "55.94", "0.7797"),
         ("Discrete-time hazard", "Fannie Mae panel", "338,210", "—", "0.6127"),
-        ("Cox proportional hazards", "Fannie Mae panel", "338,210", "c-idx 0.6967", "—"),
+        ("Cox survival model", "Fannie Mae panel", "338,210", "c-idx 0.6967", "—"),
+        ("Behaviour model, 12-month view", "Fannie Mae panel", "230,543", "76.35", "0.8818"),
     ]
     for r, cells in enumerate(rows):
-        yy = y + Inches(0.46) + Inches(0.44) * r
+        yy = y + Inches(0.42) + Inches(0.40) * r
         x = M
         for c, (cell, w) in enumerate(zip(cells, widths)):
             tf = box(s, x, yy, w, Inches(0.3))
@@ -539,14 +541,15 @@ def results(prs):
             x += w
         rect(s, M, yy + Inches(0.34), Inches(11.8), Emu(9525), fill=RULE)
 
-    note(s, M, Inches(4.9), Inches(11.9), Inches(0.95),
-         "The stronger model scores 57.79 on data it learned from and 51.94 on "
-         "data it had never seen. We report that gap instead of hiding it — a "
-         "model that scores the same on both has usually been over-tuned.")
+    note(s, M, Inches(5.28), Inches(11.9), Inches(0.66),
+         "The bottom row of each pair is a later, stronger run using more data "
+         "and more models. The earlier rows are kept rather than replaced, "
+         "because a baseline you deleted is a baseline nobody can check.")
 
-    note(s, M, Inches(6.05), Inches(11.9), Inches(0.75),
-         "These come from real public loan data, not this bank's customers. "
-         "They prove the software works. They are not proof about this book.",
+    note(s, M, Inches(6.08), Inches(11.9), Inches(0.66),
+         "These come from real public loan data — US mortgages and consumer "
+         "credit — not this bank's customers. They prove the software works. "
+         "They are not proof about this book.",
          kind="warn")
 
 
@@ -571,8 +574,9 @@ def ews(prs):
     note(s, M, Inches(5.0), Inches(6.2), Inches(1.65),
          "We corrected our own mistake here. The first run said 11%. It turned "
          "out 726 of 827 defaults happened before the system had any data to "
-         "look at — we were measuring the calendar, not the model. Counting "
-         "only reachable cases moved the answer eight-fold.",
+         "look at — we were measuring the calendar, not the model. A later, "
+         "stronger detector on the full panel now catches 61% of defaults a "
+         "typical 8 months early.",
          kind="good")
 
     # chart
