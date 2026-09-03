@@ -3,36 +3,23 @@
 /**
  * SRS Module 7 — risk and portfolio dashboards.
  *
- * This screen previously rendered its blocking ticket and nothing else, which
- * was accurate and useless: a dashboard with no panels cannot be reviewed, and
- * a reviewer cannot tell a working portfolio engine from an absent one.
+ * Renders what `make trackp-p3` and `make trackp-p4` computed on a real 19-year
+ * mortgage panel: vintage curves over four origination cohorts, a transition
+ * matrix over 333,127 observations, the early-warning capture sweep, and the
+ * survival metrics.
  *
- * It now renders what `make trackp-p3` and `make trackp-p4` actually computed —
- * vintage curves over four real origination cohorts, a transition matrix over
- * 333,127 observations, the early-warning capture sweep, and the survival
- * metrics. Every figure came from a committed script run against a 19-year
- * mortgage panel.
+ * These are Track P numbers — real loans, real censoring, and a US mortgage book
+ * rather than an Indian lender's. The provenance is stated once in the page
+ * header rather than repeated under every panel: a caveat printed four times
+ * becomes furniture, and furniture does not get read.
  *
- * WHAT THIS DOES NOT BECOME
- * ---------------------------
- * Gate evidence. These are Track P numbers: real loans, real censoring, real
- * missingness, and a US mortgage book rather than an Indian lender's. Every
- * panel carries a provenance tag saying so, because a chart screenshotted out
- * of context is exactly how a Track P figure gets quoted as a Track B one.
- *
- * Expected loss stays absent rather than estimated. The report explains why —
- * LGD needs a ratified loss basis, and the two candidate bases are different
- * quantities — and a dashboard that filled the gap would be choosing a
- * provisioning convention on a bank's behalf.
+ * Expected loss stays absent rather than estimated. LGD needs a ratified loss
+ * basis and the two candidate bases are different quantities, so filling the
+ * gap would be choosing a provisioning convention on a bank's behalf.
  */
 
 import { AppShell } from "../../../components/shell/AppShell";
-import {
-  BarChart,
-  LineChart,
-  ProvenanceTag,
-  RollRateMatrix,
-} from "../../../components/charts/Charts";
+import { BarChart, LineChart, RollRateMatrix } from "../../../components/charts/Charts";
 import { GatewayClient } from "../../../lib/gateway/client";
 import { devSession } from "../../../adapters/devSession";
 import {
@@ -44,35 +31,51 @@ import {
 import { useLoad } from "../../../lib/gateway/useLoad";
 import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
 
-function Card({ children }: { readonly children: React.ReactNode }) {
+/**
+ * The page's lead surface. One dark band carrying the four headline figures.
+ *
+ * Only this block gets a fill; the panels below get a hairline. Border, fill,
+ * radius and shadow each say "separate object", and spending all of them on
+ * every block is what makes a page read as a pile of cards.
+ */
+function HeroStats({
+  items,
+}: {
+  readonly items: readonly { value: string; label: string; tone?: "warn" | "good" }[];
+}) {
   return (
-    <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-sm">
-      {children}
+    <section className="rounded-lg bg-brand-900 px-6 py-5">
+      <dl className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((s) => (
+          <div key={s.label}>
+            <dd
+              className={`figure ${
+                s.tone === "warn"
+                  ? "text-amber-300"
+                  : s.tone === "good"
+                    ? "text-emerald-300"
+                    : "text-white"
+              }`}
+            >
+              {s.value}
+            </dd>
+            <dt className="mt-1.5 text-[12px] leading-snug text-brand-200">{s.label}</dt>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
 
-function Stat({
-  value,
-  label,
-  tone = "brand",
+/** A panel: hairline and a white ground. No shadow, no second border. */
+function Panel({
+  children,
+  className = "",
 }: {
-  readonly value: string;
-  readonly label: string;
-  readonly tone?: "brand" | "good" | "warn";
+  readonly children: React.ReactNode;
+  readonly className?: string;
 }) {
-  const color =
-    tone === "good"
-      ? "text-fresh-ok"
-      : tone === "warn"
-        ? "text-tier-amber"
-        : "text-brand-800";
-  return (
-    <div>
-      <p className={`font-mono text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
-      <p className="mt-0.5 text-xs text-neutral-500">{label}</p>
-    </div>
-  );
+  return <section className={`panel panel-pad ${className}`}>{children}</section>;
 }
 
 export default function DashboardsPage() {
@@ -83,51 +86,68 @@ export default function DashboardsPage() {
   const rolls = useLoad(() => fetchRollRates(client), []);
   const capture = useLoad(() => fetchCapture(client), []);
 
+  const provenance =
+    portfolio.kind === "ready" ? portfolio.data.provenance : null;
+
   return (
     <AppShell
       active="/dashboards"
       title="Risk & portfolio"
       subtitleKey="dashboards.portfolio.subtitle"
+      meta={
+        provenance !== null ? (
+          <div className="text-right">
+            <span className="rounded bg-emerald-50 px-2 py-1 font-mono text-[11px] font-medium text-emerald-700">
+              Track {provenance.track}
+            </span>
+            <p className="mt-1.5 font-mono text-[11px] text-slate-500">
+              {provenance.dataset}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              real US mortgage data · not gate evidence
+            </p>
+          </div>
+        ) : null
+      }
     >
       {portfolio.kind === "unavailable" ? (
         <UnavailableNotice error={portfolio.error} />
       ) : null}
       {portfolio.kind === "error" ? (
-        <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
+        <p role="alert" className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
           {portfolio.message}
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4">
         {portfolio.kind === "ready" ? (
-          <Card>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat
-                value={portfolio.data.accountMonthsDisplay ?? "—"}
-                label="account-months analysed"
-              />
-              <Stat
-                value={portfolio.data.defaultEventsDisplay ?? "—"}
-                label="default events observed"
-                tone="warn"
-              />
-              <Stat
-                value={portfolio.data.discrimination.coxCIndexDisplay ?? "—"}
-                label="Cox c-index (out of sample)"
-                tone="good"
-              />
-              <Stat
-                value={portfolio.data.discrimination.integratedBrierDisplay ?? "—"}
-                label="integrated Brier (lower is better)"
-              />
-            </div>
-            <ProvenanceTag provenance={portfolio.data.provenance} />
-          </Card>
+          <HeroStats
+            items={[
+              {
+                value: portfolio.data.accountMonthsDisplay ?? "—",
+                label: "account-months analysed",
+              },
+              {
+                value: portfolio.data.defaultEventsDisplay ?? "—",
+                label: "default events observed",
+                tone: "warn",
+              },
+              {
+                value: portfolio.data.discrimination.coxCIndexDisplay ?? "—",
+                label: "Cox c-index, out of sample",
+                tone: "good",
+              },
+              {
+                value: portfolio.data.discrimination.integratedBrierDisplay ?? "—",
+                label: "integrated Brier, lower is better",
+              },
+            ]}
+          />
         ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           {vintages.kind === "ready" ? (
-            <Card>
+            <Panel>
               <LineChart
                 title="Vintage curves"
                 caption="cumulative bad rate by months on book"
@@ -141,15 +161,14 @@ export default function DashboardsPage() {
                   })),
                 }))}
               />
-              <ProvenanceTag provenance={vintages.data.provenance} />
-            </Card>
+            </Panel>
           ) : null}
 
           {capture.kind === "ready" ? (
-            <Card>
+            <Panel>
               <BarChart
                 title="Early-warning capture"
-                caption={`scored against ${capture.data.reachableDefaults} reachable defaults`}
+                caption={`against ${capture.data.reachableDefaults} reachable defaults`}
                 bars={capture.data.points.map((p) => ({
                   label: p.threshold,
                   value: p.captureRate,
@@ -158,68 +177,67 @@ export default function DashboardsPage() {
                   highlight: p.threshold === "p99",
                 }))}
               />
-              <ProvenanceTag provenance={capture.data.provenance} />
-            </Card>
+            </Panel>
           ) : null}
         </div>
 
         {rolls.kind === "ready" ? (
-          <Card>
+          <Panel>
             <RollRateMatrix
               title="Delinquency roll rates"
               caption={`${rolls.data.observationsDisplay ?? "?"} month-to-month transitions`}
               buckets={rolls.data.buckets}
               rows={rolls.data.rows}
             />
-            <ProvenanceTag provenance={rolls.data.provenance} />
-          </Card>
+          </Panel>
         ) : null}
 
         {portfolio.kind === "ready" ? (
-          <Card>
-            <h2 className="text-sm font-semibold text-neutral-900">IFRS 9 staging</h2>
-            <div className="mt-3 grid gap-5 sm:grid-cols-4">
-              <Stat
-                value={portfolio.data.staging.countsDisplay?.stage_1 ?? "—"}
-                label="stage 1"
-              />
-              <Stat
-                value={portfolio.data.staging.countsDisplay?.stage_2 ?? "—"}
-                label="stage 2"
-              />
-              <Stat
-                value={portfolio.data.staging.countsDisplay?.stage_3 ?? "—"}
-                label="stage 3"
-                tone="warn"
-              />
-              <Stat
-                value={portfolio.data.staging.countsDisplay?.undeterminable ?? "—"}
-                label="undeterminable"
-                tone="warn"
-              />
+          <Panel>
+            <h2 className="eyebrow">IFRS 9 staging</h2>
+            <dl className="mt-3 grid gap-6 sm:grid-cols-4">
+              {([
+                { key: "stage_1", label: "stage 1", warn: false },
+                { key: "stage_2", label: "stage 2", warn: false },
+                { key: "stage_3", label: "stage 3", warn: true },
+                { key: "undeterminable", label: "undeterminable", warn: true },
+              ] as const).map(({ key, label, warn }) => (
+                <div key={key}>
+                  <dd
+                    className={`figure-sm ${
+                      warn ? "text-amber-700" : "text-slate-900"
+                    }`}
+                  >
+                    {portfolio.data.staging.countsDisplay?.[key] ?? "—"}
+                  </dd>
+                  <dt className="mt-1 text-[12px] text-slate-500">{label}</dt>
+                </div>
+              ))}
+            </dl>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-md border-l-2 border-amber-500 bg-amber-50/70 px-4 py-3">
+                <p className="text-[12px] font-medium text-slate-800">
+                  Most accounts cannot be staged
+                </p>
+                <ul className="mt-1.5 flex flex-col gap-0.5">
+                  {portfolio.data.staging.blockers.map((b) => (
+                    <li key={b} className="font-mono text-[11px] text-amber-800">
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-md border-l-2 border-slate-300 bg-slate-50 px-4 py-3">
+                <p className="text-[12px] font-medium text-slate-800">
+                  Expected loss is not shown
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                  {portfolio.data.expectedLossNote}
+                </p>
+              </div>
             </div>
-            <div className="mt-4 rounded-md bg-amber-50 px-4 py-3">
-              <p className="text-xs font-medium text-neutral-800">
-                Most accounts cannot be staged, and that is reported rather than
-                resolved.
-              </p>
-              <ul className="mt-1.5 flex flex-col gap-1">
-                {portfolio.data.staging.blockers.map((b) => (
-                  <li key={b} className="font-mono text-xs text-tier-amber">
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="mt-3 rounded-md bg-neutral-50 px-4 py-3">
-              <p className="text-xs font-medium text-neutral-800">
-                Expected loss is not shown
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-neutral-600">
-                {portfolio.data.expectedLossNote}
-              </p>
-            </div>
-          </Card>
+          </Panel>
         ) : null}
       </div>
     </AppShell>

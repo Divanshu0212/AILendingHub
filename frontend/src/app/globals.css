@@ -3,31 +3,112 @@
 @tailwind utilities;
 
 /*
- * Phase 7 §1 scope note: no visual design system in this phase. What is here is
- * accessibility infrastructure, not styling.
+ * Phase 7 §1 scopes visual design to a downstream workstream. What is here is
+ * the minimum needed for the surfaces to be reviewable and accessible: the
+ * accessibility infrastructure the phase file does mandate, plus a type scale
+ * and a small set of primitives so the screens read as one system rather than
+ * as a pile of boxes.
  */
 
-/* WCAG 2.2 AA 2.4.11 "Focus Not Obscured" and 2.4.13 "Focus Appearance": a
-   visible focus indicator on every interactive element, never removed. The
-   two new 2.2 criteria are the ones a 2.1-era codebase misses. */
-:focus-visible {
-  outline: 2px solid #1d4ed8;
-  outline-offset: 2px;
+/* ---- type ---------------------------------------------------------------
+   Two families, both loaded from the local system stack first so a network
+   failure degrades to something reasonable rather than to Times.
+
+   Inter Tight for headings: the tighter tracking suits dense numeric screens
+   where a heading sits close to the figures it labels. IBM Plex Mono for every
+   figure, because on this platform the numerals ARE the content — tabular
+   digits that align down a column are worth a whole typeface. */
+
+:root {
+  --font-sans: var(--font-sans-loaded), "Inter Tight", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-mono-loaded), "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Mono",
+    Menlo, Consolas, monospace;
+
+  /* Surfaces. A blue-biased neutral rather than pure grey: on a screen whose
+     accent is a deep navy, a true neutral reads as unconsidered. */
+  --ground: #f6f8fb;
+  --surface: #ffffff;
+  --rule: #e3e9f0;
+  --rule-strong: #cbd6e3;
 }
 
-/* WCAG 2.2 AA 2.3.3 respects reduced motion. There is no motion in this build,
-   which is the easiest way to satisfy it and is stated so that adding some
-   later is a deliberate act. */
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  color: #0f1b2d;
+  background: var(--ground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings tighten as they grow — the standard editorial move, and the reason
+   a 32px heading set at default tracking looks loose next to 13px body. */
+h1, h2, h3 {
+  letter-spacing: -0.018em;
+  text-wrap: balance;
+}
+
+/* Every figure on this platform is tabular. Setting it globally on the mono
+   face means a column of amounts aligns without per-component classes. */
+.font-mono, code, kbd, samp, pre {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "zero" 1;
+}
+
+/* ---- accessibility ------------------------------------------------------ */
+
+/* WCAG 2.2 AA 2.4.11 "Focus Not Obscured" and 2.4.13 "Focus Appearance": a
+   visible focus indicator on every interactive element, never removed. The two
+   new 2.2 criteria are the ones a 2.1-era codebase misses. */
+:focus-visible {
+  outline: 2px solid #0d4a85;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* WCAG 2.2 AA 2.3.3 respects reduced motion. Transitions here are limited to
+   hover and focus affordances, and this removes them entirely. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-body {
-  color: #171717;
-  background: #fafafa;
+/* ---- primitives ---------------------------------------------------------
+   Deliberately few. "Not everything is a card" — border, fill, radius and
+   shadow each say "separate object", and spending all four on every block
+   flattens the hierarchy it was meant to create. A panel gets a hairline and a
+   white ground; only the page's lead surface gets more. */
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-[--rule] bg-[--surface];
+  }
+
+  .panel-pad {
+    @apply p-5;
+  }
+
+  /* A section label: small, tracked, and the same everywhere so a reader
+     learns it once. */
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.09em] text-slate-500;
+  }
+
+  /* The figure style. Applied to every number a backend computed. */
+  .figure {
+    @apply font-mono text-[26px] font-semibold leading-none tracking-tight;
+  }
+
+  .figure-sm {
+    @apply font-mono text-lg font-semibold leading-none tracking-tight;
+  }
 }

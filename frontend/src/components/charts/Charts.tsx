@@ -47,10 +47,10 @@ function Frame({
 }) {
   return (
     <figure className="m-0">
-      <figcaption className="mb-2">
-        <span className="text-sm font-semibold text-neutral-900">{title}</span>
+      <figcaption className="mb-3">
+        <span className="text-[13px] font-semibold text-slate-900">{title}</span>
         {caption !== undefined ? (
-          <span className="ml-2 text-xs text-neutral-500">{caption}</span>
+          <span className="ml-2 text-[11px] text-slate-400">{caption}</span>
         ) : null}
       </figcaption>
       {children}
@@ -127,25 +127,40 @@ export function LineChart({
         ))}
         <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke={AXIS} strokeWidth="1" />
 
-        {series.map((s, i) => (
-          <polyline
-            key={s.name}
-            fill="none"
-            stroke={SERIES[i % SERIES.length]}
-            strokeWidth="2"
-            strokeLinejoin="round"
-            points={s.points.map((p) => `${px(p.x)},${py(p.y)}`).join(" ")}
-          />
-        ))}
+        {series.map((s, i) => {
+          const last = s.points[s.points.length - 1];
+          return (
+            <g key={s.name}>
+              <polyline
+                fill="none"
+                stroke={SERIES[i % SERIES.length]}
+                strokeWidth="1.75"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                points={s.points.map((p) => `${px(p.x)},${py(p.y)}`).join(" ")}
+              />
+              {/* The endpoint is what a reader takes away from a cumulative
+                  curve — where did this cohort end up — so it is marked. */}
+              {last !== undefined ? (
+                <circle
+                  cx={px(last.x)}
+                  cy={py(last.y)}
+                  r="3"
+                  fill={SERIES[i % SERIES.length]}
+                />
+              ) : null}
+            </g>
+          );
+        })}
 
         <text x={W - padR} y={H - 6} textAnchor="end" fontSize="10" fill={LABEL}>
           {xLabel}
         </text>
       </svg>
 
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+      <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
         {series.map((s, i) => (
-          <li key={s.name} className="flex items-center gap-1.5 text-xs text-neutral-600">
+          <li key={s.name} className="flex items-center gap-1.5 text-[11px] text-slate-500">
             <span
               className="inline-block h-2 w-2 rounded-full"
               style={{ background: SERIES[i % SERIES.length] }}
@@ -178,9 +193,9 @@ export function BarChart({
   readonly caption?: string;
 }) {
   const W = 560;
-  const H = 220;
-  const padT = 26;
-  const padB = 42;
+  const H = 190;
+  const padT = 24;
+  const padB = 40;
   const max = Math.max(...bars.map((b) => b.value)) || 1;
   const slot = W / bars.length;
   const barW = slot * 0.5;
@@ -270,12 +285,12 @@ export function RollRateMatrix({
   return (
     <Frame title={title} caption={caption}>
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-xs">
+        <table className="w-full border-collapse text-[11px]">
           <thead>
             <tr>
-              <th className="p-1.5 text-left font-medium text-neutral-500">from \ to</th>
+              <th className="p-2 text-left font-medium text-slate-400">from \ to</th>
               {buckets.map((b) => (
-                <th key={b} className="p-1.5 text-center font-medium text-neutral-500">
+                <th key={b} className="p-2 text-center font-medium text-slate-400">
                   {b}
                 </th>
               ))}
@@ -284,11 +299,11 @@ export function RollRateMatrix({
           <tbody>
             {rows.map((r) => (
               <tr key={r.from}>
-                <th className="p-1.5 text-left font-medium text-neutral-800">{r.from}</th>
+                <th className="p-2 text-left font-medium text-slate-700">{r.from}</th>
                 {r.to.map((cell) => (
                   <td
                     key={cell.bucket}
-                    className="p-1.5 text-center tabular-nums"
+                    className="p-2 text-center font-mono tabular-nums"
                     style={{
                       background:
                         cell.rate > 0 ? `rgba(13, 74, 133, ${0.08 + cell.rate * 0.72})` : undefined,

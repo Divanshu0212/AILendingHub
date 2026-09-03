@@ -1,6 +1,29 @@
 import type { Metadata } from "next";
+import { Inter_Tight, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+
+/**
+ * Self-hosted via next/font rather than a <link> to Google.
+ *
+ * A stylesheet link in <head> is render-blocking and reaches a third party on
+ * first paint; next/font inlines the face declarations and serves the files
+ * from this origin, which also keeps the build free of an external dependency
+ * at request time.
+ */
+const sans = Inter_Tight({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans-loaded",
+  display: "swap",
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono-loaded",
+  display: "swap",
+});
 
 /**
  * Root layout for all four surfaces.
@@ -35,7 +58,7 @@ export default function RootLayout({
   // tag describes the language of the text actually on screen.
   const locale = params?.locale ?? "en-IN";
   return (
-    <html lang={locale}>
+    <html lang={locale} className={`${sans.variable} ${mono.variable}`}>
       <body className="min-h-screen">
         {/* WCAG 2.2 AA 2.4.1 bypass block. First focusable element on the page.
             THIS IS THE ONE HARDCODED ENGLISH STRING IN THE CODEBASE, and it is a
