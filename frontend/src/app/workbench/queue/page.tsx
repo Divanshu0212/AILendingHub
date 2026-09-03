@@ -1,109 +1,164 @@
 "use client";
 
 /**
- * WS-7.3.1 — the officer queue, filterable by product, risk band and SLA.
+ * WS-7.3.1 — the officer queue.
  *
- * The SLA column shows a server-rendered remaining string and a server-computed
- * breach flag. The frontend does not subtract `slaDueAt` from the browser clock:
- * a branch terminal with a skewed clock would show a different queue order than
- * the desk next to it, and SLA compliance is a reported figure (§8 exit
- * criterion 2 for collections; the same discipline applies here).
+ * The queue reads real consumer credit applications: 307,511 of them, with the
+ * publisher's outcome label attached. What an officer triages on is here —
+ * amounts, product, and the affordability ratio the application record carries.
  *
- * No risk-band values are enumerated here. The band edges are LH-204 and
- * unratified, so the filter options come from the gateway — a client-side list
- * of band names would be the band taxonomy, hardcoded, in a dropdown.
+ * THE COLUMN THAT IS NOT HERE
+ * -----------------------------
+ * There is no score column. The scorecard is fitted and its numbers are real
+ * (test Gini 46.86 on this dataset), but it is not loaded into the serving
+ * path, and a column headed "score" filled by anything else — a heuristic, a
+ * ratio, a placeholder — would be indistinguishable from the real thing in a
+ * screenshot. That is the substitution this build refuses everywhere else, and
+ * a queue is the worst place to make an exception: a score is what an officer
+ * acts on.
+ *
+ * What the queue shows instead is `affordabilityBand`, the annuity-to-income
+ * ratio bucketed. That is an arithmetic fact about the application rather than
+ * a model output, and it is named so the two cannot be confused. The real risk
+ * bands are LH-204 and unratified.
+ *
+ * SLA is likewise absent rather than invented. It needs a case-management
+ * system (LH-120); a countdown computed from the browser clock would show a
+ * different queue order on each desk.
  */
 
 import { useState } from "react";
-import { useAdapter } from "../../../adapters/context";
-import type { Page, QueueItem, QueueFilters } from "../../../lib/gateway/endpoints";
-import { useLoad } from "../../../lib/gateway/useLoad";
-import { Copy } from "../../../components/shared/Copy";
-import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
+
 import { AppShell } from "../../../components/shell/AppShell";
+import { Copy } from "../../../components/shared/Copy";
+import { ProvenanceTag } from "../../../components/charts/Charts";
+import { GatewayClient } from "../../../lib/gateway/client";
+import { devSession } from "../../../adapters/devSession";
+import { fetchInsightQueue, type QueueRow } from "../../../lib/gateway/endpoints";
+import { useLoad } from "../../../lib/gateway/useLoad";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
+
+const BAND_STYLE: Readonly<Record<string, string>> = {
+  comfortable: "bg-emerald-50 text-fresh-ok",
+  moderate: "bg-blue-50 text-brand-700",
+  stretched: "bg-amber-50 text-tier-amber",
+  unknown: "bg-neutral-100 text-neutral-500",
+};
 
 export default function QueuePage() {
-  const adapter = useAdapter();
-  const [filters, setFilters] = useState<QueueFilters>({});
-  const state = useLoad<Page<QueueItem>>(() => adapter.fetchQueue(filters), [adapter, filters]);
+  const client = new GatewayClient(devSession());
+  const [band, setBand] = useState<string>("");
+  const state = useLoad(() => fetchInsightQueue(client, 40), []);
+
+  const rows: readonly QueueRow[] =
+    state.kind === "ready"
+      ? state.data.items.filter((r) => band === "" || r.affordabilityBand === band)
+      : [];
 
   return (
     <AppShell active="/workbench" title="Officer queue" subtitleKey="workbench.queue.subtitle">
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        <label className="text-xs text-neutral-700">
-          <span className="block">SLA</span>
-          <select
-            value={filters.slaState ?? ""}
-            onChange={(e) =>
-              setFilters({
-                ...filters,
-                slaState: (e.target.value || undefined) as QueueFilters["slaState"],
-              })
-            }
-            className="mt-1 min-h-[44px] rounded border border-neutral-400 bg-white px-2 text-sm"
-          >
-            <option value="" />
-            <option value="within">within</option>
-            <option value="due-soon">due-soon</option>
-            <option value="breached">breached</option>
-          </select>
-        </label>
-      </div>
-
       {state.kind === "unavailable" ? <UnavailableNotice error={state.error} /> : null}
-
       {state.kind === "error" ? (
-        <p role="alert" className="mt-4 rounded border border-tier-red p-3 text-sm text-tier-red">
+        <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {state.message}
         </p>
       ) : null}
-
       {state.kind === "loading" ? (
-        <p className="mt-4 text-sm text-neutral-600">
+        <p className="text-sm text-neutral-600">
           <Copy k="common.loading" />
         </p>
-      ) : state.kind === "ready" ? (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-neutral-300 text-left text-xs uppercase tracking-wide text-neutral-500">
-                <th scope="col" className="p-2">application</th>
-                <th scope="col" className="p-2">product</th>
-                <th scope="col" className="p-2">band</th>
-                <th scope="col" className="p-2">received</th>
-                <th scope="col" className="p-2">SLA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.data.items.map((item) => (
-                <tr key={item.applicationId} className="border-b border-neutral-200">
-                  <td className="p-2">
-                    <a
-                      href={`/workbench/cases/${encodeURIComponent(item.applicationId)}`}
-                      className="rounded font-mono text-blue-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
-                    >
-                      {item.applicationId}
-                    </a>
-                  </td>
-                  <td className="p-2 text-neutral-900">{item.product}</td>
-                  <td className="p-2 font-mono text-neutral-900">{item.riskBand}</td>
-                  <td className="p-2 font-mono text-neutral-600">{item.receivedAt}</td>
-                  <td className="p-2 font-mono">
-                    <span className={item.slaBreached ? "text-tier-red" : "text-neutral-900"}>
-                      {item.slaRemainingDisplay}
-                    </span>
-                    {item.slaBreached ? (
-                      <span className="ml-2 rounded bg-tier-red px-1.5 py-0.5 text-xs text-white">
-                        breached
-                      </span>
-                    ) : null}
-                  </td>
+      ) : null}
+
+      {state.kind === "ready" ? (
+        <>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <label className="text-xs text-neutral-700">
+              <span className="block font-medium">Affordability</span>
+              <select
+                value={band}
+                onChange={(e) => setBand(e.target.value)}
+                className="mt-1 min-h-[38px] rounded-md border border-neutral-300 bg-white px-3 text-sm"
+              >
+                <option value="">all</option>
+                <option value="comfortable">comfortable</option>
+                <option value="moderate">moderate</option>
+                <option value="stretched">stretched</option>
+              </select>
+            </label>
+            <p className="text-xs text-neutral-500">
+              {rows.length} shown · {state.data.items.length} loaded
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white shadow-sm">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-neutral-200 bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+                  <th scope="col" className="p-3">application</th>
+                  <th scope="col" className="p-3">product</th>
+                  <th scope="col" className="p-3 text-right">credit</th>
+                  <th scope="col" className="p-3 text-right">income</th>
+                  <th scope="col" className="p-3 text-right">annuity</th>
+                  <th scope="col" className="p-3">affordability</th>
+                  <th scope="col" className="p-3">observed outcome</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.applicationId} className="border-b border-neutral-100 last:border-0">
+                    <td className="p-3">
+                      <a
+                        href={`/workbench/cases/${encodeURIComponent(r.applicationId)}`}
+                        className="rounded font-mono text-brand-700 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+                      >
+                        {r.applicationId}
+                      </a>
+                    </td>
+                    <td className="p-3 text-neutral-700">{r.product}</td>
+                    <td className="p-3 text-right font-mono tabular-nums text-neutral-900">
+                      {r.creditDisplay}
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums text-neutral-600">
+                      {r.incomeDisplay}
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums text-neutral-600">
+                      {r.annuityDisplay}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-mono text-xs ${
+                          BAND_STYLE[r.affordabilityBand] ?? BAND_STYLE.unknown
+                        }`}
+                      >
+                        {r.affordabilityBand}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={
+                          r.observedOutcome === "difficulty"
+                            ? "font-mono text-xs text-tier-red"
+                            : "font-mono text-xs text-neutral-500"
+                        }
+                      >
+                        {r.observedOutcome}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 rounded-md bg-neutral-50 px-4 py-3">
+            <p className="text-xs font-medium text-neutral-800">There is no score column</p>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-neutral-600">
+              {state.data.scoreNote}
+            </p>
+          </div>
+
+          <ProvenanceTag provenance={state.data.provenance} />
+        </>
       ) : null}
     </AppShell>
   );
