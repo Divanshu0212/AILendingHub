@@ -607,3 +607,37 @@ export function fetchAgriDemo(
 }> {
   return c.request(`/v1/insights/agri/${encodeURIComponent(plotId)}`);
 }
+
+export interface EwsThreshold {
+  readonly threshold: string;
+  readonly captureRate: number;
+  readonly captureRateDisplay: string;
+  readonly medianLeadDays: number;
+  readonly accountsAlerted: number;
+  readonly accountsAlertedDisplay: string;
+  readonly captured: number;
+  readonly capturedTooLate: number;
+}
+
+export interface EwsSummary {
+  readonly thresholds: readonly EwsThreshold[];
+  readonly velocity: {
+    readonly snapshotsWithVelocities: number;
+    readonly snapshotsRankable: number;
+    readonly totalVelocities: number;
+    readonly totalVelocitiesDisplay: string;
+    readonly minPortfolioForPercentile: number;
+  };
+  readonly reachableDefaults: number;
+  readonly defaultsInPanel: number;
+  readonly beforeFirstSnapshot: number;
+  readonly reachabilityNote: string;
+  readonly precision: { readonly state: string; readonly reason: string };
+  readonly queueAvailable: boolean;
+  readonly queueNote: string;
+  readonly provenance: Provenance;
+}
+
+export function fetchEws(c: GatewayClient): Promise<EwsSummary> {
+  return c.request("/v1/insights/ews");
+}

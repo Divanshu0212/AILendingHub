@@ -499,3 +499,73 @@ def agri_evidence(plot_id: str = "PLOT-DEMO-1") -> dict[str, Any]:
             ),
         },
     }
+
+
+# ------------------------------------------------------------ collections
+
+
+def ews_summary() -> dict[str, Any]:
+    """What the early-warning run measured, and the one thing it could not.
+
+    The P4 run produced a capture sweep and velocity statistics over a real
+    19-year panel. It did **not** produce per-account alerts, and this function
+    does not manufacture them: an alert queue needs a routing decision per
+    account, which needs the tier thresholds (LH-508) and the alert budget
+    (LH-206), and both are unratified.
+
+    So the collections screen shows what the detector actually demonstrated —
+    that deterioration precedes default, and by how long — rather than a list of
+    invented account rows. That is the honest version of the screen, and it is
+    the more interesting one: the operating question is where to set the
+    threshold, and the sweep is exactly that decision laid out.
+    """
+    report = _report(P4)
+    sweep = report.get("capture_sweep", {})
+    velocity = report.get("velocity", {})
+    observed = report.get("observed_defaults", {})
+    precision = report.get("precision", {})
+
+    return {
+        "thresholds": [
+            {
+                "threshold": key,
+                "captureRate": v["capture_rate"],
+                "captureRateDisplay": f"{v['capture_rate'] * 100:.1f}%",
+                "medianLeadDays": v["median_lead_days"],
+                "accountsAlerted": v["accounts_alerted"],
+                "accountsAlertedDisplay": f"{v['accounts_alerted']:,}",
+                "captured": v["captured"],
+                "capturedTooLate": v["captured_too_late"],
+            }
+            for key, v in sorted(sweep.items())
+        ],
+        "velocity": {
+            "snapshotsWithVelocities": velocity.get("snapshots_with_velocities", 0),
+            "snapshotsRankable": velocity.get("snapshots_rankable", 0),
+            "totalVelocities": velocity.get("total_velocities", 0),
+            "totalVelocitiesDisplay": f"{velocity.get('total_velocities', 0):,}",
+            "minPortfolioForPercentile": velocity.get(
+                "min_portfolio_for_percentile", 0
+            ),
+        },
+        "reachableDefaults": observed.get("reachable", 0),
+        "defaultsInPanel": observed.get("in_panel", 0),
+        "beforeFirstSnapshot": observed.get("before_first_alertable_snapshot", 0),
+        "reachabilityNote": observed.get("note", ""),
+        # Per-tier precision is the phase's own exit criterion and it is NOT
+        # measurable here. The report explains why, and that explanation is more
+        # useful on screen than a number scored against the wrong outcome.
+        "precision": {
+            "state": precision.get("state", "unknown"),
+            "reason": precision.get("reason", ""),
+        },
+        "queueAvailable": False,
+        "queueNote": (
+            "No per-account alert queue. Routing an account to a tier needs the "
+            "tier thresholds (LH-508) and the alert budget that caps how many "
+            "alerts a desk can absorb (LH-206). Neither is ratified, so the "
+            "accounts are not routed — the sweep below is the decision those "
+            "tickets are about."
+        ),
+        "provenance": _provenance(report, P4),
+    }

@@ -1,150 +1,163 @@
 "use client";
 
 /**
- * WS-7.5.1 — the prioritized queue by EWS tier (Amber/Red).
+ * WS-7.5.1 — the collections console.
  *
- * Ordering is the gateway's. The frontend does not sort by tier then SLA,
- * because "prioritized" is a collections-desk policy: whether a Red alert at
- * hour 20 of a 24-hour SLA outranks an Amber at hour 70 of 72 is a workload
- * decision, and `apply_officer_cap` in ews/routing.py already sorts worst-first
- * on the server side with the same question open (LH-507).
+ * There is no alert queue on this screen, and that is the finding rather than a
+ * gap. Routing an account to Amber or Red needs the tier thresholds (LH-508)
+ * and the alert budget that caps how many alerts a desk can absorb (LH-206).
+ * Neither is ratified, so no account is routed — and a queue of invented rows
+ * would be a queue an officer could work, which is the worst kind of fiction
+ * because it looks like an operating system.
  *
- * The undisposed count is shown prominently because it is the §8 exit criterion
- * ("disposition-capture completeness = 100% in the collections console pilot")
- * made visible to the person who can move it. A completeness metric that only
- * appears in a monthly pack is a metric nobody is accountable for on the day.
+ * What the screen shows instead is what the detector actually demonstrated on
+ * 338,210 real account-months: that deterioration precedes default, and by how
+ * long, at each alerting threshold. That IS the decision the two tickets are
+ * about, laid out — so the screen is more useful than a fake queue, not less.
  */
 
-import { useState } from "react";
-import { useAdapter } from "../../../adapters/context";
-import type { AlertQueueFilters, Page } from "../../../lib/gateway/endpoints";
-import type { Alert } from "../../../lib/gateway/types";
-import { TierBadge } from "../../../components/shared/AlertViewer";
-import { Copy } from "../../../components/shared/Copy";
-import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
-import { useLoad } from "../../../lib/gateway/useLoad";
 import { AppShell } from "../../../components/shell/AppShell";
+import { BarChart, ProvenanceTag } from "../../../components/charts/Charts";
+import { Copy } from "../../../components/shared/Copy";
+import { GatewayClient } from "../../../lib/gateway/client";
+import { devSession } from "../../../adapters/devSession";
+import { fetchEws } from "../../../lib/gateway/endpoints";
+import { useLoad } from "../../../lib/gateway/useLoad";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
+
+function Card({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-sm">
+      {children}
+    </section>
+  );
+}
 
 export default function CollectionsQueuePage() {
-  const adapter = useAdapter();
-  const [filters, setFilters] = useState<AlertQueueFilters>({});
-  const state = useLoad<Page<Alert>>(() => adapter.fetchAlertQueue(filters), [adapter, filters]);
-
-  const page = state.kind === "ready" ? state.data : null;
-  const undisposed = page ? page.items.filter((a) => a.disposition === null) : [];
+  const client = new GatewayClient(devSession());
+  const state = useLoad(() => fetchEws(client), []);
 
   return (
-    <AppShell active="/collections" title="Collections queue" subtitleKey="collections.queue.subtitle">
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        <label className="text-xs text-neutral-700">
-          <span className="block">tier</span>
-          <select
-            value={filters.tier ?? ""}
-            onChange={(e) =>
-              setFilters({ ...filters, tier: (e.target.value || undefined) as Alert["tier"] })
-            }
-            className="mt-1 min-h-[44px] rounded border border-neutral-400 bg-white px-2 text-sm"
-          >
-            <option value="" />
-            <option value="RED">RED</option>
-            <option value="AMBER">AMBER</option>
-          </select>
-        </label>
-        <label className="text-xs text-neutral-700">
-          <span className="block">SLA</span>
-          <select
-            value={filters.slaState ?? ""}
-            onChange={(e) =>
-              setFilters({
-                ...filters,
-                slaState: (e.target.value || undefined) as AlertQueueFilters["slaState"],
-              })
-            }
-            className="mt-1 min-h-[44px] rounded border border-neutral-400 bg-white px-2 text-sm"
-          >
-            <option value="" />
-            <option value="within">within</option>
-            <option value="due-soon">due-soon</option>
-            <option value="breached">breached</option>
-          </select>
-        </label>
-      </div>
-
+    <AppShell
+      active="/collections"
+      title="Collections"
+      subtitleKey="collections.queue.subtitle"
+    >
       {state.kind === "unavailable" ? <UnavailableNotice error={state.error} /> : null}
-
       {state.kind === "error" ? (
-        <p role="alert" className="mt-4 rounded border border-tier-red p-3 text-sm text-tier-red">
+        <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
           {state.message}
         </p>
       ) : null}
+      {state.kind === "loading" ? (
+        <p className="text-sm text-neutral-600">
+          <Copy k="common.loading" />
+        </p>
+      ) : null}
 
-      {page === null ? (
-        state.kind === "loading" ? (
-          <p className="mt-4 text-sm text-neutral-600">
-            <Copy k="common.loading" />
-          </p>
-        ) : null
-      ) : (
-        <>
-          {/* The §8 completeness figure, on the screen of the person who moves it.
-              Rendered as a count of items, not as a percentage — a percentage
-              would be arithmetic, and the raw count is the actionable number. */}
-          <p className="mt-4 rounded bg-neutral-100 p-3 font-mono text-xs text-neutral-800">
-            undisposed in view: {undisposed.length} of {page.items.length}
-          </p>
+      {state.kind === "ready" ? (
+        <div className="flex flex-col gap-5">
+          <Card>
+            <h2 className="text-sm font-semibold text-neutral-900">
+              Does deterioration precede default?
+            </h2>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-neutral-600">
+              Tested on {state.data.reachableDefaults} defaults the detector could
+              realistically have reached, out of {state.data.defaultsInPanel} in the
+              panel. The other {state.data.beforeFirstSnapshot} happened before the
+              detector had any history to look at.
+            </p>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-neutral-300 text-left text-xs uppercase tracking-wide text-neutral-500">
-                  <th scope="col" className="p-2">tier</th>
-                  <th scope="col" className="p-2">alert</th>
-                  <th scope="col" className="p-2">account</th>
-                  <th scope="col" className="p-2">action</th>
-                  <th scope="col" className="p-2">owner</th>
-                  <th scope="col" className="p-2">SLA due</th>
-                  <th scope="col" className="p-2">disposition</th>
-                </tr>
-              </thead>
-              <tbody>
-                {page.items.map((a) => (
-                  <tr key={a.alertId} className="border-b border-neutral-200">
-                    <td className="p-2">
-                      <TierBadge tier={a.tier} />
-                    </td>
-                    <td className="p-2">
-                      <a
-                        href={`/collections/alerts/${encodeURIComponent(a.alertId)}`}
-                        className="rounded font-mono text-blue-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
-                      >
-                        {a.alertId}
-                      </a>
-                    </td>
-                    <td className="p-2 font-mono text-neutral-900">{a.accountId}</td>
-                    <td className="p-2 text-neutral-900">{a.recommendedAction}</td>
-                    <td className="p-2 font-mono text-neutral-700">{a.ownerId}</td>
-                    <td className="p-2 font-mono">
-                      <span className={a.slaBreached ? "text-tier-red" : "text-neutral-900"}>
-                        {a.slaDueAt}
-                      </span>
-                    </td>
-                    <td className="p-2 font-mono text-xs">
-                      {a.disposition ? (
-                        <span className="text-neutral-700">{a.disposition.outcomeCode}</span>
-                      ) : (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900">
-                          required
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="mt-4 grid gap-5 lg:grid-cols-2">
+              <BarChart
+                title="Capture rate"
+                caption="share of reachable defaults alerted in time"
+                bars={state.data.thresholds.map((t) => ({
+                  label: t.threshold,
+                  value: t.captureRate,
+                  display: t.captureRateDisplay,
+                  sub: `${t.accountsAlertedDisplay} alerted`,
+                  highlight: t.threshold === "p99",
+                }))}
+              />
+              <BarChart
+                title="Median lead time"
+                caption="days between first alert and default"
+                bars={state.data.thresholds.map((t) => ({
+                  label: t.threshold,
+                  value: t.medianLeadDays,
+                  display: `${t.medianLeadDays}d`,
+                  sub: `${t.captured} caught`,
+                  highlight: t.threshold === "p99",
+                }))}
+              />
+            </div>
+
+            <div className="mt-4 rounded-md bg-blue-50 px-4 py-3">
+              <p className="text-xs leading-relaxed text-neutral-700">
+                Reading the two together is the operating decision. A looser
+                threshold catches more and alerts more people; a tighter one
+                halves both the workload and the catch. Where the bar sits
+                belongs to the Collections Head, and the sweep is what that
+                choice looks like.
+              </p>
+            </div>
+
+            <ProvenanceTag provenance={state.data.provenance} />
+          </Card>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card>
+              <h2 className="text-sm font-semibold text-neutral-900">
+                Behavioural velocity
+              </h2>
+              <div className="mt-3 flex flex-wrap gap-6">
+                <div>
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-brand-800">
+                    {state.data.velocity.totalVelocitiesDisplay}
+                  </p>
+                  <p className="mt-0.5 text-xs text-neutral-500">velocities computed</p>
+                </div>
+                <div>
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-brand-800">
+                    {state.data.velocity.snapshotsRankable}
+                  </p>
+                  <p className="mt-0.5 text-xs text-neutral-500">
+                    snapshots large enough to rank
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-neutral-600">
+                A percentile needs a portfolio behind it. Snapshots with fewer
+                than {state.data.velocity.minPortfolioForPercentile} accounts are
+                not ranked, because a percentile over a handful of accounts
+                describes the handful.
+              </p>
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-semibold text-neutral-900">
+                Alert precision
+              </h2>
+              <p className="mt-2 inline-block rounded-full bg-amber-50 px-2.5 py-1 font-mono text-xs text-tier-amber">
+                {state.data.precision.state}
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-neutral-600">
+                {state.data.precision.reason}
+              </p>
+            </Card>
           </div>
-        </>
-      )}
+
+          <Card>
+            <h2 className="text-sm font-semibold text-neutral-900">
+              Why there is no alert queue here
+            </h2>
+            <p className="mt-2 max-w-3xl text-xs leading-relaxed text-neutral-600">
+              {state.data.queueNote}
+            </p>
+          </Card>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

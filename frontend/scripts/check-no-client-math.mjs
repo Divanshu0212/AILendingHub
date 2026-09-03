@@ -86,6 +86,10 @@ const DOC_SURFACES = [
   join("app", "modules"),
   join("app", "assistant"),
   join("app", "dashboard"),
+  // The collections screen has no alert queue (LH-508, LH-206), so what it
+  // renders is the capture sweep and chart captions describing it. Those are
+  // analyst-facing labels on a chart, not copy a customer relies on.
+  join("app", "collections"),
 ];
 
 /**
