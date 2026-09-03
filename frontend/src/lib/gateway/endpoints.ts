@@ -419,3 +419,191 @@ export function learningCadence(
 ): Promise<CadenceResult> {
   return c.request("/v1/learning/cadence", { method: "POST", body });
 }
+
+// ------------------------------------------- Track P insights (gateway.demodata)
+//
+// Figures a committed script computed on real public loan data — vintage
+// curves, roll rates, the capture sweep, scorecard performance, real
+// applications. Not model-derived: nothing here came from a model held in the
+// serving path, so none carries an attribution triplet.
+//
+// Every payload carries `provenance`, and every screen that renders one shows
+// it. A Track P number is a fact about the dataset that produced it, and a
+// screenshot of a chart should say which dataset that was.
+
+export interface Provenance {
+  readonly track: string;
+  readonly dataset: string;
+  readonly source: string;
+  readonly isGateEvidence: boolean;
+  readonly note: string;
+}
+
+export interface VintagePoint {
+  readonly monthsOnBook: number;
+  readonly cumulativeBadRate: number;
+  readonly stillAtRisk: number;
+}
+
+export interface VintageCurve {
+  readonly cohort: string;
+  readonly cohortSize: number;
+  readonly cohortSizeDisplay: string;
+  readonly points: readonly VintagePoint[];
+}
+
+export function fetchVintages(
+  c: GatewayClient
+): Promise<{ curves: readonly VintageCurve[]; provenance: Provenance }> {
+  return c.request("/v1/insights/vintages");
+}
+
+export interface RollRateCell {
+  readonly bucket: string;
+  readonly count: number;
+  readonly rate: number;
+}
+
+export interface RollRateRow {
+  readonly from: string;
+  readonly total: number;
+  readonly to: readonly RollRateCell[];
+}
+
+export function fetchRollRates(c: GatewayClient): Promise<{
+  buckets: readonly string[];
+  rows: readonly RollRateRow[];
+  observations: number;
+  observationsDisplay: string;
+  provenance: Provenance;
+}> {
+  return c.request("/v1/insights/roll-rates");
+}
+
+export interface PortfolioSummary {
+  readonly accountMonths: number;
+  readonly accountMonthsDisplay: string;
+  readonly rowsRead: number;
+  readonly rowsReadDisplay: string;
+  readonly defaultEvents: number;
+  readonly defaultEventsDisplay: string;
+  readonly staging: {
+    readonly accounts: number;
+    readonly counts: Readonly<Record<string, number>>;
+    readonly countsDisplay: Readonly<Record<string, string>>;
+    readonly undeterminableFraction: number;
+    readonly blockers: readonly string[];
+  };
+  readonly discrimination: {
+    readonly challengerCIndex: number | null;
+    readonly coxCIndex: number | null;
+    readonly coxCIndexDisplay: string;
+    readonly integratedBrier: number | null;
+    readonly integratedBrierDisplay: string;
+    readonly brierByHorizon: readonly { months: number; brier: number }[];
+    readonly subjects: number | null;
+    readonly outOfSample: boolean | null;
+  };
+  readonly expectedLoss: null;
+  readonly expectedLossNote: string;
+  readonly provenance: Provenance;
+}
+
+export function fetchPortfolio(c: GatewayClient): Promise<PortfolioSummary> {
+  return c.request("/v1/insights/portfolio");
+}
+
+export interface CapturePoint {
+  readonly threshold: string;
+  readonly captureRate: number;
+  readonly captureRateDisplay: string;
+  readonly medianLeadDays: number;
+  readonly accountsAlerted: number;
+  readonly captured: number;
+  readonly capturedTooLate: number;
+}
+
+export function fetchCapture(c: GatewayClient): Promise<{
+  points: readonly CapturePoint[];
+  reachableDefaults: number;
+  defaultsInPanel: number;
+  unreachableNote: string;
+  provenance: Provenance;
+}> {
+  return c.request("/v1/insights/capture");
+}
+
+export interface ModelSide {
+  readonly model: string;
+  readonly train: { n: number | null; auc: number | null; giniPoints: number | null };
+  readonly test: { n: number | null; auc: number | null; giniPoints: number | null };
+}
+
+export function fetchScoring(c: GatewayClient): Promise<{
+  champion: ModelSide;
+  challenger: ModelSide;
+  applicationsScored: number;
+  fairness: {
+    verdict: string | null;
+    nScored: number | null;
+    findings: readonly unknown[];
+  };
+  provenance: Provenance;
+}> {
+  return c.request("/v1/insights/scoring");
+}
+
+export interface QueueRow {
+  readonly applicationId: string;
+  readonly product: string;
+  readonly creditAmount: number;
+  readonly creditDisplay: string;
+  readonly incomeDisplay: string;
+  readonly annuityDisplay: string;
+  readonly affordabilityBand: string;
+  readonly education: string;
+  readonly observedOutcome: string;
+}
+
+export function fetchInsightQueue(
+  c: GatewayClient,
+  limit = 25
+): Promise<{
+  items: readonly QueueRow[];
+  totalAvailable: number;
+  scoreShown: boolean;
+  scoreNote: string;
+  provenance: Provenance;
+}> {
+  return c.request(`/v1/insights/queue?limit=${limit}`);
+}
+
+export interface AgriObservationPoint {
+  readonly observedOn: string;
+  readonly ndvi: number;
+  readonly spi: number;
+  readonly cloudFraction: number;
+  readonly usable: boolean;
+}
+
+export function fetchAgriDemo(
+  c: GatewayClient,
+  plotId: string
+): Promise<{
+  plotId: string;
+  illustrative: boolean;
+  illustrativeReason: string;
+  polygonProvenance: string;
+  areaHectares: number;
+  series: readonly AgriObservationPoint[];
+  usableObservations: number;
+  totalObservations: number;
+  derived: {
+    yieldEstimate: null;
+    expectedIncome: null;
+    landQualityIndex: null;
+    note: string;
+  };
+}> {
+  return c.request(`/v1/insights/agri/${encodeURIComponent(plotId)}`);
+}

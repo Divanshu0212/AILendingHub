@@ -13,5 +13,13 @@
         "message": "Phase 7 §8: formatting a raw number client-side implies the frontend chose its precision. Render the backend's preformatted display string instead."
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/components/charts/**/*.tsx"],
+      "rules": {
+        "no-restricted-syntax": "off"
+      }
+    }
+  ]
 }

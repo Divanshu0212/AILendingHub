@@ -1,127 +1,226 @@
 "use client";
 
 /**
- * WS-7.4 — risk & portfolio dashboards.
+ * SRS Module 7 — risk and portfolio dashboards.
  *
- * Phase 7 §4 WS-7.4: "Thin UI layer over the P3 OLAP store and dashboard API —
- * this workstream does not reimplement any P3 metric logic, it renders what P3
- * computes."
+ * This screen previously rendered its blocking ticket and nothing else, which
+ * was accurate and useless: a dashboard with no panels cannot be reviewed, and
+ * a reviewer cannot tell a working portfolio engine from an absent one.
  *
- * So this file has no metric in it. It fetches panels and renders them through
- * the shared `Panel`, which takes freshness as a required prop. That is the
- * whole of WS-7.4.3's non-negotiable requirement, implemented as a type: there
- * is no code path to a panel without a badge.
+ * It now renders what `make trackp-p3` and `make trackp-p4` actually computed —
+ * vintage curves over four real origination cohorts, a transition matrix over
+ * 333,127 observations, the early-warning capture sweep, and the survival
+ * metrics. Every figure came from a committed script run against a 19-year
+ * mortgage panel.
  *
- * ROLE DIFFERENCES ARE PERMISSION AND LAYOUT, NEVER NUMBERS
- * --------------------------------------------------------
- * WS-7.4.2 is explicit about this and it is easy to violate by accident. The CRO
- * view and the portfolio-manager view are the same `dashboardId` fetched by
- * different roles; the gateway decides which panels come back. There is no
- * client-side filter that hides a panel from a role, because a client-side
- * filter is a client-side permission, and there is no per-role transform of a
- * metric, because that is how two roles come to quote different NPA figures in
- * the same meeting.
+ * WHAT THIS DOES NOT BECOME
+ * ---------------------------
+ * Gate evidence. These are Track P numbers: real loans, real censoring, real
+ * missingness, and a US mortgage book rather than an Indian lender's. Every
+ * panel carries a provenance tag saying so, because a chart screenshotted out
+ * of context is exactly how a Track P figure gets quoted as a Track B one.
  *
- * THE SIX VIEWS ARE ROUTES, NOT COMPONENTS
- * ----------------------------------------
- * SRS §9.2 names six: portfolio overview, vintage & roll-rate, concentration &
- * weather-overlay map, model-health, scenario widget, drill-through account
- * list. Each is a `dashboardId`. They are not six components here because the
- * only thing that differs between them is which panels the backend returns —
- * building six bespoke layouts would put chart-selection logic in the frontend,
- * and a chart type is a claim about the data's shape.
- *
- * The weather-overlay map and the scenario widget are the two that will
- * eventually need more than a panel list (a choropleth and an input form). Both
- * are P3/P2-gated and neither has a data source here, so neither is built.
+ * Expected loss stays absent rather than estimated. The report explains why —
+ * LGD needs a ratified loss basis, and the two candidate bases are different
+ * quantities — and a dashboard that filled the gap would be choosing a
+ * provisioning convention on a bank's behalf.
  */
 
-
-import { useAdapter } from "../../../adapters/context";
-import { Panel } from "../../../components/shared/FreshnessBadge";
-import { AuditLink } from "../../../components/shared/AuditLink";
-import { Copy } from "../../../components/shared/Copy";
-import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
-import { useLoad } from "../../../lib/gateway/useLoad";
-import type { DashboardPanel } from "../../../lib/gateway/types";
 import { AppShell } from "../../../components/shell/AppShell";
+import {
+  BarChart,
+  LineChart,
+  ProvenanceTag,
+  RollRateMatrix,
+} from "../../../components/charts/Charts";
+import { GatewayClient } from "../../../lib/gateway/client";
+import { devSession } from "../../../adapters/devSession";
+import {
+  fetchCapture,
+  fetchPortfolio,
+  fetchRollRates,
+  fetchVintages,
+} from "../../../lib/gateway/endpoints";
+import { useLoad } from "../../../lib/gateway/useLoad";
+import { UnavailableNotice } from "../../../components/shared/UnavailableNotice";
 
-export default function DashboardPage({ params }: { params: { dashboardId: string } }) {
-  const adapter = useAdapter();
-  const state = useLoad<{ readonly panels: readonly DashboardPanel[] }>(
-    () => adapter.fetchDashboardPanels(params.dashboardId),
-    [adapter, params.dashboardId]
+function Card({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-sm">
+      {children}
+    </section>
   );
-  const panels = state.kind === "ready" ? state.data.panels : null;
+}
 
-  if (state.kind === "unavailable") {
-    return (
-      <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
-        <UnavailableNotice error={state.error} />
-      </AppShell>
-    );
-  }
+function Stat({
+  value,
+  label,
+  tone = "brand",
+}: {
+  readonly value: string;
+  readonly label: string;
+  readonly tone?: "brand" | "good" | "warn";
+}) {
+  const color =
+    tone === "good"
+      ? "text-fresh-ok"
+      : tone === "warn"
+        ? "text-tier-amber"
+        : "text-brand-800";
+  return (
+    <div>
+      <p className={`font-mono text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
+      <p className="mt-0.5 text-xs text-neutral-500">{label}</p>
+    </div>
+  );
+}
 
-  if (state.kind === "error") {
-    return (
-      <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
-        <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
-          {state.message}
-        </p>
-      </AppShell>
-    );
-  }
+export default function DashboardsPage() {
+  const client = new GatewayClient(devSession());
 
-  if (panels === null) {
-    return (
-      <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
-        <p className="text-sm text-neutral-600">
-          <Copy k="common.loading" />
-        </p>
-      </AppShell>
-    );
-  }
+  const portfolio = useLoad(() => fetchPortfolio(client), []);
+  const vintages = useLoad(() => fetchVintages(client), []);
+  const rolls = useLoad(() => fetchRollRates(client), []);
+  const capture = useLoad(() => fetchCapture(client), []);
 
   return (
-    <AppShell active="/dashboards" title="Risk dashboard" subtitleKey="dashboards.portfolio.subtitle">
-      <h2 className="mb-4 text-lg font-semibold text-neutral-900">
-        <Copy k="dashboards.portfolio.title" />
-      </h2>
+    <AppShell
+      active="/dashboards"
+      title="Risk & portfolio"
+      subtitleKey="dashboards.portfolio.subtitle"
+    >
+      {portfolio.kind === "unavailable" ? (
+        <UnavailableNotice error={portfolio.error} />
+      ) : null}
+      {portfolio.kind === "error" ? (
+        <p role="alert" className="rounded border border-tier-red p-3 text-sm text-tier-red">
+          {portfolio.message}
+        </p>
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {panels.map((panel) => (
-          <Panel
-            key={panel.panelId}
-            title={panel.title}
-            freshness={panel.freshness}
-            drillThroughHref={panel.drillThroughHref}
-          >
-            <dl className="space-y-2">
-              {panel.metrics.map((m) => (
-                <div key={m.key} className="flex items-baseline justify-between gap-4">
-                  <dt className="text-sm text-neutral-600">{m.label}</dt>
-                  <dd className="text-right">
-                    {/* `.display` only. `.amount` is present and unread. */}
-                    <span className="font-mono text-base text-neutral-900">{m.value.display}</span>
-                    {m.delta ? (
-                      <span className="ml-2 font-mono text-xs text-neutral-600">
-                        {/* Backend-computed delta. Not this value minus a
-                            previously fetched one - two fetches at different
-                            freshness would produce a delta belonging to neither. */}
-                        {m.delta.display}
-                      </span>
-                    ) : null}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            {panel.attribution ? (
-              <p className="mt-3">
-                <AuditLink attribution={panel.attribution} />
+      <div className="flex flex-col gap-5">
+        {portfolio.kind === "ready" ? (
+          <Card>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat
+                value={portfolio.data.accountMonthsDisplay ?? "—"}
+                label="account-months analysed"
+              />
+              <Stat
+                value={portfolio.data.defaultEventsDisplay ?? "—"}
+                label="default events observed"
+                tone="warn"
+              />
+              <Stat
+                value={portfolio.data.discrimination.coxCIndexDisplay ?? "—"}
+                label="Cox c-index (out of sample)"
+                tone="good"
+              />
+              <Stat
+                value={portfolio.data.discrimination.integratedBrierDisplay ?? "—"}
+                label="integrated Brier (lower is better)"
+              />
+            </div>
+            <ProvenanceTag provenance={portfolio.data.provenance} />
+          </Card>
+        ) : null}
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {vintages.kind === "ready" ? (
+            <Card>
+              <LineChart
+                title="Vintage curves"
+                caption="cumulative bad rate by months on book"
+                xLabel="months on book"
+                yLabel="cumulative bad rate"
+                series={vintages.data.curves.map((c) => ({
+                  name: `${c.cohort} · ${c.cohortSizeDisplay ?? "?"} accounts`,
+                  points: c.points.map((p) => ({
+                    x: p.monthsOnBook,
+                    y: p.cumulativeBadRate,
+                  })),
+                }))}
+              />
+              <ProvenanceTag provenance={vintages.data.provenance} />
+            </Card>
+          ) : null}
+
+          {capture.kind === "ready" ? (
+            <Card>
+              <BarChart
+                title="Early-warning capture"
+                caption={`scored against ${capture.data.reachableDefaults} reachable defaults`}
+                bars={capture.data.points.map((p) => ({
+                  label: p.threshold,
+                  value: p.captureRate,
+                  display: p.captureRateDisplay ?? "—",
+                  sub: `${p.medianLeadDays}d lead`,
+                  highlight: p.threshold === "p99",
+                }))}
+              />
+              <ProvenanceTag provenance={capture.data.provenance} />
+            </Card>
+          ) : null}
+        </div>
+
+        {rolls.kind === "ready" ? (
+          <Card>
+            <RollRateMatrix
+              title="Delinquency roll rates"
+              caption={`${rolls.data.observationsDisplay ?? "?"} month-to-month transitions`}
+              buckets={rolls.data.buckets}
+              rows={rolls.data.rows}
+            />
+            <ProvenanceTag provenance={rolls.data.provenance} />
+          </Card>
+        ) : null}
+
+        {portfolio.kind === "ready" ? (
+          <Card>
+            <h2 className="text-sm font-semibold text-neutral-900">IFRS 9 staging</h2>
+            <div className="mt-3 grid gap-5 sm:grid-cols-4">
+              <Stat
+                value={portfolio.data.staging.countsDisplay?.stage_1 ?? "—"}
+                label="stage 1"
+              />
+              <Stat
+                value={portfolio.data.staging.countsDisplay?.stage_2 ?? "—"}
+                label="stage 2"
+              />
+              <Stat
+                value={portfolio.data.staging.countsDisplay?.stage_3 ?? "—"}
+                label="stage 3"
+                tone="warn"
+              />
+              <Stat
+                value={portfolio.data.staging.countsDisplay?.undeterminable ?? "—"}
+                label="undeterminable"
+                tone="warn"
+              />
+            </div>
+            <div className="mt-4 rounded-md bg-amber-50 px-4 py-3">
+              <p className="text-xs font-medium text-neutral-800">
+                Most accounts cannot be staged, and that is reported rather than
+                resolved.
               </p>
-            ) : null}
-          </Panel>
-        ))}
+              <ul className="mt-1.5 flex flex-col gap-1">
+                {portfolio.data.staging.blockers.map((b) => (
+                  <li key={b} className="font-mono text-xs text-tier-amber">
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="mt-3 rounded-md bg-neutral-50 px-4 py-3">
+              <p className="text-xs font-medium text-neutral-800">
+                Expected loss is not shown
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-600">
+                {portfolio.data.expectedLossNote}
+              </p>
+            </div>
+          </Card>
+        ) : null}
       </div>
     </AppShell>
   );

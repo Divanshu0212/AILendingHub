@@ -31,7 +31,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
-from lending_hub.gateway import blocked, computed
+from lending_hub.gateway import blocked, computed, demodata
 from lending_hub.gateway.contract import Unavailable
 
 Handler = Callable[..., Mapping[str, Any]]
@@ -97,6 +97,15 @@ CLIENT_DECLARED_PATHS: frozenset[str] = frozenset(
         "/v1/consents",
         "/v1/applications/{applicationId}/document-checks",
         "/v1/assistant/conversations/{conversationId}",
+        # Track P insights. Declared by the client (endpoints.ts) and rendered
+        # by the dashboards, collections and workbench screens.
+        "/v1/insights/vintages",
+        "/v1/insights/roll-rates",
+        "/v1/insights/portfolio",
+        "/v1/insights/capture",
+        "/v1/insights/scoring",
+        "/v1/insights/queue",
+        "/v1/insights/agri/{plotId}",
     }
 )
 
@@ -120,6 +129,47 @@ GATEWAY_ONLY_PATHS: frozenset[str] = frozenset(
 
 
 #: The table. Order is the order `endpoints.ts` declares them.
+
+
+# -- Track P demonstration routes ------------------------------------------
+#
+# These serve figures a committed script computed on real public loan data
+# (`gateway.demodata`). They are NOT model-derived — nothing here came from a
+# fitted model held in the serving path — and every payload carries a
+# `provenance` block naming the track, the dataset and the fact that it is not
+# gate evidence.
+
+
+def _demo_vintages(query: dict) -> dict:
+    return demodata.vintage_curves()
+
+
+def _demo_rollrates(query: dict) -> dict:
+    return demodata.roll_rates()
+
+
+def _demo_portfolio(query: dict) -> dict:
+    return demodata.portfolio_summary()
+
+
+def _demo_capture(query: dict) -> dict:
+    return demodata.capture_sweep()
+
+
+def _demo_scoring(query: dict) -> dict:
+    return demodata.scoring_performance()
+
+
+def _demo_queue(query: dict) -> dict:
+    raw = (query or {}).get("limit", ["25"])
+    limit = int(raw[0]) if isinstance(raw, list) else int(raw)
+    return demodata.officer_queue(limit if 1 <= limit <= 100 else 25)
+
+
+def _demo_agri(path: dict) -> dict:
+    return demodata.agri_evidence(path.get("plotId", "PLOT-DEMO-1"))
+
+
 ROUTES: tuple[Route, ...] = (
     # -- WS-7.3 workbench
     Route("GET", "/v1/workbench/queue", blocked.fetch_queue, False),
@@ -174,6 +224,14 @@ ROUTES: tuple[Route, ...] = (
         False,
         ("query", "body"),
     ),
+    # -- Track P demonstration data (gateway.demodata)
+    Route("GET", "/v1/insights/vintages", _demo_vintages, False, ("query",)),
+    Route("GET", "/v1/insights/roll-rates", _demo_rollrates, False, ("query",)),
+    Route("GET", "/v1/insights/portfolio", _demo_portfolio, False, ("query",)),
+    Route("GET", "/v1/insights/capture", _demo_capture, False, ("query",)),
+    Route("GET", "/v1/insights/scoring", _demo_scoring, False, ("query",)),
+    Route("GET", "/v1/insights/queue", _demo_queue, False, ("query",)),
+    Route("GET", "/v1/insights/agri/{plotId}", _demo_agri, False, ("path",)),
 )
 
 
