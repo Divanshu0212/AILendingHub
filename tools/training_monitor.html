@@ -96,6 +96,18 @@
   svg { display: block; width: 100%; height: auto; }
   .empty { color: var(--ink-3); font-size: 13px; padding: 10px 0; }
   .foot { margin-top: 22px; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 18px; }
+  .tab {
+    font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer;
+    background: var(--panel); border: 1px solid transparent; border-radius: 8px;
+    padding: 7px 14px; transition: color .15s, background .15s;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--panel-2); color: var(--ink); border-color: rgba(255,255,255,0.09); }
+
+  /* Early-warning table: only the survival run has one. */
+  .ew td, .ew th { padding: 7px 12px 7px 0; }
+
   .win {
     background: linear-gradient(135deg, rgba(61,220,151,0.12), rgba(74,158,255,0.08));
     border: 1px solid rgba(61,220,151,0.25);
@@ -111,6 +123,13 @@
     <span class="elapsed" id="elapsed"></span>
   </header>
 
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-src="../reports/training_progress.json"
+            role="tab" aria-selected="true">Credit scoring</button>
+    <button class="tab" data-src="../reports/survival_progress.json"
+            role="tab" aria-selected="false">Behavioural PD &amp; early warning</button>
+  </div>
+
   <div class="grid cols-4" id="stats" style="margin-bottom:16px"></div>
 
   <div class="grid split" style="margin-bottom:16px">
@@ -125,6 +144,7 @@
   </div>
 
   <div class="card" id="winner-card" style="display:none; margin-bottom:16px"></div>
+  <div class="card" id="ew-card" style="display:none; margin-bottom:16px"></div>
 
   <div class="card">
     <h2>Log</h2>
@@ -132,13 +152,29 @@
   </div>
 
   <p class="foot">
-    polls reports/training_progress.json every 2s · local only, nothing is served or published
+    polls the progress file every 2s · local only, nothing is served or published
   </p>
 </div>
 
 <script>
-const SRC = "../reports/training_progress.json";
+let SRC = "../reports/training_progress.json";
 let lastLogLength = 0;
+
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(b => {
+      b.classList.toggle("active", b === btn);
+      b.setAttribute("aria-selected", String(b === btn));
+    });
+    SRC = btn.dataset.src;
+    lastLogLength = 0;
+    // Clear rather than leave the previous run's numbers on screen: a stale
+    // panel under a new tab label is worse than an empty one.
+    document.getElementById("winner-card").style.display = "none";
+    document.getElementById("models").innerHTML = '<p class="empty">loading…</p>';
+    document.getElementById("roc").innerHTML = '<p class="empty">drawn when the ensemble is blended</p>';
+  });
+});
 
 function fmt(n, digits = 4) {
   return typeof n === "number" ? n.toFixed(digits) : "—";
@@ -263,6 +299,28 @@ function render(d) {
         best single ${fmt(e.bestSingleTestAuc)} (${e.bestSingleName}).
         Track P: real public loan data, not gate evidence.
       </p>`;
+  }
+
+  // -- early warning (survival run only) ----------------------------------
+  const ew = d.ensemble?.earlyWarning;
+  const ewCard = document.getElementById("ew-card");
+  if (ew && ew.length) {
+    ewCard.style.display = "";
+    ewCard.innerHTML = `<h2>Early warning — how early, and how many</h2>
+      <table class="ew"><thead><tr>
+        <th>alert on</th><th>defaults caught</th><th>capture</th><th>median lead</th>
+      </tr></thead><tbody>${ew.map(r => `<tr>
+        <td class="mono">top ${(r.topFraction * 100).toFixed(0)}%</td>
+        <td class="mono">${r.defaultsCaught} / ${r.defaultsInTest}</td>
+        <td class="mono" style="color:var(--good)">${(r.captureRate * 100).toFixed(1)}%</td>
+        <td class="mono">${r.medianLeadMonths ?? "—"} months</td>
+      </tr>`).join("")}</tbody></table>
+      <p style="margin:12px 0 0;font-size:11.5px;color:var(--ink-2)">
+        AUC alone is the wrong measure here: a detector that fires the month
+        before default has excellent discrimination and no operational value.
+      </p>`;
+  } else {
+    ewCard.style.display = "none";
   }
 
   // -- log ---------------------------------------------------------------
