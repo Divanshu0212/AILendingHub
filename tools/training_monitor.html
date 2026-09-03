@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training monitor</title>
+<style>
+  /*
+   * A local monitor for `tools/train_ensemble.py`.
+   *
+   * Opened with file:// and polls reports/training_progress.json, which the
+   * trainer rewrites atomically after every state change. Nothing here is
+   * served, published or deployed — it exists so a long run can be watched
+   * without tailing a log.
+   *
+   * The page is deliberately one file with no dependencies: a monitor that
+   * needs a build step is a monitor that does not work at 2am.
+   */
+  :root {
+    --bg: #0b1622;
+    --panel: #12202f;
+    --panel-2: #16283a;
+    --rule: #1e3549;
+    --ink: #e8f0f8;
+    --ink-2: #93aac0;
+    --ink-3: #5f7d99;
+    --brand: #4a9eff;
+    --good: #3ddc97;
+    --warn: #ffb454;
+    --bad: #ff6b6b;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; margin-bottom: 22px; }
+  h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .status {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.1em; padding: 3px 10px; border-radius: 99px;
+  }
+  .s-training { background: rgba(74,158,255,0.16); color: var(--brand); }
+  .s-done     { background: rgba(61,220,151,0.16); color: var(--good); }
+  .s-loading, .s-blending { background: rgba(255,180,84,0.16); color: var(--warn); }
+  .s-failed, .s-waiting { background: rgba(255,107,107,0.16); color: var(--bad); }
+  .elapsed { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+
+  .grid { display: grid; gap: 16px; }
+  .cols-4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .split { grid-template-columns: 1.35fr 1fr; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border-radius: 10px; padding: 16px 18px; }
+  .card h2 {
+    margin: 0 0 12px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3);
+  }
+  .stat .n { font-family: var(--mono); font-size: 27px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat .k { font-size: 12px; color: var(--ink-2); margin-top: 3px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; font-family: var(--mono); font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3);
+    padding: 0 10px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  td { padding: 9px 10px 9px 0; border-bottom: 1px solid rgba(255,255,255,0.045); }
+  tr:last-child td { border-bottom: none; }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .pill { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .p-done    { background: rgba(61,220,151,0.15); color: var(--good); }
+  .p-running { background: rgba(74,158,255,0.15); color: var(--brand); }
+  .p-queued  { background: rgba(255,255,255,0.07); color: var(--ink-3); }
+  .p-failed  { background: rgba(255,107,107,0.15); color: var(--bad); }
+
+  /* A bar showing each model's AUC against the shared axis, so the table reads
+     as a ranking rather than as a list of numbers. */
+  .bar { display: block; height: 5px; border-radius: 99px; background: rgba(255,255,255,0.07); overflow: hidden; min-width: 90px; }
+  .bar > span { display: block; height: 100%; background: var(--brand); border-radius: 99px; }
+  .bar.best > span { background: var(--good); }
+
+  #log {
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.75;
+    max-height: 320px; overflow-y: auto; color: var(--ink-2);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #log .new { color: var(--ink); }
+
+  svg { display: block; width: 100%; height: auto; }
+  .empty { color: var(--ink-3); font-size: 13px; padding: 10px 0; }
+  .foot { margin-top: 22px; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+  .win {
+    background: linear-gradient(135deg, rgba(61,220,151,0.12), rgba(74,158,255,0.08));
+    border: 1px solid rgba(61,220,151,0.25);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Model training</h1>
+    <span class="status s-waiting" id="status">waiting</span>
+    <span class="elapsed" id="elapsed"></span>
+  </header>
+
+  <div class="grid cols-4" id="stats" style="margin-bottom:16px"></div>
+
+  <div class="grid split" style="margin-bottom:16px">
+    <div class="card">
+      <h2>Models</h2>
+      <div id="models"><p class="empty">waiting for the trainer to start…</p></div>
+    </div>
+    <div class="card">
+      <h2>ROC — held-out test set</h2>
+      <div id="roc"><p class="empty">drawn when the ensemble is blended</p></div>
+    </div>
+  </div>
+
+  <div class="card" id="winner-card" style="display:none; margin-bottom:16px"></div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log"><p class="empty">nothing yet</p></div>
+  </div>
+
+  <p class="foot">
+    polls reports/training_progress.json every 2s · local only, nothing is served or published
+  </p>
+</div>
+
+<script>
+const SRC = "../reports/training_progress.json";
+let lastLogLength = 0;
+
+function fmt(n, digits = 4) {
+  return typeof n === "number" ? n.toFixed(digits) : "—";
+}
+
+function hhmmss(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return (h ? `${h}h ` : "") + `${m}m ${String(r).padStart(2, "0")}s`;
+}
+
+function statCard(value, label, tone) {
+  const color = tone === "good" ? "var(--good)"
+              : tone === "warn" ? "var(--warn)"
+              : tone === "brand" ? "var(--brand)" : "var(--ink)";
+  return `<div class="card stat">
+    <div class="n" style="color:${color}">${value}</div>
+    <div class="k">${label}</div>
+  </div>`;
+}
+
+function render(d) {
+  // -- status ------------------------------------------------------------
+  const status = d.status || "waiting";
+  const badge = document.getElementById("status");
+  badge.textContent = status;
+  badge.className = "status s-" + status;
+
+  const started = d.startedAt ? d.startedAt * 1000 : null;
+  const ended = d.finishedAt ? d.finishedAt * 1000 : null;
+  document.getElementById("elapsed").textContent = started
+    ? hhmmss(((ended || Date.now()) - started) / 1000) + (ended ? " total" : " elapsed")
+    : "";
+
+  // -- headline numbers --------------------------------------------------
+  const done = (d.models || []).filter(m => m.status === "done");
+  const best = done.length ? Math.max(...done.map(m => m.testAuc || 0)) : null;
+  const baseline = d.baseline?.challengerTestAuc ?? null;
+  const winner = d.ensemble?.winnerTestAuc ?? null;
+
+  document.getElementById("stats").innerHTML = [
+    statCard(`${done.length}/${(d.models || []).length || "—"}`, "models trained", "brand"),
+    statCard(d.dataset ? d.dataset.rows.toLocaleString() : "—", "rows"),
+    statCard(d.dataset ? d.dataset.features : "—", "features"),
+    statCard(
+      winner !== null ? fmt(winner) : best !== null ? fmt(best) : "—",
+      winner !== null ? "ensemble test AUC" : "best test AUC so far",
+      "good"
+    ),
+  ].join("");
+
+  // -- model table -------------------------------------------------------
+  const models = d.models || [];
+  if (models.length) {
+    const scale = Math.max(0.80, best || 0.80);
+    const rows = models.map(m => {
+      const auc = m.testAuc;
+      // Bar scaled from 0.50 (a coin flip) rather than from 0, so the visible
+      // range is the range that carries information.
+      const pct = auc ? Math.max(0, ((auc - 0.50) / (scale - 0.50)) * 100) : 0;
+      const isBest = auc && best && Math.abs(auc - best) < 1e-12;
+      return `<tr>
+        <td>${m.name}</td>
+        <td><span class="pill p-${m.status}">${m.status}</span></td>
+        <td class="mono">${fmt(auc)}</td>
+        <td style="width:38%"><span class="bar ${isBest ? "best" : ""}"><span style="width:${pct}%"></span></span></td>
+        <td class="mono" style="color:var(--ink-3)">${m.seconds ? m.seconds + "s" : ""}</td>
+      </tr>`;
+    }).join("");
+    document.getElementById("models").innerHTML =
+      `<table><thead><tr><th>model</th><th>state</th><th>test AUC</th><th>rank</th><th>time</th></tr></thead>
+       <tbody>${rows}</tbody></table>`;
+  }
+
+  // -- ROC ---------------------------------------------------------------
+  const roc = d.ensemble?.roc;
+  if (roc) {
+    const W = 320, H = 300, pad = 34;
+    const px = v => pad + v * (W - pad - 10);
+    const py = v => H - pad - v * (H - pad - 14);
+    const line = (pts, color, width) =>
+      `<polyline fill="none" stroke="${color}" stroke-width="${width}"
+        points="${pts.map(p => `${px(p.fpr)},${py(p.tpr)}`).join(" ")}"/>`;
+
+    document.getElementById("roc").innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="ROC curves">
+        <line x1="${px(0)}" y1="${py(0)}" x2="${px(1)}" y2="${py(1)}"
+              stroke="rgba(255,255,255,0.14)" stroke-dasharray="3 4"/>
+        <line x1="${pad}" y1="${py(0)}" x2="${W - 10}" y2="${py(0)}" stroke="rgba(255,255,255,0.2)"/>
+        <line x1="${pad}" y1="${py(0)}" x2="${pad}" y2="14" stroke="rgba(255,255,255,0.2)"/>
+        ${line(roc.bestSingle, "#4a9eff", 1.6)}
+        ${line(roc.winner, "#3ddc97", 2.2)}
+        <text x="${pad}" y="${H - 10}" fill="#5f7d99" font-size="10" font-family="var(--mono)">false positive rate</text>
+        <text x="${pad - 6}" y="20" fill="#5f7d99" font-size="10" text-anchor="end"
+              font-family="var(--mono)" transform="rotate(-90 ${pad - 6} 20)">true positive rate</text>
+      </svg>
+      <p style="margin:10px 0 0;font-size:11.5px;color:var(--ink-2)">
+        <span style="color:var(--good)">■</span> ${d.ensemble.winner} ${fmt(d.ensemble.winnerTestAuc)}
+        ${d.ensemble.winner !== d.ensemble.bestSingleName
+          ? `&nbsp;&nbsp;<span style="color:var(--brand)">■</span> ${d.ensemble.bestSingleName} ${fmt(d.ensemble.bestSingleTestAuc)}`
+          : `&nbsp;&nbsp;<span style="color:var(--ink-3)">the ensemble did not beat its best member</span>`}
+      </p>`;
+  }
+
+  // -- winner ------------------------------------------------------------
+  if (d.ensemble) {
+    const e = d.ensemble;
+    const lift = e.liftOverBaseline;
+    const card = document.getElementById("winner-card");
+    card.style.display = "";
+    card.className = "card win";
+    card.innerHTML = `
+      <h2>Result</h2>
+      <div class="grid cols-4">
+        ${statCard(fmt(e.winnerTestAuc), "winner test AUC — " + e.winner, "good")}
+        ${statCard(fmt(e.winnerGiniPoints, 2), "Gini points")}
+        ${statCard(baseline ? fmt(baseline) : "—", "committed baseline")}
+        ${statCard((lift >= 0 ? "+" : "") + fmt(lift), "lift over baseline", lift > 0 ? "good" : "warn")}
+      </div>
+      <p style="margin:14px 0 0;font-size:12px;color:var(--ink-2)">
+        Equal-weight ${fmt(e.equalWeightTestAuc)} · stack ${fmt(e.stackTestAuc)} ·
+        best single ${fmt(e.bestSingleTestAuc)} (${e.bestSingleName}).
+        Track P: real public loan data, not gate evidence.
+      </p>`;
+  }
+
+  // -- log ---------------------------------------------------------------
+  const log = d.log || [];
+  if (log.length) {
+    const el = document.getElementById("log");
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+    el.innerHTML = log
+      .map((l, i) => `<div${i >= lastLogLength ? ' class="new"' : ""}>${l
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`)
+      .join("");
+    if (atBottom) el.scrollTop = el.scrollHeight;
+    lastLogLength = log.length;
+  }
+}
+
+async function poll() {
+  try {
+    const res = await fetch(SRC + "?t=" + Date.now(), { cache: "no-store" });
+    if (res.ok) render(await res.json());
+  } catch (e) {
+    // A missing or half-written file is the normal state between writes, not
+    // an error worth showing — the trainer renames atomically, so the next
+    // poll will succeed.
+  }
+  setTimeout(poll, 2000);
+}
+poll();
+</script>
+</body>
+</html>
