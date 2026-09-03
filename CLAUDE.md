@@ -14,7 +14,7 @@ Three document layers govern the work, in strict precedence order:
 
 | Rank | Document | Role |
 |---|---|---|
-| 1 | [README.md](README.md) | The **SRS** — design intent, module algorithms, NFRs. `§`-references everywhere point here. |
+| 1 | [docs/SRS.md](docs/SRS.md) | The **SRS** — design intent, module algorithms, NFRs. `§`-references everywhere point here. |
 | 2 | [Lending_Hub_Phase_Docs/00_MASTER_Implementation_Guide.md](Lending_Hub_Phase_Docs/00_MASTER_Implementation_Guide.md) | The **shared contract** — grounding rules, gate protocol, frozen definitions (Appendix A). |
 | 3 | `Lending_Hub_Phase_Docs/Phase_N_*.md` | **Execution detail** for one phase. |
 
@@ -192,7 +192,8 @@ Phase 1 number.
 ## 4. Repo map
 
 ```
-README.md                    SRS (rank 1) — do not edit without a ticket
+README.md                    project overview for GitHub — architecture, results, status
+docs/SRS.md                  SRS (rank 1) — do not edit without a ticket
 Lending_Hub_Phase_Docs/      Master + 7 phase files (rank 2 & 3)
 CLAUDE.md                    this file — the working agreement
 CONTRIBUTING.md              day-to-day workflow, commit format, review gates
