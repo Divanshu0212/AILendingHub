@@ -220,33 +220,34 @@ def thesis(prs):
              "not the hard part — knowing whether you are allowed to believe "
              "it is.", size=15, color=INK, first=True, space_after=16,
          spacing=1.3)
-    para(tf, "A plausible-looking cutoff that nobody ratified survives code "
-             "review, ships, and is still in a report a year later. An agri "
-             "model validated on the wrong agro-zone looks identical to one "
-             "validated correctly. A default model scored on the window it was "
-             "trained on reports excellent numbers and fails in production.",
+    para(tf, "If someone types a cut-off nobody approved, it looks reasonable, "
+             "passes review, and is still being used a year later. A model "
+             "tested on the wrong region looks exactly like one tested "
+             "correctly. A model marked on its own homework scores brilliantly "
+             "and then fails with real customers.",
          size=12, color=INK2, space_after=16, spacing=1.42)
-    para(tf, "So this build inverts the usual priority. Every number must trace "
-             "to one of three sources, and code that cannot find one refuses to "
-             "run rather than guessing.",
+    para(tf, "So we flipped the priority. Every number has to come from one of "
+             "three places. If the code cannot find one, it stops and says so "
+             "instead of guessing.",
          size=12, color=INK2, space_after=0, spacing=1.42)
 
     x = Inches(7.6)
     tf = box(s, x, Inches(2.35), Inches(5.0), Inches(0.3))
     para(tf, "THE GROUNDING CONTRACT", size=10, color=INK3, font=MONO,
          first=True, space_after=0)
-    items = [("[SPEC]", "Written in the specification",
-              "A formula, a threshold the document fixes"),
-             ("[DATA]", "Computed by a committed script",
-              "Rerunnable, versioned, auditable"),
-             ("[POLICY]", "Supplied by a named committee",
-              "In writing, with an owner")]
+    items = [("[SPEC]", "It is in the design document",
+              "A formula or a limit the document already fixes"),
+             ("[DATA]", "A script worked it out",
+              "Anyone can re-run it and get the same answer"),
+             ("[POLICY]", "A named team decided it",
+              "In writing, with someone accountable")]
     for i, (tag, title, sub) in enumerate(items):
         row(s, x, Inches(2.8) + Inches(0.82) * i, Inches(5.0), tag, title, sub)
 
     note(s, x, Inches(5.5), Inches(5.0), Inches(1.05),
-         "Anything else is a build failure. A grounding check scans 350 files "
-         "on every commit and fails the build on an ungrounded value.",
+         "Anything else stops the build. An automatic check reads all 350 "
+         "files every time we save work, and rejects any number that cannot "
+         "say where it came from.",
          kind="warn")
 
 
@@ -258,9 +259,9 @@ def challenges(prs):
     heading(s, "What breaks today, for the farmer\nand for the bank", size=30)
 
     tf = box(s, M, Inches(2.3), Inches(11.5), Inches(0.4))
-    para(tf, "Agricultural lending fails on both sides at once, and the two "
-             "failures cause each other: thin files make banks cautious, and "
-             "caution pushes farmers to informal credit that leaves no file.",
+    para(tf, "Farm lending fails on both sides at once, and each side makes the "
+             "other worse: no credit history makes banks cautious, and caution "
+             "pushes farmers to moneylenders, which leaves no credit history.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     left = [
@@ -270,18 +271,18 @@ def challenges(prs):
          "sowing window closes while the file moves."),
         ("No explanation", "A rejection arrives without a reason the borrower "
          "can act on, so nothing improves before the next application."),
-        ("Wrong product", "A tenor that ignores the harvest calendar turns a "
-         "good borrower into a delinquent one."),
+        ("Wrong product", "Repayments that ignore the harvest calendar turn a "
+         "good borrower into a late one."),
     ]
     right = [
-        ("Thin-file underwriting", "Traditional scorecards have little signal, "
-         "so good farmers are declined alongside bad ones."),
+        ("Too little to go on", "Traditional credit models have almost nothing "
+         "to work with, so good farmers are declined alongside bad ones."),
         ("Unverifiable collateral", "Land records and actual cultivation "
          "disagree, and a field visit costs more than the loan earns."),
         ("Fraud rings", "Shared devices, addresses and accounts across "
          "applications that look independent one at a time."),
-        ("Late warning", "Distress is visible in behaviour months before a "
-         "missed EMI, and nobody is watching for it."),
+        ("Late warning", "Trouble is visible in a borrower's behaviour months "
+         "before a missed payment, and nobody is watching for it."),
     ]
 
     for col, (title, items, colour) in enumerate([
@@ -312,23 +313,23 @@ def solution(prs):
 
     pairs = [
         ("No credit file", "Satellite + weather + crop evidence",
-         "M1 · agri", "SPI/SPEI drought indices and vegetation time series make "
-         "the land itself the evidence when the bureau has nothing."),
-        ("Weeks to a decision", "Scoring in the serving path",
-         "M2 · scoring", "A scorecard and a GBM challenger behind one "
-         "orchestrator, with SHAP reason codes attached to the decision."),
-        ("Fraud rings", "Entity resolution and community detection",
-         "M3 · fraud", "Shared phone, device, address and account edges; "
-         "Louvain finds the dense cluster that no single application shows."),
-        ("Wrong product", "Feasible set before recommendation",
-         "M4 · reco", "The bandit may only choose inside what policy already "
-         "permits — affordability is a constraint, never a suggestion."),
-        ("No explanation", "Templated reasons and a grounded assistant",
-         "M6 · assistant", "Answers carry citations or are refused; decision "
-         "explanations are selected from approved templates, never composed."),
-        ("Late warning", "Change-point detection on behaviour",
-         "M8 · ews", "86% of defaults caught a median 365 days early, measured "
-         "on 338,210 real account-months."),
+         "M1 · agri", "Rainfall shortfall and crop-greenness history make the "
+         "land itself the evidence when there is no credit record."),
+        ("Weeks to a decision", "Automated scoring, with reasons",
+         "M2 · scoring", "A transparent scorecard plus a stronger model behind "
+         "it, and every decision arrives with the reasons that drove it."),
+        ("Fraud rings", "Spot the hidden connections",
+         "M3 · fraud", "Shared phones, devices, addresses and accounts. Finds "
+         "the tight cluster that no single application would ever reveal."),
+        ("Wrong product", "Work out what fits, then recommend",
+         "M4 · reco", "The recommender can only pick from what the borrower "
+         "can actually afford. Affordability is a limit, not advice."),
+        ("No explanation", "Answers that cite their source",
+         "M6 · assistant", "Every answer shows where it came from or is not "
+         "shown at all. Decision wording is picked from approved text."),
+        ("Late warning", "Notice the change in behaviour early",
+         "M8 · ews", "Catches 86% of defaults, typically a year before they "
+         "happen — measured on 338,210 real months of loan history."),
     ]
 
     y = Inches(1.95)
@@ -358,24 +359,24 @@ def flow(prs):
     heading(s, "One application, end to end")
 
     tf = box(s, M, Inches(1.8), Inches(11.5), Inches(0.4))
-    para(tf, "Every step writes to the decision log, and every model-derived "
-             "value carries its model id, version and decision-log reference "
-             "the whole way to the screen.",
+    para(tf, "Every step is written to a permanent record, and every number a "
+             "model produced carries a label saying which model made it — all "
+             "the way to the screen.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     steps = [
-        ("1", "APPLY", "Customer app", "KYC, consent, documents. The consent "
-         "artifact is logged with the same rigour as the credit decision."),
-        ("2", "ENRICH", "agri · bureau", "Plot polygon, drought index, "
-         "vegetation series, bureau pull, cash-flow summary."),
-        ("3", "SCREEN", "fraud", "Entity resolution across phone, device, "
-         "address; velocity and anomaly layers; graph communities."),
-        ("4", "SCORE", "scoring", "Scorecard and GBM challenger; SHAP reason "
-         "codes; the policy band decides approve, review or decline."),
-        ("5", "OFFER", "reco", "Feasible set from ratified caps, ALM pricing, "
-         "then the bandit ranks inside what policy permits."),
-        ("6", "MONITOR", "portfolio · ews", "PD/LGD/EAD re-estimated monthly; "
-         "change-point detection on behaviour raises alerts with an owner."),
+        ("1", "APPLY", "Customer app", "Identity, consent and documents. The "
+         "consent record is kept as carefully as the credit decision."),
+        ("2", "ENRICH", "agri · bureau", "Field boundary, rainfall shortfall, "
+         "crop greenness over time, credit record, bank-statement summary."),
+        ("3", "SCREEN", "fraud", "Match against other applications by phone, "
+         "device and address. Flag unusual behaviour and hidden clusters."),
+        ("4", "SCORE", "scoring", "Two models score the application and the "
+         "reasons are recorded. Policy decides: approve, review or decline."),
+        ("5", "OFFER", "reco", "Work out what the borrower can afford, price "
+         "it, then rank the options that policy allows."),
+        ("6", "MONITOR", "portfolio · ews", "Risk re-estimated every month. A "
+         "change in behaviour raises an alert with somebody's name on it."),
     ]
 
     n = len(steps)
@@ -409,15 +410,14 @@ def flow(prs):
                  space_after=0, align=PP_ALIGN.CENTER)
 
     note(s, M, Inches(5.35), Inches(11.9), Inches(0.95),
-         "The gateway is the only thing the interfaces talk to — never a model "
-         "service directly. A response that renders a score without its model "
-         "id and version is rejected by the client rather than displayed, so an "
-         "unattributable number cannot reach a screen.")
+         "The screens only ever talk to one backend, never straight to a "
+         "model. If a score arrives without its label, the app refuses to show "
+         "it — so a number nobody can trace never reaches a customer.")
 
     note(s, M, Inches(6.45), Inches(11.9), Inches(0.72),
-         "Where a step needs a value nobody has ratified, it stops and names "
-         "the ticket and its owner. Seventeen of the gateway's twenty-one "
-         "routes do exactly that today.", kind="warn")
+         "Where a step needs a number nobody has approved, it stops and says "
+         "who must approve it. Seventeen of the twenty-one endpoints do "
+         "exactly that today.", kind="warn")
 
 
 def scope(prs):
@@ -463,24 +463,22 @@ def tracks(prs):
     heading(s, "Three tracks, one interface — and only one counts")
 
     tf = box(s, M, Inches(1.85), Inches(11.5), Inches(0.6))
-    para(tf, "This repository has no bank attached. Pretending otherwise is the "
-             "easiest way to produce a number that looks like evidence and is "
-             "not. So every figure in every report is stamped with the track "
-             "that produced it.",
+    para(tf, "We do not have a real bank's data. Pretending we do is the easiest "
+             "way to show a number that looks like proof and is not. So every "
+             "figure we report says which kind of data produced it.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     cards = [
         ("TRACK A", "Local reference", BRAND_700, BRAND_50,
-         "Runs on a laptop, stdlib-only, on synthetic fixtures. Proves the code "
-         "paths: joins, point-in-time correctness, the serving path, audit "
-         "arithmetic."),
+         "Runs on a laptop with made-up test data. Proves the plumbing works "
+         "— that the steps connect and the sums add up."),
         ("TRACK P", "Public reference data", COMPUTED, COMPUTED_BG,
-         "Real loans, real applications. Proves the code survives what fixtures "
-         "cannot simulate — real missingness, real class imbalance, real key "
-         "defects. Real data, but not this bank's."),
+         "Real loans and real applications from public datasets. Proves the "
+         "code copes with messy reality — missing fields, rare events, broken "
+         "identifiers. Real data, but not this bank's."),
         ("TRACK B", "Bank deployment", BLOCKED, BLOCKED_BG,
-         "Same interfaces, real backends. The only track that is gate evidence. "
-         "A Gini on US consumer loans is a fact about US consumer lending."),
+         "The bank's own systems and data. This is the only one that counts as "
+         "real proof. A score measured on US loans tells you about US loans."),
     ]
     for i, (tag, title, col, bg, body) in enumerate(cards):
         x = M + Inches(4.06) * i
@@ -497,10 +495,8 @@ def tracks(prs):
              spacing=1.22)
 
     note(s, M, Inches(5.85), Inches(11.9), Inches(1.05),
-         "A join rate computed on fixtures is a test of the audit script. A "
-         "capture rate on a public mortgage panel is a fact about US mortgages. "
-         "Both are useful. Neither is a gate number, and the reports say so on "
-         "every line.")
+         "Both kinds of testing are useful. Neither is proof about this bank's "
+         "customers — and every report we produce says so, on every line.")
 
 
 def results(prs):
@@ -544,13 +540,13 @@ def results(prs):
         rect(s, M, yy + Inches(0.34), Inches(11.8), Emu(9525), fill=RULE)
 
     note(s, M, Inches(4.9), Inches(11.9), Inches(0.95),
-         "The GBM's train Gini is 57.79 against a test Gini of 51.94. That gap "
-         "is reported rather than tuned away — a challenger whose train and test "
-         "numbers match exactly has usually been fitted to its own test set.")
+         "The stronger model scores 57.79 on data it learned from and 51.94 on "
+         "data it had never seen. We report that gap instead of hiding it — a "
+         "model that scores the same on both has usually been over-tuned.")
 
     note(s, M, Inches(6.05), Inches(11.9), Inches(0.75),
-         "These are Track P numbers: real loans, real missingness, and not this "
-         "bank's book. Evidence about the implementation, not gate evidence.",
+         "These come from real public loan data, not this bank's customers. "
+         "They prove the software works. They are not proof about this book.",
          kind="warn")
 
 
@@ -561,23 +557,22 @@ def ews(prs):
     heading(s, "Does deterioration precede default, and by how long?", size=29)
 
     tf = box(s, M, Inches(2.15), Inches(6.2), Inches(2.6))
-    para(tf, "The early-warning system rests on one premise: an account in "
-             "trouble shows it before it misses a payment. That premise is "
-             "testable, and it was tested — on 338,210 real account-months, "
-             "scoring only the 101 defaults the detector could actually have "
-             "reached.",
+    para(tf, "The whole idea rests on one assumption: a borrower in trouble shows "
+             "signs before missing a payment. We tested it on 338,210 real "
+             "months of loan history, and only counted the 101 defaults the "
+             "system could realistically have caught in time.",
          size=12, color=INK2, first=True, space_after=11, spacing=1.28)
-    para(tf, "At the 95th-percentile threshold the detector catches 86% of "
-             "reachable defaults with a median lead time of one full year. "
-             "Tighten to the 99th and capture collapses to 56% — the curve is "
-             "the operating decision, and it belongs to the Collections Head.",
+    para(tf, "Set the alert bar at the usual level and it catches 86% of them, a "
+             "typical full year before the default. Make it much stricter and "
+             "it only catches 56%. Where to set that bar is a business call, "
+             "not ours.",
          size=12, color=INK2, space_after=0, spacing=1.28)
 
     note(s, M, Inches(5.0), Inches(6.2), Inches(1.65),
-         "A correction to our own work. The first run reported 11% capture. "
-         "726 of 827 defaults fell before the detector's first scoreable "
-         "snapshot — the number was measuring the train/test split, not the "
-         "detector. Scoring only reachable defaults moved it 8×.",
+         "We corrected our own mistake here. The first run said 11%. It turned "
+         "out 726 of 827 defaults happened before the system had any data to "
+         "look at — we were measuring the calendar, not the model. Counting "
+         "only reachable cases moved the answer eight-fold.",
          kind="good")
 
     # chart
@@ -632,9 +627,9 @@ def refusals(prs):
          font=MONO, space_after=0)
 
     tf = box(s, M, Inches(2.95), Inches(11.5), Inches(0.4))
-    para(tf, "These are not error states. Each is a place where a default value "
-             "would have become the production value, because nobody ever "
-             "passed the argument.",
+    para(tf, "None of these is a bug. Each is a spot where an invented number "
+             "would have quietly become the real one, because nobody would "
+             "ever have gone back to check it.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     left = [("P2", "expected_income() raises",
@@ -656,9 +651,9 @@ def refusals(prs):
             tag, title, sub)
 
     note(s, M, Inches(6.2), Inches(11.9), Inches(0.85),
-         "98 blocking tickets are registered, each with a named owner and the "
-         "exact decision required. That register is the honest project plan: it "
-         "says what a bank must decide before any of this scores a real customer.",
+         "98 open items, each naming who must decide it and what the decision "
+         "is. That list is the real project plan — it says exactly what a bank "
+         "has to settle before any of this touches a customer.",
          kind="warn")
 
 
@@ -669,9 +664,9 @@ def guarantees(prs):
     heading(s, "Guarantees held by the type system, not by review")
 
     tf = box(s, M, Inches(1.85), Inches(11.5), Inches(0.4))
-    para(tf, "A rule enforced by a code-review comment is a rule that lapses the "
-             "first busy week. These are enforced by constructors, so the "
-             "dangerous state cannot be represented at all.",
+    para(tf, "A rule that depends on someone remembering it fails the first busy "
+             "week. These are built into the code itself, so the unsafe version "
+             "simply cannot be written.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     tiles = [("100%", "Bandit propensity completeness — a decision cannot be "
@@ -689,9 +684,9 @@ def guarantees(prs):
                accent=col)
 
     note(s, M, Inches(5.15), Inches(11.9), Inches(0.9),
-         "An alert cannot exist without an owner, an SLA and a recommended "
-         "action — because an alert missing any of the three is a notification, "
-         "and the difference stops being visible once it is in a queue.",
+         "An alert cannot be created without an owner, a deadline and a "
+         "recommended action. Without all three it is just a notification — "
+         "and once it is sitting in a queue, nobody can tell the difference.",
          kind="good")
 
     note(s, M, Inches(6.25), Inches(11.9), Inches(0.8),
@@ -707,29 +702,30 @@ def findings(prs):
     heading(s, "82 findings raised against the specification")
 
     tf = box(s, M, Inches(1.85), Inches(11.5), Inches(0.4))
-    para(tf, "Building against a document is the only reliable way to test it. "
-             "Each finding is a place where the specification read as complete "
-             "until code had to produce a number.",
+    para(tf, "Writing the code is the only reliable way to test a design document. "
+             "Each of these is a place the design looked finished until "
+             "someone had to produce an actual number.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     items = [
-        ("P4-F1", "The change-point instruction names a quantity that is "
-                  "identically the hazard rate under constant hazard — it detects "
-                  "nothing, on any data. The real signal is one index over.",
+        ("P4-F1", "The design told us to watch a number that never changes, "
+                  "whatever the data does. It could never have detected "
+                  "anything. The real signal was one step away.",
          "Correction"),
-        ("P6-F1", "Uplift from observational logs is unidentifiable, not merely "
-                  "unmeasured — more data narrows the interval around a biased "
-                  "number, turning visible uncertainty into invisible bias.",
+        ("P6-F1", "You cannot tell whether an action helped unless you also "
+                  "left some customers alone. Collecting more data does not "
+                  "fix it — it just makes the wrong answer look confident.",
          "Method"),
-        ("P7-F1", "The frontend phase cites SRS §11.4–§11.8 and UX-1…UX-9 as "
-                  "binding. None exists. The screen inventory it depends on is "
-                  "unrecoverable.", "Document defect"),
-        ("P5-F2", "Effective dates cannot express partial supersession — two "
-                  "circulars in force, one amending the other in part. Both pass "
-                  "the filter; the model picks.", "Gap"),
-        ("P4-F11", "A correction to our own first result: capture was scored "
-                   "against defaults the detector could never have reached, "
-                   "measuring the split rather than the model.", "Self-correction"),
+        ("P7-F1", "The screen design brief points at sections of the "
+                  "specification that do not exist. The list of screens it "
+                  "depends on cannot be recovered.", "Document defect"),
+        ("P5-F2", "Two policy documents can both be current, with the newer "
+                  "one changing only part of the older. Dates alone cannot "
+                  "express that, so the assistant would pick one at random.",
+         "Gap"),
+        ("P4-F11", "We corrected ourselves: our first score counted defaults "
+                   "the system had no chance of seeing, so we were measuring "
+                   "the calendar rather than the model.", "Self-correction"),
     ]
     y = Inches(2.55)
     for tag, text, kind in items:
@@ -752,22 +748,21 @@ def working(prs):
     heading(s, "A working stack, end to end")
 
     tf = box(s, M, Inches(1.9), Inches(6.3), Inches(2.6))
-    para(tf, "A standard-library HTTP gateway serves the interface surfaces. "
-             "Four routes return values computed by the engines; seventeen "
-             "return a structured refusal naming the ticket, its owner and the "
-             "reason.",
+    para(tf, "One backend serves all the screens. Four of its endpoints return "
+             "numbers the engines actually worked out. Seventeen politely "
+             "refuse, naming who has to unblock them and why.",
          size=12, color=INK2, first=True, space_after=11, spacing=1.28)
-    para(tf, "The frontend is Next.js and TypeScript, and the attribution "
-             "triplet is a type: a component cannot be handed a score that does "
-             "not carry its model id, model version and decision-log reference. "
-             "The client throws rather than render an unattributable number.",
+    para(tf, "Every score arriving at a screen must say which model produced it, "
+             "which version, and which decision it belongs to. A screen "
+             "literally cannot be given a number without that label — the app "
+             "rejects it rather than showing it.",
          size=12, color=INK2, space_after=0, spacing=1.28)
 
     note(s, M, Inches(4.75), Inches(6.3), Inches(1.85),
-         "Verified end to end, not asserted: a headless browser loads the "
-         "officer queue, the gateway logs the request, and the refusal renders "
-         "with its ticket and owner. A computed instalment of ₹11,248.97 travels "
-         "client → HTTP → the pricing engine.",
+         "We checked this by running it, not by claiming it. A browser opens "
+         "the officer screen, the backend logs the request, and the refusal "
+         "appears with its owner. A real instalment of ₹11,248.97 travels the "
+         "whole way from the screen to the pricing engine and back.",
          kind="good")
 
     x = Inches(7.35)
@@ -790,9 +785,9 @@ def status(prs):
     heading(s, "Zero of thirty-one exit criteria have gate evidence")
 
     tf = box(s, M, Inches(1.85), Inches(11.5), Inches(0.4))
-    para(tf, "This is the slide most decks leave out. Every phase gate reports "
-             "Track B evidence: 0 — because Track B is a bank deployment, and "
-             "there is no bank attached. Saying so is the point.",
+    para(tf, "Most teams leave this slide out. Every stage reports zero verified "
+             "results, because verification needs the bank's own systems and "
+             "data, which we do not have. Saying so plainly is the point.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     tiles = [("0 / 8", "Phase 1 · credit scoring & fraud"),
@@ -818,10 +813,10 @@ def status(prs):
              spacing=1.15)
 
     note(s, Inches(7.0), Inches(4.1), Inches(5.6), Inches(2.3),
-         "What this buys a bank. The boundary is explicit and reviewable. Every "
-         "deterministic computation in the programme is built and tested; every "
-         "blocked value has a named owner and a ticket. Nothing has to be "
-         "unpicked later because someone guessed — the guesses were never made.",
+         "What a bank gets from this. Everything that can be built is built "
+         "and tested. Everything that cannot names who must decide it. Nothing "
+         "has to be torn out later because somebody guessed — because nobody "
+         "guessed.",
          kind="good")
 
 
