@@ -122,6 +122,7 @@ const CHROME: Readonly<Record<string, string>> = {
   "dashboards.portfolio.subtitle": "Rendered from portfolio metrics; no figure is computed here.",
   "workbench.audit.subtitle": "Every decision-log entry for this case.",
   "customer.offers.subtitle": "Only offers the backend confirmed you are eligible for.",
+  "dashboard.subtitle": "Drive every live engine from one screen.",
   "customer.assistant.subtitle": "Every claim carries its source, or is marked unverified.",
   "modules.agri.subtitle": "Satellite, weather and crop evidence for one plot.",
   "modules.fraud.subtitle": "Four detection layers, ordered by what each needs to run.",

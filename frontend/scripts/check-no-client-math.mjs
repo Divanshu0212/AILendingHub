@@ -82,7 +82,11 @@ const COPY_FILES = [
  * wrong as anywhere else — but those come from the gateway, and this exemption
  * covers only literal strings the page itself holds.
  */
-const DOC_SURFACES = [join("app", "modules"), join("app", "assistant")];
+const DOC_SURFACES = [
+  join("app", "modules"),
+  join("app", "assistant"),
+  join("app", "dashboard"),
+];
 
 const findings = [];
 
@@ -99,9 +103,16 @@ function walk(dir) {
 /** Strip comments and string/template literals so operators inside copy do not fire. */
 function stripped(source) {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
     .replace(/\/\/[^\n]*/g, " ")
-    .replace(/`(?:\\.|\$\{[^}]*\}|[^`\\])*`/g, "``")
+    // Regex literals before anything else: `.replace(/_/g, " ")` reads as a
+    // division to the operator scan below, which reported a string-formatting
+    // call as arithmetic on a money figure. A gate whose findings are wrong is
+    // a gate that gets exempted, so the pattern is removed rather than the rule
+    // relaxed. Matched only after a character that cannot end an expression, so
+    // a true division like `a / b` is untouched.
+    .replace(/([=(,:[!&|?+\-*/%~^{;]\s*)\/(?![*/])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n[])+\/[gimsuyd]*/g, "$1RE")
+    .replace(/`(?:\\.|\$\{[^}]*\}|[^`\\])*`/g, (m) => "``" + m.replace(/[^\n]/g, ""))
     .replace(/'(?:\\.|[^'\\])*'/g, "''")
     .replace(/"(?:\\.|[^"\\])*"/g, '""');
 }

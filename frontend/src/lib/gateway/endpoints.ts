@@ -12,6 +12,7 @@
  */
 
 import type { GatewayClient } from "./client";
+import type { FormattedNumber } from "./provenance";
 import type {
   ActionOption,
   AgriEvidence,
@@ -310,4 +311,111 @@ export function fetchConversation(
     modelDerived: true,
     attributedPaths: ["turns.[]"],
   });
+}
+
+// ---------------------------------------------- engine calls (computed routes)
+//
+// The four gateway routes that return a value something actually computed,
+// rather than a refusal naming a ticket. They are grouped here because they
+// share a property none of the routes above have: the caller supplies the
+// inputs, so the response depends on nothing a committee still owes.
+//
+// None is `modelDerived`. An EMI is a formula, Louvain is an algorithm, the
+// doubly-robust estimator is an estimator and the cadence table is a
+// transcription — none came from a fitted model, so none carries an attribution
+// triplet and the client must not demand one.
+
+export interface InstalmentQuote {
+  readonly amount: FormattedNumber;
+  readonly tenorMonths: number;
+  readonly annualRate: FormattedNumber;
+  readonly emi: FormattedNumber;
+  readonly totalInterest: FormattedNumber;
+  readonly computedBy: string;
+  readonly feasibilityAssessed: boolean;
+  readonly feasibilityNote: string;
+}
+
+/** `annualRate` is a DECIMAL fraction: 0.125 for 12.5%. The gateway refuses a
+ *  value >= 1.0 rather than returning a real EMI for a 1250% rate. */
+export function quoteInstalment(
+  c: GatewayClient,
+  body: { amount: number; annualRate: number; tenorMonths: number }
+): Promise<InstalmentQuote> {
+  return c.request("/v1/quotes/instalment", { method: "POST", body });
+}
+
+export interface CommunityScore {
+  readonly communityId: number;
+  readonly size: number;
+  readonly sharedAttributeEntropy: number;
+  readonly internalDensity: number;
+  /** Backend-supplied display string. Phase 7 §8: the UI chooses no rounding. */
+  readonly internalDensityDisplay: string;
+  readonly dominantEdgeType: string;
+  readonly nodeTypes: Readonly<Record<string, number>>;
+}
+
+export interface CommunityResult {
+  readonly nodeCount: number;
+  readonly edgeCount: number;
+  readonly communityCount: number;
+  readonly modularity: number;
+  /** Backend-supplied display string — the UI chooses no rounding. */
+  readonly modularityDisplay: string;
+  readonly modularityIfSingleCommunity: number;
+  readonly passes: number;
+  readonly communities: readonly CommunityScore[];
+  readonly computedBy: string;
+  readonly fraudLabelDensity: unknown;
+}
+
+export interface GraphNodeInput {
+  readonly nodeId: string;
+  readonly kind: string;
+}
+
+export interface GraphEdgeInput {
+  readonly from: string;
+  readonly to: string;
+  readonly kind: string;
+}
+
+export function detectCommunities(
+  c: GatewayClient,
+  body: { nodes: readonly GraphNodeInput[]; edges: readonly GraphEdgeInput[] }
+): Promise<CommunityResult> {
+  return c.request("/v1/graph/communities", { method: "POST", body });
+}
+
+export interface CadenceActivity {
+  readonly name: string;
+  readonly frequency: string;
+  readonly owningPhase: string;
+  readonly conditional: string | null;
+  readonly runnable: boolean;
+  readonly neverRun: boolean;
+  readonly daysLate: number | null;
+}
+
+export interface CadenceResult {
+  readonly asOf: string;
+  readonly graceDays: number;
+  /** The activities themselves — the gateway returns the list, not a count. */
+  readonly activities: readonly CadenceActivity[];
+  readonly runnableCount: number;
+  readonly overdueCount: number;
+  readonly computedBy: string;
+}
+
+export function learningCadence(
+  c: GatewayClient,
+  body: {
+    asOf: string;
+    graceDays: number;
+    shippedPhases: readonly string[];
+    lastRun: Readonly<Record<string, string>>;
+  }
+): Promise<CadenceResult> {
+  return c.request("/v1/learning/cadence", { method: "POST", body });
 }

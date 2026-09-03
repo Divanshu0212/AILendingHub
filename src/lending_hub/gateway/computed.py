@@ -272,6 +272,9 @@ def detect_communities(body: Mapping[str, Any]) -> dict[str, Any]:
         "edgeCount": len(graph.edges),
         "communityCount": len(partition.communities),
         "modularity": partition.modularity,
+        # Display string beside the raw value, so the render layer chooses
+        # no rounding for a figure a reviewer will quote (Phase 7 §8).
+        "modularityDisplay": f"{partition.modularity:.3f}",
         "modularityIfSingleCommunity": modularity(graph, [frozenset(graph.nodes)]),
         "passes": partition.passes,
         "communities": [
@@ -280,6 +283,10 @@ def detect_communities(body: Mapping[str, Any]) -> dict[str, Any]:
                 "size": s.size,
                 "sharedAttributeEntropy": s.shared_attribute_entropy,
                 "internalDensity": s.internal_density,
+                # Display string alongside the raw fraction, per Phase 7 §8:
+                # choosing a rounding is a decision about what the number
+                # means, and the render layer is forbidden from making it.
+                "internalDensityDisplay": f"{s.internal_density * 100:.0f}%",
                 "dominantEdgeType": s.dominant_edge_type,
                 "nodeTypes": dict(s.node_types),
             }

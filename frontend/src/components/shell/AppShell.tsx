@@ -37,6 +37,7 @@ export interface ShellSection {
 
 /** The four surfaces of SRS Module 9, in the phase file's own build order. */
 export const SECTIONS: readonly ShellSection[] = [
+  { label: "Control centre", href: "/dashboard", surface: "demo" },
   { label: "Officer workbench", href: "/workbench/queue", surface: "WS-7.3" },
   { label: "Collections", href: "/collections/queue", surface: "WS-7.5" },
   { label: "Risk dashboards", href: "/dashboards/portfolio-overview", surface: "WS-7.4" },
@@ -79,7 +80,13 @@ export function AppShell({
           </Link>
           <nav aria-label="Surfaces" className="flex flex-wrap gap-x-1 gap-y-1">
             {SECTIONS.map((section) => {
-              const isActive = active !== undefined && section.href.startsWith(active);
+              // Segment-exact, not prefix: "/dashboards/portfolio-overview"
+              // startsWith "/dashboard", so a plain prefix test lit up two nav
+              // items at once. The boundary character is what distinguishes a
+              // section from one whose name merely begins the same way.
+              const isActive =
+                active !== undefined &&
+                (section.href === active || section.href.startsWith(`${active}/`));
               return (
                 <Link
                   key={section.href}
