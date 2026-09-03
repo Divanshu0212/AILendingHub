@@ -215,21 +215,21 @@ def thesis(prs):
     eyebrow(s, "The problem behind the problem")
     heading(s, "A lending model is easy to build\nand hard to trust", size=30)
 
-    tf = box(s, M, Inches(2.35), Inches(6.5), Inches(3.4))
+    tf = box(s, M, Inches(2.35), Inches(6.5), Inches(3.9))
     para(tf, "Any team can produce a credit score in a weekend. The score is "
              "not the hard part — knowing whether you are allowed to believe "
-             "it is.", size=15, color=INK, first=True, space_after=12,
-         spacing=1.25)
+             "it is.", size=15, color=INK, first=True, space_after=16,
+         spacing=1.3)
     para(tf, "A plausible-looking cutoff that nobody ratified survives code "
              "review, ships, and is still in a report a year later. An agri "
              "model validated on the wrong agro-zone looks identical to one "
              "validated correctly. A default model scored on the window it was "
              "trained on reports excellent numbers and fails in production.",
-         size=12, color=INK2, space_after=12, spacing=1.3)
+         size=12, color=INK2, space_after=16, spacing=1.42)
     para(tf, "So this build inverts the usual priority. Every number must trace "
              "to one of three sources, and code that cannot find one refuses to "
              "run rather than guessing.",
-         size=12, color=INK2, space_after=0, spacing=1.3)
+         size=12, color=INK2, space_after=0, spacing=1.42)
 
     x = Inches(7.6)
     tf = box(s, x, Inches(2.35), Inches(5.0), Inches(0.3))
@@ -250,9 +250,179 @@ def thesis(prs):
          kind="warn")
 
 
-def scope(prs):
+def challenges(prs):
+    """The problem, from both sides of the counter."""
     s = blank(prs)
     slide_num(s, "03")
+    eyebrow(s, "The problem")
+    heading(s, "What breaks today, for the farmer\nand for the bank", size=30)
+
+    tf = box(s, M, Inches(2.3), Inches(11.5), Inches(0.4))
+    para(tf, "Agricultural lending fails on both sides at once, and the two "
+             "failures cause each other: thin files make banks cautious, and "
+             "caution pushes farmers to informal credit that leaves no file.",
+         size=12, color=INK2, first=True, space_after=0, spacing=1.25)
+
+    left = [
+        ("No credit file", "Income is seasonal and in cash. A bureau score "
+         "either does not exist or describes someone else's risk."),
+        ("Weeks to a decision", "Manual field visits and paper appraisal. The "
+         "sowing window closes while the file moves."),
+        ("No explanation", "A rejection arrives without a reason the borrower "
+         "can act on, so nothing improves before the next application."),
+        ("Wrong product", "A tenor that ignores the harvest calendar turns a "
+         "good borrower into a delinquent one."),
+    ]
+    right = [
+        ("Thin-file underwriting", "Traditional scorecards have little signal, "
+         "so good farmers are declined alongside bad ones."),
+        ("Unverifiable collateral", "Land records and actual cultivation "
+         "disagree, and a field visit costs more than the loan earns."),
+        ("Fraud rings", "Shared devices, addresses and accounts across "
+         "applications that look independent one at a time."),
+        ("Late warning", "Distress is visible in behaviour months before a "
+         "missed EMI, and nobody is watching for it."),
+    ]
+
+    for col, (title, items, colour) in enumerate([
+            ("FOR THE CUSTOMER", left, BRAND_700),
+            ("FOR THE BANK", right, BLOCKED)]):
+        x = M + Inches(6.1) * col
+        tf = box(s, x, Inches(2.95), Inches(5.6), Inches(0.28))
+        para(tf, title, size=9.5, color=colour, bold=True, font=MONO,
+             first=True, space_after=0)
+        for i, (h, body) in enumerate(items):
+            yy = Inches(3.38) + Inches(0.97) * i
+            rect(s, x, yy + Inches(0.06), Inches(0.03), Inches(0.6), fill=colour)
+            tf = box(s, x + Inches(0.2), yy, Inches(5.4), Inches(0.26))
+            para(tf, h, size=12.5, color=INK, bold=True, first=True,
+                 space_after=0)
+            tf = box(s, x + Inches(0.2), yy + Inches(0.27), Inches(5.4),
+                     Inches(0.55))
+            para(tf, body, size=10.5, color=INK2, first=True, space_after=0,
+                 spacing=1.18)
+
+
+def solution(prs):
+    """One row per problem, and the module that answers it."""
+    s = blank(prs)
+    slide_num(s, "04")
+    eyebrow(s, "How the platform answers each one")
+    heading(s, "Every problem maps to a module that exists")
+
+    pairs = [
+        ("No credit file", "Satellite + weather + crop evidence",
+         "M1 · agri", "SPI/SPEI drought indices and vegetation time series make "
+         "the land itself the evidence when the bureau has nothing."),
+        ("Weeks to a decision", "Scoring in the serving path",
+         "M2 · scoring", "A scorecard and a GBM challenger behind one "
+         "orchestrator, with SHAP reason codes attached to the decision."),
+        ("Fraud rings", "Entity resolution and community detection",
+         "M3 · fraud", "Shared phone, device, address and account edges; "
+         "Louvain finds the dense cluster that no single application shows."),
+        ("Wrong product", "Feasible set before recommendation",
+         "M4 · reco", "The bandit may only choose inside what policy already "
+         "permits — affordability is a constraint, never a suggestion."),
+        ("No explanation", "Templated reasons and a grounded assistant",
+         "M6 · assistant", "Answers carry citations or are refused; decision "
+         "explanations are selected from approved templates, never composed."),
+        ("Late warning", "Change-point detection on behaviour",
+         "M8 · ews", "86% of defaults caught a median 365 days early, measured "
+         "on 338,210 real account-months."),
+    ]
+
+    y = Inches(1.95)
+    for problem, answer, mod, detail in pairs:
+        rect(s, M, y + Inches(0.05), Inches(0.03), Inches(0.66), fill=COMPUTED)
+        tf = box(s, M + Inches(0.2), y, Inches(2.6), Inches(0.28))
+        para(tf, problem, size=11.5, color=INK3, first=True, space_after=0)
+        # 7.9in of title width keeps every answer on one line, so the detail
+        # line below can never be overprinted by a wrap.
+        tf = box(s, Inches(3.5), y, Inches(7.9), Inches(0.28))
+        para(tf, answer, size=12, color=INK, bold=True, first=True,
+             space_after=0)
+        tf = box(s, Inches(3.5), y + Inches(0.28), Inches(7.9), Inches(0.44))
+        para(tf, detail, size=10, color=INK2, first=True, space_after=0,
+             spacing=1.15)
+        tf = box(s, Inches(11.6), y, Inches(1.3), Inches(0.28))
+        para(tf, mod, size=9.5, color=BRAND_700, font=MONO, first=True,
+             space_after=0)
+        y += Inches(0.87)
+
+
+def flow(prs):
+    """The path one application takes, end to end."""
+    s = blank(prs)
+    slide_num(s, "05")
+    eyebrow(s, "How it works")
+    heading(s, "One application, end to end")
+
+    tf = box(s, M, Inches(1.8), Inches(11.5), Inches(0.4))
+    para(tf, "Every step writes to the decision log, and every model-derived "
+             "value carries its model id, version and decision-log reference "
+             "the whole way to the screen.",
+         size=12, color=INK2, first=True, space_after=0, spacing=1.25)
+
+    steps = [
+        ("1", "APPLY", "Customer app", "KYC, consent, documents. The consent "
+         "artifact is logged with the same rigour as the credit decision."),
+        ("2", "ENRICH", "agri · bureau", "Plot polygon, drought index, "
+         "vegetation series, bureau pull, cash-flow summary."),
+        ("3", "SCREEN", "fraud", "Entity resolution across phone, device, "
+         "address; velocity and anomaly layers; graph communities."),
+        ("4", "SCORE", "scoring", "Scorecard and GBM challenger; SHAP reason "
+         "codes; the policy band decides approve, review or decline."),
+        ("5", "OFFER", "reco", "Feasible set from ratified caps, ALM pricing, "
+         "then the bandit ranks inside what policy permits."),
+        ("6", "MONITOR", "portfolio · ews", "PD/LGD/EAD re-estimated monthly; "
+         "change-point detection on behaviour raises alerts with an owner."),
+    ]
+
+    n = len(steps)
+    bw = Inches(1.83)
+    gap = Inches(0.16)
+    y = Inches(2.55)
+    for i, (num, title, mod, body) in enumerate(steps):
+        x = M + (bw + gap) * i
+        rect(s, x, y, bw, Inches(2.5), fill=None, line=RULE)
+        rect(s, x, y, bw, Inches(0.045), fill=BRAND_700)
+        tf = box(s, x + Inches(0.16), y + Inches(0.22), bw - Inches(0.3),
+                 Inches(0.25))
+        para(tf, num, size=11, color=BRAND_500, bold=True, font=MONO,
+             first=True, space_after=0)
+        tf = box(s, x + Inches(0.16), y + Inches(0.52), bw - Inches(0.3),
+                 Inches(0.25))
+        para(tf, title, size=12.5, color=BRAND_900, bold=True, font=DISPLAY,
+             first=True, space_after=0)
+        tf = box(s, x + Inches(0.16), y + Inches(0.82), bw - Inches(0.3),
+                 Inches(0.22))
+        para(tf, mod, size=8.5, color=INK3, font=MONO, first=True,
+             space_after=0)
+        tf = box(s, x + Inches(0.16), y + Inches(1.12), bw - Inches(0.3),
+                 Inches(1.25))
+        para(tf, body, size=9, color=INK2, first=True, space_after=0,
+             spacing=1.16)
+        if i < n - 1:
+            tf = box(s, x + bw + Inches(0.01), y + Inches(1.15),
+                     Inches(0.16), Inches(0.3))
+            para(tf, "\u203a", size=15, color=BRAND_200, bold=True, first=True,
+                 space_after=0, align=PP_ALIGN.CENTER)
+
+    note(s, M, Inches(5.35), Inches(11.9), Inches(0.95),
+         "The gateway is the only thing the interfaces talk to — never a model "
+         "service directly. A response that renders a score without its model "
+         "id and version is rejected by the client rather than displayed, so an "
+         "unattributable number cannot reach a screen.")
+
+    note(s, M, Inches(6.45), Inches(11.9), Inches(0.72),
+         "Where a step needs a value nobody has ratified, it stops and names "
+         "the ticket and its owner. Seventeen of the gateway's twenty-one "
+         "routes do exactly that today.", kind="warn")
+
+
+def scope(prs):
+    s = blank(prs)
+    slide_num(s, "06")
     eyebrow(s, "Scope")
     heading(s, "Every module in the brief, built")
 
@@ -279,16 +449,16 @@ def scope(prs):
     ]
     for c, (title, rows) in enumerate(cols):
         x = M + Inches(4.06) * c
-        tf = box(s, x, Inches(2.75), Inches(3.7), Inches(0.28))
+        tf = box(s, x, Inches(2.95), Inches(3.7), Inches(0.28))
         para(tf, title, size=9.5, color=INK3, font=MONO, first=True,
              space_after=0)
         for i, (tag, name, sub) in enumerate(rows):
-            row(s, x, Inches(3.15) + Inches(0.98) * i, Inches(3.7), tag, name, sub)
+            row(s, x, Inches(3.42) + Inches(1.26) * i, Inches(3.7), tag, name, sub)
 
 
 def tracks(prs):
     s = blank(prs)
-    slide_num(s, "04")
+    slide_num(s, "07")
     eyebrow(s, "The method")
     heading(s, "Three tracks, one interface — and only one counts")
 
@@ -314,7 +484,7 @@ def tracks(prs):
     ]
     for i, (tag, title, col, bg, body) in enumerate(cards):
         x = M + Inches(4.06) * i
-        rect(s, x, Inches(2.75), Inches(3.7), Inches(2.35), fill=None, line=RULE)
+        rect(s, x, Inches(2.75), Inches(3.7), Inches(2.75), fill=None, line=RULE)
         rect(s, x, Inches(2.75), Inches(3.7), Inches(0.04), fill=col)
         tf = box(s, x + Inches(0.25), Inches(2.98), Inches(3.2), Inches(0.25))
         para(tf, tag, size=9.5, color=col, bold=True, font=MONO, first=True,
@@ -326,7 +496,7 @@ def tracks(prs):
         para(tf, body, size=10.5, color=INK2, first=True, space_after=0,
              spacing=1.22)
 
-    note(s, M, Inches(5.45), Inches(11.9), Inches(0.95),
+    note(s, M, Inches(5.85), Inches(11.9), Inches(1.05),
          "A join rate computed on fixtures is a test of the audit script. A "
          "capture rate on a public mortgage panel is a fact about US mortgages. "
          "Both are useful. Neither is a gate number, and the reports say so on "
@@ -335,7 +505,7 @@ def tracks(prs):
 
 def results(prs):
     s = blank(prs)
-    slide_num(s, "05")
+    slide_num(s, "08")
     eyebrow(s, "Track P results  ·  real public data")
     heading(s, "What the pipelines actually produce")
 
@@ -386,7 +556,7 @@ def results(prs):
 
 def ews(prs):
     s = blank(prs)
-    slide_num(s, "06")
+    slide_num(s, "09")
     eyebrow(s, "Early warning  ·  the question that matters")
     heading(s, "Does deterioration precede default, and by how long?", size=29)
 
@@ -448,7 +618,7 @@ def ews(prs):
 
 def refusals(prs):
     s = blank(prs)
-    slide_num(s, "07")
+    slide_num(s, "10")
     eyebrow(s, "The differentiator")
     heading(s, "The system refuses to invent numbers")
 
@@ -480,9 +650,9 @@ def refusals(prs):
              ("P7", "No demo data",
               "A fabricated score is indistinguishable from a real one in a screenshot")]
     for i, (tag, title, sub) in enumerate(left):
-        row(s, M, Inches(3.55) + Inches(0.85) * i, Inches(5.7), tag, title, sub)
+        row(s, M, Inches(3.68) + Inches(0.82) * i, Inches(5.7), tag, title, sub)
     for i, (tag, title, sub) in enumerate(right):
-        row(s, Inches(7.0), Inches(3.55) + Inches(0.85) * i, Inches(5.7),
+        row(s, Inches(7.0), Inches(3.68) + Inches(0.82) * i, Inches(5.7),
             tag, title, sub)
 
     note(s, M, Inches(6.2), Inches(11.9), Inches(0.85),
@@ -494,7 +664,7 @@ def refusals(prs):
 
 def guarantees(prs):
     s = blank(prs)
-    slide_num(s, "08")
+    slide_num(s, "11")
     eyebrow(s, "Engineering")
     heading(s, "Guarantees held by the type system, not by review")
 
@@ -532,9 +702,9 @@ def guarantees(prs):
 
 def findings(prs):
     s = blank(prs)
-    slide_num(s, "09")
+    slide_num(s, "12")
     eyebrow(s, "What building it found")
-    heading(s, "179 findings raised against the specification")
+    heading(s, "82 findings raised against the specification")
 
     tf = box(s, M, Inches(1.85), Inches(11.5), Inches(0.4))
     para(tf, "Building against a document is the only reliable way to test it. "
@@ -566,10 +736,10 @@ def findings(prs):
         tf = box(s, M, y, Inches(0.95), Inches(0.3))
         para(tf, tag, size=10.5, color=BRAND_700, bold=True, font=MONO,
              first=True, space_after=0)
-        tf = box(s, M + Inches(1.05), y, Inches(8.4), Inches(0.75))
+        tf = box(s, M + Inches(1.05), y, Inches(8.3), Inches(0.75))
         para(tf, text, size=11, color=INK2, first=True, space_after=0,
              spacing=1.22)
-        tf = box(s, Inches(10.0), y, Inches(2.6), Inches(0.3))
+        tf = box(s, Inches(10.25), y, Inches(2.35), Inches(0.3))
         para(tf, kind, size=10, color=INK3, font=MONO, first=True, space_after=0)
         rect(s, M, y + Inches(0.78), Inches(11.9), Emu(9525), fill=RULE)
         y += Inches(0.92)
@@ -577,7 +747,7 @@ def findings(prs):
 
 def working(prs):
     s = blank(prs)
-    slide_num(s, "10")
+    slide_num(s, "13")
     eyebrow(s, "It runs")
     heading(s, "A working stack, end to end")
 
@@ -615,7 +785,7 @@ def working(prs):
 
 def status(prs):
     s = blank(prs)
-    slide_num(s, "11")
+    slide_num(s, "14")
     eyebrow(s, "Status, stated plainly")
     heading(s, "Zero of thirty-one exit criteria have gate evidence")
 
@@ -640,7 +810,7 @@ def status(prs):
               ("Not measurable", "no reachable data produces it — a sourcing problem"),
               ("Unidentifiable", "no quantity of data produces it — a design problem")]
     for i, (name, sub) in enumerate(states):
-        yy = Inches(4.55) + Inches(0.62) * i
+        yy = Inches(4.6) + Inches(0.78) * i
         tf = box(s, M, yy, Inches(1.9), Inches(0.28))
         para(tf, name, size=12, color=INK, bold=True, first=True, space_after=0)
         tf = box(s, M + Inches(1.95), yy + Inches(0.03), Inches(3.9), Inches(0.4))
@@ -696,6 +866,9 @@ def main() -> None:
     prs = new_deck()
     cover(prs)
     thesis(prs)
+    challenges(prs)
+    solution(prs)
+    flow(prs)
     scope(prs)
     tracks(prs)
     results(prs)
