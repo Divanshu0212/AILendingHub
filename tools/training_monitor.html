@@ -130,6 +130,8 @@
             role="tab" aria-selected="false">Behavioural PD &amp; early warning</button>
     <button class="tab" data-src="../reports/fraud_progress.json"
             role="tab" aria-selected="false">Fraud detection</button>
+    <button class="tab" data-src="../reports/crop_progress.json"
+            role="tab" aria-selected="false">Crop classification</button>
   </div>
 
   <div class="grid cols-4" id="stats" style="margin-bottom:16px"></div>
@@ -216,15 +218,18 @@ function render(d) {
   const done = (d.models || []).filter(m => m.status === "done");
   const best = done.length ? Math.max(...done.map(m => m.testAuc || 0)) : null;
   const baseline = d.baseline?.challengerTestAuc ?? null;
-  const winner = d.ensemble?.winnerTestAuc ?? null;
+  const winner = d.ensemble?.winnerTestAuc ?? d.ensemble?.winnerMacroF1 ?? null;
 
   document.getElementById("stats").innerHTML = [
     statCard(`${done.length}/${(d.models || []).length || "—"}`, "models trained", "brand"),
-    statCard(d.dataset ? d.dataset.rows.toLocaleString() : "—", "rows"),
+    statCard(d.dataset ? (d.dataset.rows ?? d.dataset.trainPixels ?? 0).toLocaleString() : "—",
+             d.dataset && d.dataset.trainPixels ? "training pixels" : "rows"),
     statCard(d.dataset ? d.dataset.features : "—", "features"),
     statCard(
       winner !== null ? fmt(winner) : best !== null ? fmt(best) : "—",
-      winner !== null ? "ensemble test AUC" : "best test AUC so far",
+      d.task && d.task.startsWith("crop")
+        ? (winner !== null ? "ensemble macro-F1" : "best macro-F1 so far")
+        : (winner !== null ? "ensemble test AUC" : "best test AUC so far"),
       "good"
     ),
   ].join("");

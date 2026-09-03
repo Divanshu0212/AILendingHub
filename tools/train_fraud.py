@@ -236,10 +236,13 @@ def load(state: dict[str, Any], rows: int | None):
 
     START = datetime.datetime.strptime("2017-11-30", "%Y-%m-%d")
     for df in (X_train, X_test):
-        df["DT_M"] = df["TransactionDT"].apply(
-            lambda x: (START + datetime.timedelta(seconds=x))
-        )
-        df["DT_M"] = (df["DT_M"].dt.year - 2017) * 12 + df["DT_M"].dt.month
+        # Vectorised rather than `.apply(timedelta)`. On the full file the
+        # elementwise version returns an OBJECT column of datetimes, and `.dt`
+        # then raises — it worked on the 200k subset only because pandas
+        # inferred a datetime dtype there. to_timedelta is also ~50x faster
+        # over 590k rows.
+        stamps = START + pd.to_timedelta(df["TransactionDT"], unit="s")
+        df["DT_M"] = (stamps.dt.year - 2017) * 12 + stamps.dt.month
         df["day"] = df.TransactionDT / (24 * 60 * 60)
         df["uid"] = df.card1_addr1.astype(str) + "_" + np.floor(df.day - df.D1).astype(str)
 
@@ -448,9 +451,14 @@ def run(args) -> dict[str, Any]:
     }
     _publish(state)
 
-    X_train, X_test, y_train, cols = load(state, args.rows)
+    # `--rows 0` means "read everything", but pandas reads `nrows=0` as zero
+    # rows — the file loaded empty, every feature built over nothing, and the
+    # fold splitter reported n_splits=0 rather than anything naming the cause.
+    X_train, X_test, y_train, cols = load(state, args.rows or None)
     y = y_train.values.astype(int)
     groups = X_train["DT_M"].values
+    if len(y) == 0:
+        raise SystemExit("loaded zero rows — check --rows and the data path")
 
     state["dataset"] = {
         "rows": int(len(y)),
