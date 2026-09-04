@@ -1,0 +1,24 @@
+13:37:14  reading application table…
+13:37:16  applications: 307,511 rows, 122 raw columns
+13:37:16  reading credit-bureau table…
+13:37:33  bureau: 263,491 applicants matched, 10 features
+13:37:33  reading repayment-history table…
+13:37:41  repayment history: 289,444 applicants matched
+13:37:42  design matrix: 307,511 rows × 145 features
+13:37:42  split 246,008 train / 61,503 test, positive rate 0.0807
+13:37:42  training 7 models across 7 workers
+13:46:13  lightgbm_shallow: test AUC 0.7783 · OOF 0.7785 · 505s — 1/7 done
+13:47:45  lightgbm_wide: test AUC 0.7790 · OOF 0.7781 · 598s — 2/7 done
+13:52:02  extra_trees: test AUC 0.6936 · OOF 0.6934 · 851s — 3/7 done
+13:52:57  lightgbm_deep: test AUC 0.7791 · OOF 0.7786 · 909s — 4/7 done
+13:58:31  random_forest: test AUC 0.7575 · OOF 0.7546 · 1240s — 5/7 done
+14:03:17  xgboost_hist: test AUC 0.7794 · OOF 0.7783 · 1529s — 6/7 done
+14:03:48  xgboost_deep: test AUC 0.7794 · OOF 0.7789 · 1558s — 7/7 done
+14:03:48  fitting the blend on out-of-fold predictions…
+14:03:49  WINNER logistic stack · test AUC 0.7797 · Gini 55.94 · +0.0200 vs baseline
+14:03:49  wrote /home/divanshu/Desktop/AILendingHub/reports/ensemble_training.json
+
+  winner        logistic stack
+  test AUC      0.7797   (Gini 55.94)
+  baseline      0.7597088656705907
+  lift          +0.0200
