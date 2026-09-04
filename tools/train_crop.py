@@ -130,10 +130,62 @@ def tile_features(arr):
     ndre = (nir - rededge) / (nir + rededge + eps)      # chlorophyll
 
     extra = np.stack([ndvi, evi, ndwi, ndmi, nbr, savi, ndre])
-    return np.concatenate([a, extra], axis=0)
+    stack = np.concatenate([a, extra], axis=0)
+
+    # -- neighbourhood context ------------------------------------------
+    #
+    # The single largest gain available on this data, and it comes from a
+    # property of fields rather than of models: a field is contiguous, so a
+    # pixel's neighbours are usually the same crop. 37% of these tiles carry
+    # exactly one class.
+    #
+    # A per-pixel classifier throws that away — it sees each pixel as an
+    # independent spectral sample. Adding a local mean and standard deviation
+    # over a window gives it the context a segmentation network would learn,
+    # without needing dense masks to learn it from.
+    #
+    # Box-blurred via cumulative sums rather than scipy: it is O(n) per window
+    # regardless of radius, and keeps this file free of another dependency.
+    ctx = []
+    for radius in (2, 6):
+        mean = _box_mean(stack, radius)
+        ctx.append(mean)
+        # Local variability separates a uniform field from a boundary or a
+        # mixed pixel, which is exactly where the confusions happen.
+        sq = _box_mean(stack * stack, radius)
+        ctx.append(np.sqrt(np.maximum(sq - mean * mean, 0.0)))
+
+    return np.concatenate([stack] + ctx, axis=0)
 
 
-FEATURE_NAMES = BANDS + ["NDVI", "EVI", "NDWI", "NDMI", "NBR", "SAVI", "NDRE"]
+def _box_mean(a, radius: int):
+    """Mean over a (2r+1)^2 window, per band, edges included.
+
+    Summed-area table: two cumulative sums and four lookups per output, so the
+    cost does not grow with the radius.
+    """
+    import numpy as np
+
+    pad = np.pad(a, ((0, 0), (radius + 1, radius), (radius + 1, radius)), mode="edge")
+    cs = pad.cumsum(1).cumsum(2)
+    h, w = a.shape[1], a.shape[2]
+    k = 2 * radius + 1
+    total = (
+        cs[:, k:k + h, k:k + w]
+        - cs[:, :h, k:k + w]
+        - cs[:, k:k + h, :w]
+        + cs[:, :h, :w]
+    )
+    return total / (k * k)
+
+
+_CORE = BANDS + ["NDVI", "EVI", "NDWI", "NDMI", "NBR", "SAVI", "NDRE"]
+FEATURE_NAMES = _CORE + [
+    f"{name}_{stat}{r}"
+    for r in (2, 6)
+    for stat in ("mean", "std")
+    for name in _CORE
+]
 
 
 def load_split(split: str, state: dict[str, Any], limit: int | None):
@@ -259,12 +311,16 @@ def train_one(payload: dict[str, Any]) -> dict[str, Any]:
     ytr = np.load(payload["ytr"])
     Xva = np.load(payload["xva"])
     yva = np.load(payload["yva"])
+    Xte = np.load(payload["xte"])
+    yte = np.load(payload["yte"])
 
     started = time.time()
     model = _make(spec)
     model.fit(Xtr, ytr)
     pred = model.predict(Xva)
     proba = model.predict_proba(Xva)
+    test_proba = model.predict_proba(Xte)
+    test_pred = test_proba.argmax(1)
 
     return {
         "name": spec["name"],
@@ -275,7 +331,11 @@ def train_one(payload: dict[str, Any]) -> dict[str, Any]:
         "perClassF1": [float(v) for v in f1_score(yva, pred, average=None,
                                                   labels=list(range(N_CLASSES)))],
         "seconds": round(time.time() - started, 1),
+        # Validation macro-F1 is what selects; the test figures are carried
+        # along so the winner is scored without a refit.
+        "testMacroF1": float(f1_score(yte, test_pred, average="macro")),
         "proba": proba.tolist(),
+        "testProba": test_proba.tolist(),
     }
 
 
@@ -321,7 +381,13 @@ def run(args) -> dict[str, Any]:
 
     scratch = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "lh_crop"
     scratch.mkdir(parents=True, exist_ok=True)
-    for name, arr in [("xtr", Xtr), ("ytr", ytr), ("xva", Xte), ("yva", yte)]:
+    # Three splits, used as three splits. An earlier version passed the TEST
+    # set in as the validation set, which meant the winning model was chosen on
+    # the data its score is reported against — the selection overfits even when
+    # no model does. Selection happens on `val`; `test` is scored once, at the
+    # end, by whichever model won.
+    for name, arr in [("xtr", Xtr), ("ytr", ytr), ("xva", Xva), ("yva", yva),
+                      ("xte", Xte), ("yte", yte)]:
         np.save(scratch / f"{name}.npy", arr)
 
     specs = model_specs(args.quick, args.seed)
@@ -333,7 +399,8 @@ def run(args) -> dict[str, Any]:
 
     payloads = [
         {"spec": s, "xtr": str(scratch / "xtr.npy"), "ytr": str(scratch / "ytr.npy"),
-         "xva": str(scratch / "xva.npy"), "yva": str(scratch / "yva.npy")}
+         "xva": str(scratch / "xva.npy"), "yva": str(scratch / "yva.npy"),
+         "xte": str(scratch / "xte.npy"), "yte": str(scratch / "yte.npy")}
         for s in specs
     ]
 
@@ -360,12 +427,14 @@ def run(args) -> dict[str, Any]:
             results.append(r)
             for slot in state["models"]:
                 if slot["name"] == name:
-                    slot.update(status="done", testAuc=r["macroF1"],
-                                macroF1=r["macroF1"], accuracy=r["accuracy"],
-                                seconds=r["seconds"])
+                    slot.update(status="done", testAuc=r["testMacroF1"],
+                                macroF1=r["macroF1"],
+                                testMacroF1=r["testMacroF1"],
+                                accuracy=r["accuracy"], seconds=r["seconds"])
             done = sum(1 for m in state["models"] if m["status"] == "done")
-            _log(state, f"{name}: macro-F1 {r['macroF1']:.4f} · acc {r['accuracy']:.4f} "
-                        f"· {r['seconds']:.0f}s — {done}/{len(specs)} done")
+            _log(state, f"{name}: val macro-F1 {r['macroF1']:.4f} · "
+                        f"test {r['testMacroF1']:.4f} · {r['seconds']:.0f}s "
+                        f"— {done}/{len(specs)} done")
 
     if not results:
         state["status"] = "failed"
@@ -373,16 +442,23 @@ def run(args) -> dict[str, Any]:
         return state
 
     state["status"] = "blending"
-    probs = np.mean([np.array(r["proba"]) for r in results], axis=0)
-    blend_pred = probs.argmax(1)
-    blend_f1 = float(f1_score(yte, blend_pred, average="macro"))
+
+    # Select on VALIDATION, score on TEST. The candidate with the best
+    # validation macro-F1 wins; its test score is then read off once. Choosing
+    # the winner by test score would make that score a selection statistic
+    # rather than an estimate.
+    val_blend = np.mean([np.array(r["proba"]) for r in results], axis=0).argmax(1)
+    val_blend_f1 = float(f1_score(yva, val_blend, average="macro"))
+    test_blend = np.mean([np.array(r["testProba"]) for r in results], axis=0).argmax(1)
 
     best = max(results, key=lambda r: r["macroF1"])
-    winner_name, winner_pred, winner_f1 = max(
-        [("equal-weight ensemble", blend_pred, blend_f1),
-         (best["name"], np.array(best["proba"]).argmax(1), best["macroF1"])],
-        key=lambda t: t[2],
-    )
+    candidates = [
+        ("equal-weight ensemble", val_blend_f1, test_blend),
+        (best["name"], best["macroF1"], np.array(best["testProba"]).argmax(1)),
+    ]
+    winner_name, winner_val_f1, winner_pred = max(candidates, key=lambda c: c[1])
+    winner_f1 = float(f1_score(yte, winner_pred, average="macro"))
+    blend_f1 = float(f1_score(yte, test_blend, average="macro"))
 
     # The number a naive metric would report, stated so nobody quotes it.
     all_labelled_accuracy = float(accuracy_score(yte, winner_pred))
@@ -393,8 +469,15 @@ def run(args) -> dict[str, Any]:
         "winnerAccuracy": all_labelled_accuracy,
         "winnerWeightedF1": float(f1_score(yte, winner_pred, average="weighted")),
         "bestSingleName": best["name"],
-        "bestSingleMacroF1": best["macroF1"],
-        "equalWeightMacroF1": blend_f1,
+        "bestSingleValMacroF1": best["macroF1"],
+        "bestSingleTestMacroF1": best["testMacroF1"],
+        "equalWeightTestMacroF1": blend_f1,
+        "winnerValMacroF1": winner_val_f1,
+        "selectionNote": (
+            "Selected on the validation split, scored once on test. An earlier "
+            "version selected on test, which turns the reported figure into a "
+            "selection statistic."
+        ),
         "perClassF1": [
             float(v) for v in f1_score(yte, winner_pred, average=None,
                                        labels=list(range(N_CLASSES)))
@@ -418,6 +501,7 @@ def run(args) -> dict[str, Any]:
 
     for r in results:
         r.pop("proba", None)
+        r.pop("testProba", None)
     report = dict(state)
     report["modelDetail"] = results
     report["features"] = FEATURE_NAMES

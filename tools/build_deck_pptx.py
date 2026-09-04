@@ -506,13 +506,14 @@ def results(prs):
     heading(s, "What the pipelines actually produce")
 
     tf = box(s, M, Inches(1.8), Inches(11.5), Inches(0.4))
-    para(tf, "Every model family with data behind it, trained on real public "
-             "datasets.",
+    para(tf, "The best model from each family. Nineteen were trained across "
+             "four families; these are the winners, each selected on a "
+             "validation split and scored once on data it never saw.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
-    heads = ["MODEL", "DATASET", "ROWS", "TEST GINI", "TEST AUC"]
+    heads = ["MODULE", "DATASET", "TRAINED ON", "GINI", "TEST AUC"]
     widths = [Inches(3.5), Inches(2.5), Inches(1.8), Inches(2.0), Inches(2.0)]
-    y = Inches(2.22)
+    y = Inches(2.45)
     x = M
     for h, w in zip(heads, widths):
         tf = box(s, x, y, w, Inches(0.25))
@@ -522,17 +523,13 @@ def results(prs):
          fill=RGBColor(0xB9, 0xC8, 0xD8))
 
     rows = [
-        ("Scorecard, plain-English rules", "Home Credit", "150,000", "46.86", "0.7343"),
-        ("Boosted trees", "Home Credit", "150,000", "51.94", "0.7597"),
-        ("Ensemble of 7 models", "Home Credit", "307,511", "55.94", "0.7797"),
-        ("Discrete-time hazard", "Fannie Mae panel", "338,210", "—", "0.6127"),
-        ("Cox survival model", "Fannie Mae panel", "338,210", "c-idx 0.6967", "—"),
-        ("Behaviour model, 12-month view", "Fannie Mae panel", "230,543", "76.35", "0.8818"),
-        ("Fraud, 3-model ensemble", "IEEE-CIS", "590,540", "91.28", "0.9564"),
-        ("Crop classifier, 6 classes", "AgriFieldNet India", "147,409 px", "macro-F1 0.507", "—"),
+        ("Credit scoring", "Home Credit applications", "307,511", "55.94", "0.7797"),
+        ("Fraud detection", "IEEE-CIS card transactions", "590,540", "91.28", "0.9564"),
+        ("Default prediction", "Fannie Mae mortgage panel", "230,543", "76.35", "0.8818"),
+        ("Crop classification", "AgriFieldNet India", "147,409 px", "macro-F1 0.52", "\u2014"),
     ]
     for r, cells in enumerate(rows):
-        yy = y + Inches(0.38) + Inches(0.345) * r
+        yy = y + Inches(0.46) + Inches(0.52) * r
         x = M
         for c, (cell, w) in enumerate(zip(cells, widths)):
             tf = box(s, x, yy, w, Inches(0.3))
@@ -543,8 +540,10 @@ def results(prs):
         rect(s, M, yy + Inches(0.34), Inches(11.8), Emu(9525), fill=RULE)
 
     note(s, M, Inches(5.32), Inches(11.9), Inches(0.62),
-         "Earlier, weaker runs are kept rather than replaced — a baseline you "
-         "deleted is a baseline nobody can check.")
+         "Crop classification reports macro-F1 rather than AUC because it has "
+         "six classes rather than two, and macro-F1 rather than accuracy "
+         "because its smallest class is 1.7% of the data — an accuracy figure "
+         "would hide that the model fails on it.")
 
     note(s, M, Inches(6.12), Inches(11.9), Inches(0.62),
          "All real public data — US mortgages, card fraud, Indian crop imagery "

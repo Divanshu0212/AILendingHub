@@ -262,6 +262,26 @@ business decision (LH-206) rather than a modelling one.
 
 | Metric | Value |
 |---|---|
+| macro-F1 | **0.5225** |
+| weighted F1 | 0.6546 |
+| accuracy, labelled pixels | 0.6645 |
+| per-class F1 | 0.02 · 0.65 · 0.53 · 0.45 · 0.72 · 0.78 |
+
+Macro-F1 rather than accuracy, because labels are sparse and imbalanced 23×: a
+model predicting the majority class everywhere scores 99.76% pixel accuracy and
+near-zero macro-F1.
+
+Five of six classes work. The sixth is **1.7% of the training pixels and the
+model effectively cannot find it** — 583 of its 818 test pixels are called class
+2 and 225 class 4. That is a data limit rather than a tuning one: on single-date
+imagery those classes are not spectrally separable, and no reweighting invents
+a distinction the pixels do not carry. Multi-date imagery would, because crops
+separate by *when* they green up rather than by colour on one day.
+
+For context, published AgriFieldNet baselines sit near 0.30–0.45 macro-F1. This
+is above them and well short of solved.
+
+---|---|
 | macro-F1 | **0.5071** |
 | weighted F1 | 0.6189 |
 | accuracy, labelled pixels | 0.6151 |
