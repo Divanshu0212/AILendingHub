@@ -87,8 +87,36 @@ COL_PURPOSE = 26
 COL_STATE = 30
 COL_DLQ = 39
 
-#: A default, per Appendix A's threshold: 90+ days past due.
-DEFAULT_DLQ = 3
+def _default_threshold_days() -> int:
+    """Appendix A's default threshold, imported rather than restated.
+
+    Read through a subprocess-free direct import of the stdlib-only core. This
+    file must not depend on the core at runtime for anything else — it would
+    pull numpy into `src/`'s import graph the first time a test ran it — but a
+    single frozen integer is exactly what Master §2 rule 6 says must come from
+    `lending_hub.definitions` rather than be typed twice.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO / "src"))
+    from lending_hub.definitions import DEFAULT_DPD_THRESHOLD_DAYS
+
+    # `.value` because the constants are `Grounded` — the value carries its
+    # citation and owner so a reader can see where 90 came from. Unwrapping it
+    # here is the point at which this file leaves the grounded world for a
+    # plain integer.
+    return int(DEFAULT_DPD_THRESHOLD_DAYS.value)
+
+
+#: A default, in the panel's own units: months delinquent.
+#:
+#: Derived from Appendix A rather than retyped — the grounding checker caught
+#: the hardcoded 3 and was right to. The definition is a DAY count owned by the
+#: Model Risk Committee; this file needs it in months because that is what the
+#: panel reports, and deriving it here means a change to the definition moves
+#: this label with it rather than leaving the two silently out of step.
+_DEF_DAYS = _default_threshold_days()
+DEFAULT_DLQ = _DEF_DAYS // 30
 
 
 def _publish(state: dict[str, Any]) -> None:

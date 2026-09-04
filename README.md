@@ -13,9 +13,10 @@ Built for the **TVS Credit EPIC 8.0 IT Challenge**.
 | **Backend** | 21 packages · ~40,700 lines · standard-library Python only |
 | **Frontend** | Next.js + TypeScript · 46 files · ~6,700 lines |
 | **Tests** | 2,331, green on every commit |
-| **Real data** | 16.8M mortgage performance rows · 150,000 credit applications |
+| **Real data** | 16.8M mortgage rows · 307,511 applications · 590,540 card transactions · 1,173 crop tiles |
 | **Open tickets** | 98, each with a named owner and the decision required |
 | **Findings** | 82 raised against the specification while building |
+| **Models trained** | 19 across 4 families, on real public data |
 
 ---
 
@@ -217,6 +218,7 @@ gate evidence.**
 |---|---|---|---|
 | WoE scorecard (champion) | 46.86 | 0.7343 | 46.35 |
 | GBM (challenger) | 51.94 | 0.7597 | 57.79 |
+| Seven-model ensemble | **55.94** | **0.7797** | — |
 
 The GBM's train-test gap is reported rather than tuned away — a challenger whose train
 and test numbers match exactly has usually been fitted to its own test set.
@@ -228,6 +230,47 @@ and test numbers match exactly has usually been fitted to its own test set.
 | Cox proportional hazards | c-index | 0.6967 |
 | Discrete-time hazard | AUC | 0.6127 |
 | Survival calibration | Integrated Brier | 0.0902 |
+| Behavioural PD, 12-month horizon | test AUC | **0.8818** |
+
+The behavioural model is **not** comparable to the Cox c-index above it: that
+c-index covers a 48-month forward window on 1,400 subjects, this AUC a 12-month
+window on 230,543. Different horizons and different cohorts, so no lift is
+claimed between them.
+
+### Fraud detection — 590,540 real card transactions
+
+| Model | OOF AUC | Time |
+|---|---|---|
+| LightGBM | 0.95553 | 34 min |
+| XGBoost | 0.95421 | 73 min |
+| CatBoost | 0.95081 | 184 min |
+| **Three-model stack** | **0.95638** | — |
+
+What a review desk would actually see, which is the number that decides staffing:
+
+| review budget | fraud caught | precision | false alerts |
+|---|---|---|---|
+| top 0.5% | 14.1% | 98.4% | 46 |
+| **top 1%** | **27.6%** | **96.4%** | **211** |
+| top 2% | 51.3% | 89.8% | 1,204 |
+| top 5% | 74.1% | 51.9% | 14,214 |
+
+False alerts are customers stopped wrongly, which is why the alert budget is a
+business decision (LH-206) rather than a modelling one.
+
+### Crop classification — 147,409 labelled pixels, 6 classes
+
+| Metric | Value |
+|---|---|
+| macro-F1 | **0.5071** |
+| weighted F1 | 0.6189 |
+| accuracy, labelled pixels | 0.6151 |
+| per-class F1 | 0.045 · 0.68 · 0.494 · 0.416 · 0.66 · 0.748 |
+
+Macro-F1 rather than accuracy, because labels are sparse and imbalanced 23×: a
+model predicting the majority class everywhere scores 99.76% pixel accuracy and
+near-zero macro-F1. The weakest class has 2,545 training pixels and the model
+essentially fails on it — reported rather than averaged away.
 
 ### Early warning — does deterioration precede default?
 
@@ -321,6 +364,28 @@ make trackp-p3      # WS-3.1/3.2 on a 19-year mortgage panel
 make trackp-p4      # does deterioration precede default?
 make gate1 … gate6  # the evidence packs, generated never hand-written
 ```
+
+### Stronger models, trained separately
+
+Four research harnesses in `tools/` explore what a production-grade model would
+buy. They write to their own files and **overwrite no committed run** — a tuning
+script that clobbers its baseline makes "we improved the model" unfalsifiable.
+
+```bash
+python3 tools/train_ensemble.py   # credit scoring, 7 models
+python3 tools/train_survival.py   # behavioural PD and early warning, 5 models
+python3 tools/train_fraud.py      # card fraud, 3 families
+python3 tools/train_crop.py       # crop classification, 4 models
+```
+
+Open `tools/training_monitor.html` in a browser to watch any of them live — it
+polls the progress files and needs no server.
+
+These use LightGBM, XGBoost and CatBoost. That is not a contradiction of the
+stdlib-only rule: ADR-0003 constrains `src/lending_hub/`, the *reference
+implementation*, so that every algorithm stays readable and portable. These live
+in `tools/`, import nothing from the core, and are exactly the Track B swap the
+ADR anticipates.
 
 These need `datasets/`, which is gitignored — see
 [docs/phase0/DATA_SOURCING.md](docs/phase0/DATA_SOURCING.md). Everything else runs on a

@@ -506,14 +506,13 @@ def results(prs):
     heading(s, "What the pipelines actually produce")
 
     tf = box(s, M, Inches(1.8), Inches(11.5), Inches(0.4))
-    para(tf, "Two full pipelines run end to end on real datasets: 150,000 real "
-             "credit applications, and a 19-year mortgage panel of 16.8 million "
-             "performance rows.",
+    para(tf, "Every model family with data behind it, trained on real public "
+             "datasets.",
          size=12, color=INK2, first=True, space_after=0, spacing=1.25)
 
     heads = ["MODEL", "DATASET", "ROWS", "TEST GINI", "TEST AUC"]
     widths = [Inches(3.5), Inches(2.5), Inches(1.8), Inches(2.0), Inches(2.0)]
-    y = Inches(2.32)
+    y = Inches(2.22)
     x = M
     for h, w in zip(heads, widths):
         tf = box(s, x, y, w, Inches(0.25))
@@ -529,9 +528,11 @@ def results(prs):
         ("Discrete-time hazard", "Fannie Mae panel", "338,210", "—", "0.6127"),
         ("Cox survival model", "Fannie Mae panel", "338,210", "c-idx 0.6967", "—"),
         ("Behaviour model, 12-month view", "Fannie Mae panel", "230,543", "76.35", "0.8818"),
+        ("Fraud, 3-model ensemble", "IEEE-CIS", "590,540", "91.28", "0.9564"),
+        ("Crop classifier, 6 classes", "AgriFieldNet India", "147,409 px", "macro-F1 0.507", "—"),
     ]
     for r, cells in enumerate(rows):
-        yy = y + Inches(0.42) + Inches(0.40) * r
+        yy = y + Inches(0.38) + Inches(0.345) * r
         x = M
         for c, (cell, w) in enumerate(zip(cells, widths)):
             tf = box(s, x, yy, w, Inches(0.3))
@@ -541,15 +542,14 @@ def results(prs):
             x += w
         rect(s, M, yy + Inches(0.34), Inches(11.8), Emu(9525), fill=RULE)
 
-    note(s, M, Inches(5.28), Inches(11.9), Inches(0.66),
-         "The bottom row of each pair is a later, stronger run using more data "
-         "and more models. The earlier rows are kept rather than replaced, "
-         "because a baseline you deleted is a baseline nobody can check.")
+    note(s, M, Inches(5.32), Inches(11.9), Inches(0.62),
+         "Earlier, weaker runs are kept rather than replaced — a baseline you "
+         "deleted is a baseline nobody can check.")
 
-    note(s, M, Inches(6.08), Inches(11.9), Inches(0.66),
-         "These come from real public loan data — US mortgages and consumer "
-         "credit — not this bank's customers. They prove the software works. "
-         "They are not proof about this book.",
+    note(s, M, Inches(6.12), Inches(11.9), Inches(0.62),
+         "All real public data — US mortgages, card fraud, Indian crop imagery "
+         "— but not this bank's customers. Proof the software works, not proof "
+         "about this book.",
          kind="warn")
 
 

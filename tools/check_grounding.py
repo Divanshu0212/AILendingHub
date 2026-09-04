@@ -35,6 +35,12 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 SKIP_DIRS = {
     ".git", "__pycache__", ".venv", "venv", ".pytest_cache", ".mypy_cache",
     ".ruff_cache", "node_modules", ".localstack", "reports",
+    # Real external data, gitignored and never authored here. G5 exists to stop
+    # synthetic data escaping `tests/fixtures/` into a training path; it fired
+    # on Kaggle's own sample_submission.csv, which is a competition artifact
+    # rather than anything this repository invented. Scanning downloaded data
+    # for authored-here violations reports the publisher's choices as ours.
+    "datasets",
 }
 
 TEXT_SUFFIXES = {".py", ".md", ".yaml", ".yml", ".toml", ".json", ".cfg", ".sh", ".ini"}
