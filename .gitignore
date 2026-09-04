@@ -27,6 +27,11 @@ mlruns/
 # Reports produced by audit/reconciliation scripts (regenerate, don't commit)
 reports/*.json
 reports/*.html
+# Generated demo recordings. Same rule as every other artifact under
+# reports/: regenerate with `node frontend/scripts/record-demo.mjs`,
+# never commit. A ten-megabyte binary that changes wholesale on every
+# run is the worst possible thing to keep in git history.
+reports/demo/
 !reports/.gitkeep
 
 # Editor / OS

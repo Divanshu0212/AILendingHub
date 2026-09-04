@@ -143,12 +143,15 @@ export default function IndexPage() {
         role="note"
         className="mt-4 rounded border border-dashed border-neutral-400 bg-neutral-50 p-4 text-xs text-neutral-700"
       >
-        Every route below renders, and none of them shows data. The gateway
-        adapter rejects every call by design, because a demo adapter would put a
-        score, a PD, an EMI and reason sentences on screen &mdash; the four
-        things Phase 7 &sect;8 forbids inventing &mdash; and a demo screenshot is
-        indistinguishable from a real one. Each screen states its own
-        unavailability and names the ticket behind it.
+        The screens below render real results from real public datasets &mdash;
+        US mortgages, US card transactions, Home Credit applications, Indian
+        crop imagery &mdash; computed by the backend and never in this browser.
+        That is Track P: it proves the code survives real missingness and real
+        class imbalance, and it is <strong>not</strong> this bank&rsquo;s book,
+        so no number here is gate evidence. What stays absent is what Phase 7
+        &sect;8 forbids inventing: a customer&rsquo;s score, PD, EMI or reason
+        sentences. Where one of those has no backend behind it, the screen says
+        so and names the blocking ticket rather than showing a placeholder.
       </p>
 
       <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-neutral-700">
