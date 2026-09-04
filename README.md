@@ -10,13 +10,31 @@ Built for the **TVS Credit EPIC 8.0 IT Challenge**.
 | | |
 |---|---|
 | **Phases** | 8 (P0 platform → P7 interfaces), all built |
-| **Backend** | 21 packages · ~40,700 lines · standard-library Python only |
-| **Frontend** | Next.js + TypeScript · 46 files · ~6,700 lines |
+| **Backend** | 21 packages · ~41,500 lines · standard-library Python only |
+| **Frontend** | Next.js + TypeScript · 48 files · ~8,100 lines |
 | **Tests** | 2,331, green on every commit |
 | **Real data** | 16.8M mortgage rows · 307,511 applications · 590,540 card transactions · 1,173 crop tiles |
 | **Open tickets** | 98, each with a named owner and the decision required |
 | **Findings** | 82 raised against the specification while building |
 | **Models trained** | 19 across 4 families, on real public data |
+
+---
+
+## Contents
+
+**Understanding it** — [The one idea](#the-one-idea-this-project-is-built-on) ·
+[Three tracks](#three-tracks-and-only-one-is-evidence) ·
+[Architecture](#architecture) · [The eight modules](#what-each-module-does)
+
+**The evidence** — [Results](#results-on-real-public-data) ·
+[Datasets and their limits](#the-datasets-and-what-each-cannot-support) ·
+[How the models were trained](#how-the-models-were-trained) ·
+[Status](#status-stated-plainly)
+
+**Working on it** — [Running it](#running-it) ·
+[What building it found](#what-building-it-found) ·
+[Design decisions](#the-decisions-that-shaped-this) ·
+[Repository map](#repository-map)
 
 ---
 
@@ -307,22 +325,110 @@ The curve is the operating decision, and it belongs to the Collections Head.
 
 ---
 
+## The datasets, and what each cannot support
+
+Four real datasets, none of them a bank's own book. Each is listed with the
+limit that matters, because a dataset's ceiling is a property of the data rather
+than of the model fitted to it.
+
+| Dataset | What it is | What it cannot support |
+|---|---|---|
+| **Home Credit** | 307,511 loan applications with repayment outcomes, plus credit-bureau and repayment-history tables | Consumer credit, not agricultural. The label is the publisher's definition of *payment difficulty*, not Appendix A's default — so a Gini here is not a Gini on this bank's target. |
+| **Fannie Mae** | 16.8M monthly performance rows, 19 years, 230,543 accounts scored | US mortgages. Real censoring, real seasoning, a real crisis in the middle — but a different product, a different economy, and a secured loan where the collateral is a house. |
+| **IEEE-CIS** | 590,540 card transactions, 3.5% fraud, six months, 394 raw features | E-commerce card fraud, not loan fraud. The **graph structure** transfers — shared device, address, email domain — the fraud patterns do not. |
+| **AgriFieldNet** | 1,173 Sentinel-2 tiles over four Indian states, 147,409 GPS-walked labelled pixels | Real Indian farmland with real ground truth, and **single-date imagery**. Crops separate by *when* they green up; one date caps what any model can distinguish. |
+
+A fifth dataset — Crops3D, 1,180 laser-scanned plant point clouds — was
+evaluated and **not used**. It answers "what shape is this plant", which needs a
+scanner a metre from the crop. The lending question is "what is growing on this
+plot", answered from orbit. The two share no input space, so nothing transfers
+between them.
+
+---
+
+## How the models were trained
+
+Nineteen models across four families. Every harness lives in `tools/`, writes to
+its own report, and **overwrites no committed run** — a tuning script that
+clobbers its baseline makes "we improved the model" unfalsifiable.
+
+### The four harnesses
+
+| Script | Family | Models | What it fits |
+|---|---|---|---|
+| [`train_ensemble.py`](tools/train_ensemble.py) | Credit scoring | 7 | LightGBM ×3, XGBoost ×2, random forest, extra trees |
+| [`train_survival.py`](tools/train_survival.py) | Behavioural PD + EWS | 5 | LightGBM ×2, XGBoost, histogram GB, random forest |
+| [`train_fraud.py`](tools/train_fraud.py) | Card fraud | 3 | XGBoost, LightGBM, CatBoost |
+| [`train_crop.py`](tools/train_crop.py) | Crop classification | 4 | LightGBM, XGBoost, random forest, extra trees |
+
+### Four decisions that shaped every result
+
+**Splits match the data's shape, never the default.** The credit and fraud
+models split by time — fraud folds by calendar month, so a model never sees a
+transaction from the month it is scored on. The behavioural model splits by
+*account*, with features from months at or before an observation point and
+labels strictly after. A random split of a panel puts an account's later months
+in train and its earlier months in test, which leaks the outcome backwards and
+produces an excellent number that means nothing.
+
+**Blends are fitted out-of-fold.** Stack weights come from predictions each model
+made for rows it did not train on. Fitting them on the training split teaches the
+blend which model memorised best rather than which generalises best.
+
+**Selection and reporting are separate.** Models are chosen on a validation
+split and scored once on a test split neither training nor selection touched.
+An earlier version of the crop trainer selected on test — the winner was chosen
+on the data its score is reported against, which makes the report a selection
+statistic. That was a real defect, found and fixed.
+
+**The metric fits the problem.** Fraud reports AUC *and* an alert-budget table,
+because a desk acts on a budget rather than a ranking. Early warning reports
+lead time as well as capture, because a detector that fires the month before
+default has excellent discrimination and no operational value. Crop reports
+macro-F1 rather than accuracy, because predicting the majority class everywhere
+scores 99.76% pixel accuracy.
+
+### Watching a run
+
+```bash
+open tools/training_monitor.html      # or just double-click it
+```
+
+One dependency-free page, four tabs, polling every two seconds. It reads the
+progress JSON each trainer writes atomically, so it works offline and survives a
+trainer crash. Nothing is served or published.
+
+### Why these use libraries when the core does not
+
+ADR-0003 makes `src/lending_hub/` standard-library only so every algorithm stays
+readable and the reference implementation runs anywhere. That constraint is about
+the *reference implementation*. These harnesses live in `tools/`, import nothing
+from the core, and are exactly the Track B swap the ADR anticipates: same
+problem, real backends.
+
+---
+
 ## Status, stated plainly
 
 **Zero of thirty-one exit criteria have gate evidence.** Every phase gate reports
 `Track B evidence: 0`, because Track B is a bank deployment and there is no bank
 attached. Saying so is the point.
 
-| Phase | Gate evidence | Open tickets | Findings |
-|---|---|---|---|
-| P0 platform | — | 13 | — |
-| P1 scoring & fraud | 0 of 8 | 10 | 14 |
-| P2 agri | 0 of 6 | 13 | 14 |
-| P3 portfolio | 0 of 6 | 11 | 14 |
-| P4 EWS & reco | 0 of 5 | 13 | 11 |
-| P5 assistant | 0 of 6 | 12 | 9 |
-| P6 learning loops | standing criterion | 11 | 7 |
-| P7 interfaces | 0 | 15 | 13 |
+| Phase | Gate evidence | Tickets | Findings | The blocker in one line |
+|---|---|---|---|---|
+| **P0** platform | — | 13 | — | Data-sharing approvals that were never granted |
+| **P1** scoring & fraud | 0 of 8 | 10 | 14 | Approve/decline cutoffs are unratified (LH-204) |
+| **P2** agri | 0 of 6 | 13 | 14 | No ratified crop calendar; input costs decide the sign of income (LH-102, LH-401) |
+| **P3** portfolio | 0 of 6 | 11 | 14 | SICR thresholds and the LGD loss basis (LH-301, LH-311) |
+| **P4** EWS & reco | 0 of 5 | 13 | 11 | No collections desk exists, so no alert has ever been dispositioned |
+| **P5** assistant | 0 of 6 | 12 | 9 | No corpus, no golden set, no approved templates, no model |
+| **P6** learning loops | standing | 11 | 7 | A learning loop with no prior iteration has nothing to learn from |
+| **P7** interfaces | 0 | 15 | 13 | The SRS sections it cites do not exist (LH-711) |
+
+**98 tickets, and none is engineering work.** Each names an owner and the exact
+decision required: a cutoff, a crop calendar, an alert budget, a set of
+sentences a lawyer must approve. That register is the honest project plan — it
+says precisely what a bank has to settle before any of this touches a customer.
 
 ### Three gate states, not two
 
@@ -338,6 +444,18 @@ data narrows the interval around the wrong number.
 ---
 
 ## Running it
+
+### Sixty seconds
+
+```bash
+git clone <this repo> && cd AILendingHub
+make check            # grounding + registry + 2,331 tests, ~30s
+make demo6            # watch the learning-loop engines compute, and refuse
+```
+
+Nothing to install. The core is standard-library Python; only PyYAML is needed
+beyond it, and only for the config validators.
+
 
 No install step is needed for the core checks.
 
@@ -372,9 +490,19 @@ Open **http://localhost:3000**. Nine surfaces: officer workbench, collections co
 risk dashboards, customer decision and offers, the assistant, and module pages for agri,
 fraud and default prediction.
 
-> Use port 3000 — the gateway allows one CORS origin at a time. Use `npm run dev`, not a
-> production build: `next build` sets `NODE_ENV=production`, which nulls the development
-> session by design and falls back to the refusing adapter.
+> **Two traps, both of which look like a broken app.**
+>
+> *Use port 3000.* The gateway allows one CORS origin at a time. On any other
+> port the browser's preflight succeeds and the real request is blocked, which
+> shows as `Failed to fetch` with nothing in the gateway log.
+>
+> *Use `npm run dev`, not a production build.* `next build` sets
+> `NODE_ENV=production`, which nulls the development session by design, and the
+> app falls back to the adapter that refuses every call.
+>
+> If a page renders unstyled or throws `Cannot find module './vendor-chunks/…'`,
+> the build cache is stale from switching between `dev` and `build`:
+> `rm -rf frontend/.next` and start again.
 
 ### Real numbers from real data
 
@@ -435,6 +563,60 @@ Full sets: [P0](Lending_Hub_Phase_Docs/Phase_0_FINDINGS.md) ·
 [P5](Lending_Hub_Phase_Docs/Phase_5_FINDINGS.md) ·
 [P6](Lending_Hub_Phase_Docs/Phase_6_FINDINGS.md) ·
 [P7](Lending_Hub_Phase_Docs/Phase_7_FINDINGS.md)
+
+---
+
+## The decisions that shaped this
+
+Twelve architecture decision records sit in [`docs/adr/`](docs/adr/). Six
+changed what the code looks like enough to be worth reading:
+
+| ADR | The decision | Why it matters |
+|---|---|---|
+| [0003](docs/adr/0003-two-track-execution-model.md) | Three tracks against one interface | Everything else follows from it. Track A proves code paths, Track P proves the code survives real data, only Track B is evidence. |
+| [0004](docs/adr/0004-public-reference-data-track.md) | Use real public data, label it as such | A Gini on US consumer loans is a fact about US consumer lending. Useful, and not about this bank. |
+| [0013](docs/adr/0013-phase2-agri-track.md) | Agri models ship as contracts, not weights | **Since amended.** It recorded that no crop labels existed for India. AgriFieldNet proved that wrong — the honest correction is recorded rather than quietly fixed. |
+| [0014](docs/adr/0014-phase4-action-systems-track.md) | Do not simulate a collections desk | A simulator authored by the detector's author makes every signal score well exactly to the extent the simulator shares its theory of default. |
+| [0015](docs/adr/0015-phase5-assistant-track.md) | Call no LLM, fabricate no corpus | A faithfulness score over a corpus you wrote measures the author. The easiest phase to demo convincingly is the one most worth refusing to fake. |
+| [0016](docs/adr/0016-phase6-learning-loops-track.md) | Build the promotion rule before the first challenger | A rule written under pressure by whoever ships the first challenger is a rule shaped by that challenger. |
+
+### Five refusals worth knowing about
+
+Each is a place where a plausible default would have become the production value,
+because nobody would ever have gone back to check it.
+
+- **`expected_income()` raises** without ratified input costs. On a smallholder
+  plot those costs decide the *sign* of the answer, not its precision.
+- **`VillageLocation.area_hectares` raises** rather than returning a nominal area
+  around a centroid. A circle around a village centre is a plausible map of a
+  survey nobody did.
+- **`Reward.blended()` raises** without a ratified weight. A bandit rewarded on
+  take-up alone learns to offer the largest permitted loan to whoever is
+  likeliest to accept it.
+- **`estimate_uplift()` raises** on an unrandomised log. Uplift from observational
+  data is not a worse estimate — it is a different quantity, and more data
+  narrows the interval around the wrong number.
+- **`templates` composes no sentence.** There is no code path that writes an
+  adverse-action explanation. A model that paraphrased an approved sentence into
+  something clearer would produce one Compliance never saw, and it would be
+  *better written*, which makes it likelier to reach a customer.
+
+### The build gates
+
+Six checks run on every commit. Each exists because of a specific failure it
+prevents.
+
+| Gate | What it refuses |
+|---|---|
+| `check_grounding.py` | A number with no `[SPEC]`, `[DATA]` or `[POLICY]` behind it; a malformed placeholder; a frozen definition retyped instead of imported |
+| `validate_source_registry.py` | A data source with no owner, no schema, or no retention position |
+| `check_schema_compatibility.py` | A stream change that would break an existing consumer |
+| `check-no-client-math.mjs` | Arithmetic on a money figure anywhere in the render layer |
+| `attribution.contract.ts` | A response rendering a score without its model id, version and decision-log reference |
+| `audit_routes()` | A gateway route no client declares, or a model-derived route that returns a payload instead of a refusal |
+
+Three of these caught defects in this project's own code while it was being
+written, which is the only real test of whether a gate works.
 
 ---
 
