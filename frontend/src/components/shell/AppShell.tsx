@@ -59,6 +59,7 @@ const GROUPS: readonly NavGroup[] = [
     title: "Evidence",
     items: [
       { label: "Control centre", href: "/dashboard", surface: "demo" },
+      { label: "Trained models", href: "/models", surface: "ML" },
       { label: "Agri intelligence", href: "/modules/agri/PLOT-DEMO-1", surface: "SRS M1" },
       { label: "Fraud detection", href: "/modules/fraud/APP-1", surface: "SRS M3" },
       { label: "Default prediction", href: "/modules/risk", surface: "SRS M5" },

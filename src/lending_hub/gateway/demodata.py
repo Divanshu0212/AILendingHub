@@ -569,3 +569,148 @@ def ews_summary() -> dict[str, Any]:
         ),
         "provenance": _provenance(report, P4),
     }
+
+
+# ------------------------------------------------- trained-model results
+#
+# The four research harnesses in `tools/` write their own reports. Serving them
+# alongside the committed Track P runs keeps one property visible that a merged
+# view would lose: these are a *later, stronger* fit, and the committed run is
+# the baseline they have to beat. Both are shown, never one silently replacing
+# the other.
+
+TRAINED = {
+    "scoring": "ensemble_training.json",
+    "survival": "survival_training.json",
+    "fraud": "fraud_training.json",
+    "crop": "crop_training.json",
+}
+
+
+def trained_models() -> dict[str, Any]:
+    """Every fitted model, grouped by family, with the winner marked.
+
+    Missing reports are reported as absent rather than skipped — a family that
+    has not been trained on this machine is a different state from one that has
+    no data, and collapsing them hides which is which.
+    """
+    families: list[dict[str, Any]] = []
+
+    for key, filename in TRAINED.items():
+        path = REPORTS / filename
+        if not path.exists():
+            families.append({
+                "family": key,
+                "available": False,
+                "reason": f"{filename} not generated — run tools/train_{key}.py",
+            })
+            continue
+
+        report = json.loads(path.read_text(encoding="utf-8"))
+        ens = report.get("ensemble", {})
+        # Crop is a six-class problem scored on macro-F1; the rest are binary
+        # and scored on AUC. Naming the metric per family rather than calling
+        # them all "score" keeps a reader from comparing across the two.
+        is_crop = key == "crop"
+        metric = "macro-F1" if is_crop else "AUC"
+        winner_score = (
+            ens.get("winnerMacroF1") if is_crop else ens.get("winnerTestAuc")
+        )
+
+        models = []
+        for m in report.get("models", []):
+            if m.get("status") != "done":
+                continue
+            score = m.get("testMacroF1") if is_crop else (
+                m.get("testAuc") or m.get("oofAuc")
+            )
+            models.append({
+                "name": m["name"],
+                "score": score,
+                "scoreDisplay": f"{score:.4f}" if score else "—",
+                "seconds": m.get("seconds"),
+            })
+        models.sort(key=lambda m: -(m["score"] or 0))
+
+        # Bar width, computed here rather than in the render layer. The gate
+        # that forbids frontend arithmetic caught this and was right to: the
+        # rule cannot distinguish a plot coordinate from a money figure, and
+        # weakening it to admit one would admit the other. Scaled against the
+        # family's own best so the bars rank within a family and are never
+        # comparable across families with different metrics.
+        best = models[0]["score"] if models and models[0]["score"] else 1.0
+        for m in models:
+            frac = (m["score"] or 0) / best
+            m["barWidth"] = f"{frac * 100:.0f}%"
+            m["isBest"] = m["score"] == best
+
+        families.append({
+            "family": key,
+            "available": True,
+            "metric": metric,
+            "models": models,
+            "winner": ens.get("winner"),
+            "winnerScore": winner_score,
+            "winnerScoreDisplay": f"{winner_score:.4f}" if winner_score else "—",
+            "dataset": report.get("dataset", {}),
+            "elapsedSeconds": report.get("elapsedSeconds"),
+        })
+
+    return {
+        "families": families,
+        "totalModels": sum(
+            len(f.get("models", [])) for f in families if f.get("available")
+        ),
+        "provenance": {
+            "track": "P",
+            "dataset": "four public datasets",
+            "source": "reports/*_training.json",
+            "isGateEvidence": False,
+            "note": (
+                "Later, stronger fits than the committed Track P runs, kept "
+                "alongside them rather than replacing them. Still public data "
+                "and still not this bank's book."
+            ),
+        },
+    }
+
+
+def fraud_alert_budget() -> dict[str, Any]:
+    """What a review desk sees at each alert budget.
+
+    The number a fraud model is actually operated on. AUC ranks; a desk works a
+    budget, and the false-alert column is customers stopped wrongly.
+    """
+    path = REPORTS / TRAINED["fraud"]
+    if not path.exists():
+        raise DemoDataUnavailable(
+            "fraud_training.json not generated — run tools/train_fraud.py"
+        )
+    report = json.loads(path.read_text(encoding="utf-8"))
+    ens = report["ensemble"]
+    return {
+        "winner": ens["winner"],
+        "auc": ens["winnerTestAuc"],
+        "aucDisplay": f"{ens['winnerTestAuc']:.4f}",
+        "giniDisplay": f"{ens['winnerGiniPoints']:.2f}",
+        "budgets": [
+            {
+                "reviewFraction": b["reviewFraction"],
+                "reviewDisplay": f"{b['reviewFraction'] * 100:g}%",
+                "captureDisplay": f"{b['captureRate'] * 100:.1f}%",
+                "precisionDisplay": f"{b['precision'] * 100:.1f}%",
+                "falsePositives": b["falsePositives"],
+                "falsePositivesDisplay": f"{b['falsePositives']:,}",
+            }
+            for b in ens["alertBudget"]
+        ],
+        "transactions": report["dataset"]["rows"],
+        "transactionsDisplay": f"{report['dataset']['rows']:,}",
+        "provenance": {
+            "track": "P",
+            "dataset": "ieee_cis_fraud",
+            "source": "reports/fraud_training.json",
+            "isGateEvidence": False,
+            "note": "Real card transactions, not loan fraud and not this bank's.",
+        },
+    }

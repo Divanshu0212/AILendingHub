@@ -641,3 +641,62 @@ export interface EwsSummary {
 export function fetchEws(c: GatewayClient): Promise<EwsSummary> {
   return c.request("/v1/insights/ews");
 }
+
+// ------------------------------------------- trained models (research harnesses)
+//
+// The four training harnesses in tools/ write their own reports. These are a
+// LATER, STRONGER fit than the committed Track P runs — both are served, so a
+// reader can see the improvement rather than being handed only the better
+// number.
+
+export interface TrainedModel {
+  readonly name: string;
+  readonly score: number | null;
+  readonly scoreDisplay: string;
+  readonly seconds: number | null;
+  /** Backend-supplied bar width — the render layer chooses no scale. */
+  readonly barWidth: string;
+  readonly isBest: boolean;
+}
+
+export interface TrainedFamily {
+  readonly family: string;
+  readonly available: boolean;
+  readonly reason?: string;
+  readonly metric?: string;
+  readonly models?: readonly TrainedModel[];
+  readonly winner?: string;
+  readonly winnerScore?: number;
+  readonly winnerScoreDisplay?: string;
+  readonly dataset?: Readonly<Record<string, unknown>>;
+  readonly elapsedSeconds?: number;
+}
+
+export function fetchTrainedModels(c: GatewayClient): Promise<{
+  families: readonly TrainedFamily[];
+  totalModels: number;
+  provenance: Provenance;
+}> {
+  return c.request("/v1/insights/models");
+}
+
+export interface AlertBudgetRow {
+  readonly reviewFraction: number;
+  readonly reviewDisplay: string;
+  readonly captureDisplay: string;
+  readonly precisionDisplay: string;
+  readonly falsePositives: number;
+  readonly falsePositivesDisplay: string;
+}
+
+export function fetchFraudBudget(c: GatewayClient): Promise<{
+  winner: string;
+  auc: number;
+  aucDisplay: string;
+  giniDisplay: string;
+  budgets: readonly AlertBudgetRow[];
+  transactionsDisplay: string;
+  provenance: Provenance;
+}> {
+  return c.request("/v1/insights/fraud-budget");
+}

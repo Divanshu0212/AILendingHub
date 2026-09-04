@@ -106,6 +106,8 @@ CLIENT_DECLARED_PATHS: frozenset[str] = frozenset(
         "/v1/insights/scoring",
         "/v1/insights/queue",
         "/v1/insights/ews",
+        "/v1/insights/models",
+        "/v1/insights/fraud-budget",
         "/v1/insights/agri/{plotId}",
     }
 )
@@ -165,6 +167,14 @@ def _demo_queue(query: dict) -> dict:
     raw = (query or {}).get("limit", ["25"])
     limit = int(raw[0]) if isinstance(raw, list) else int(raw)
     return demodata.officer_queue(limit if 1 <= limit <= 100 else 25)
+
+
+def _demo_trained(query: dict) -> dict:
+    return demodata.trained_models()
+
+
+def _demo_fraud_budget(query: dict) -> dict:
+    return demodata.fraud_alert_budget()
 
 
 def _demo_ews(query: dict) -> dict:
@@ -237,6 +247,8 @@ ROUTES: tuple[Route, ...] = (
     Route("GET", "/v1/insights/scoring", _demo_scoring, False, ("query",)),
     Route("GET", "/v1/insights/queue", _demo_queue, False, ("query",)),
     Route("GET", "/v1/insights/ews", _demo_ews, False, ("query",)),
+    Route("GET", "/v1/insights/models", _demo_trained, False, ("query",)),
+    Route("GET", "/v1/insights/fraud-budget", _demo_fraud_budget, False, ("query",)),
     Route("GET", "/v1/insights/agri/{plotId}", _demo_agri, False, ("path",)),
 )
 
