@@ -33,6 +33,17 @@ dev = [
   "pytest>=7.4",
   "ruff>=0.3",
 ]
+# Public-data research harnesses under tools/. These intentionally remain
+# separate from the stdlib-only Track A core and are not serving dependencies.
+research = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "scipy>=1.10",
+  "scikit-learn>=1.3",
+  "xgboost>=2.0",
+  "lightgbm>=4.0",
+  "catboost>=1.2",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

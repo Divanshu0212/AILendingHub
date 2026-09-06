@@ -19,11 +19,17 @@
  */
 
 import { useAdapter } from "../../../../adapters/context";
+import { devSession } from "../../../../adapters/devSession";
 import { AppShell } from "../../../../components/shell/AppShell";
 import { Copy } from "../../../../components/shared/Copy";
 import { UnavailableNotice } from "../../../../components/shared/UnavailableNotice";
+import { GatewayClient } from "../../../../lib/gateway/client";
 import { useLoad } from "../../../../lib/gateway/useLoad";
-import type { UnifiedCaseFile } from "../../../../lib/gateway/endpoints";
+import {
+  fetchTrainedModels,
+  type TrainedFamily,
+  type UnifiedCaseFile,
+} from "../../../../lib/gateway/endpoints";
 
 interface LayerRow {
   readonly n: string;
@@ -61,13 +67,39 @@ const LAYERS: readonly LayerRow[] = [
   },
   {
     n: "4",
-    name: "Supervised and camouflage-resistant",
+    name: "Supervised and camouflage-resistant (serving)",
     what: "Inductive node scoring, and reinforcement-learned neighbour filtering against padded neighbourhoods",
     state:
-      "Not fitted. Needs ≥ 18 months of fraud-desk dispositions (LH-810), which needs a staffed desk, which needs the alert budget. Camouflage is a behaviour of an adversary responding to a deployed detector — there is no adversary yet.",
+      "No production loan-fraud model is fitted. The completed IEEE-CIS public-data benchmark is a card-transaction ensemble, not an application or graph model, so it cannot honestly score this application. A serving fit needs fraud-desk dispositions and a registered artifact (LH-810).",
     built: false,
   },
 ];
+
+function BenchmarkStatus({ family }: { readonly family: TrainedFamily | undefined }) {
+  if (!family?.available) return null;
+
+  return (
+    <section className="rounded border border-emerald-200 bg-emerald-50 p-4" aria-label="Fraud benchmark status">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs text-fresh-ok">
+          public benchmark trained
+        </span>
+        <span className="text-sm font-semibold text-neutral-900">
+          {family.winner ?? "Fraud ensemble"}
+        </span>
+        <span className="font-mono text-xs text-emerald-800">
+          {family.winnerScoreDisplay} {family.metric}
+        </span>
+      </div>
+      <p className="mt-2 max-w-3xl text-xs leading-relaxed text-neutral-700">
+        {family.models?.length ?? 0} completed fits on 590,540 IEEE-CIS card
+        transactions. This result is available in <a className="underline" href="/models">Trained models</a>,
+        but is not deployed to score loan applications: it has no registered
+        serving artifact or bank fraud-desk labels.
+      </p>
+    </section>
+  );
+}
 
 export default function FraudModulePage({
   params,
@@ -75,10 +107,15 @@ export default function FraudModulePage({
   readonly params: { readonly applicationId: string };
 }) {
   const adapter = useAdapter();
+  const client = new GatewayClient(devSession());
   const state = useLoad<UnifiedCaseFile>(
     () => adapter.fetchCaseFile(params.applicationId),
     [adapter, params.applicationId]
   );
+  const trained = useLoad(() => fetchTrainedModels(client), []);
+  const fraudFamily = trained.kind === "ready"
+    ? trained.data.families.find((family) => family.family === "fraud")
+    : undefined;
 
   return (
     <AppShell
@@ -97,6 +134,8 @@ export default function FraudModulePage({
           <Copy k="common.loading" />
         </p>
       ) : null}
+
+      <BenchmarkStatus family={fraudFamily} />
 
       {/* A FraudAlert is not an EWS Alert — different shape, different owner,
           different lifecycle — so this renders the fraud shape directly rather
@@ -141,9 +180,9 @@ export default function FraudModulePage({
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-neutral-600">
           The layers are ordered by what they need, not by sophistication. Rules
-          and anomaly detection run on day one; supervised graph models cannot
-          run until a desk has been dispositioning alerts for eighteen months.
-          Building them in the other order produces a model with no labels.
+          and anomaly detection run on day one. The completed public benchmark
+          establishes a transaction-fraud baseline; a supervised loan or graph
+          model still needs a desk to disposition alerts for eighteen months.
         </p>
 
         <ul className="mt-4 flex flex-col gap-3">

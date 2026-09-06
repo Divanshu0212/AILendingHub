@@ -37,7 +37,8 @@ THREE CHANGES FROM THE NOTEBOOK, EACH FORCED
 WHAT THIS DOES NOT TOUCH
 --------------------------
 `make trackp-p1` and the Phase 1 gate pack. This writes to
-`reports/fraud_training.json` and overwrites nothing. And it measures
+`reports/fraud_training.json` and a research-only weight bundle under
+`artifacts/fraud-ieee-cis/`. And it measures
 discrimination only — a fraud model with a better AUC and a worse false-positive
 burden on legitimate customers is not a better model, and the alert budget that
 decides that trade-off is still LH-206.
@@ -45,6 +46,10 @@ decides that trade-off is still LH-206.
 Usage:
     python3 tools/train_fraud.py --quick     # ~5 min on a subsample
     python3 tools/train_fraud.py             # the full run
+
+The weight bundle is deliberately not registered as a serving model. It was
+trained on public card transactions, its feature construction uses the IEEE-CIS
+batch, and it has neither bank fraud-desk labels nor decision logging.
 """
 
 from __future__ import annotations
@@ -54,6 +59,7 @@ import gc
 import json
 import os
 import pathlib
+import hashlib
 import sys
 import time
 import warnings
@@ -65,6 +71,7 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 DATA = REPO / "datasets" / "ieee-fraud-detection"
 DEFAULT_OUT = REPO / "reports" / "fraud_training.json"
 PROGRESS = REPO / "reports" / "fraud_progress.json"
+DEFAULT_ARTIFACT_DIR = REPO / "artifacts" / "fraud-ieee-cis"
 
 
 def _publish(state: dict[str, Any]) -> None:
@@ -80,6 +87,32 @@ def _log(state: dict[str, Any], message: str) -> None:
     state["log"] = state["log"][-200:]
     _publish(state)
     print(f"{stamp}  {message}", flush=True)
+
+
+def _sha256(path: pathlib.Path) -> str:
+    """Checksum a saved weight file for the bundle manifest."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _save_fold_model(clf: Any, family: str, path: pathlib.Path) -> None:
+    """Persist a fitted estimator in its library's native weight format.
+
+    Pickling wrappers couples the bundle to the exact Python package layout.
+    Native formats retain the actual model weights while making that dependency
+    explicit in the manifest instead of hiding it in a pickle.
+    """
+    if family == "xgboost":
+        clf.get_booster().save_model(str(path))
+    elif family == "lightgbm":
+        clf.booster_.save_model(str(path))
+    elif family == "catboost":
+        clf.save_model(str(path))
+    else:  # model_specs() is closed, so this catches an unimplemented addition.
+        raise ValueError(f"no native weight exporter for {family!r}")
 
 
 # ------------------------------------------------------------- the features
@@ -355,6 +388,8 @@ def train_one(payload: dict[str, Any]) -> dict[str, Any]:
     skf = GroupKFold(n_splits=min(payload["folds"], n_groups))
     oof = np.zeros(len(y))
     fold_aucs: list[float] = []
+    saved_weights: list[dict[str, Any]] = []
+    artifact_dir = pathlib.Path(payload["artifact_dir"])
 
     for fold, (idxT, idxV) in enumerate(skf.split(X, y, groups=groups)):
         xt, yt = X[cols].iloc[idxT], y[idxT]
@@ -379,6 +414,14 @@ def train_one(payload: dict[str, Any]) -> dict[str, Any]:
 
         oof[idxV] = clf.predict_proba(xv)[:, 1]
         fold_aucs.append(float(roc_auc_score(yv, oof[idxV])))
+        suffix = {"xgboost": "json", "lightgbm": "txt", "catboost": "cbm"}[spec["family"]]
+        weight_path = artifact_dir / f"{spec['name']}-fold-{fold}.{suffix}"
+        _save_fold_model(clf, spec["family"], weight_path)
+        saved_weights.append({
+            "fold": fold,
+            "path": weight_path.name,
+            "sha256": _sha256(weight_path),
+        })
         del clf
         gc.collect()
 
@@ -390,6 +433,7 @@ def train_one(payload: dict[str, Any]) -> dict[str, Any]:
         "foldAucs": fold_aucs,
         "seconds": round(time.time() - started, 1),
         "oof": oof.tolist(),
+        "weights": saved_weights,
     }
 
 
@@ -468,6 +512,28 @@ def run(args) -> dict[str, Any]:
     }
     _publish(state)
 
+    artifact_dir = pathlib.Path(args.artifact_dir).resolve()
+    if artifact_dir.exists():
+        raise SystemExit(
+            f"artifact directory already exists: {artifact_dir}. Choose a new "
+            "--artifact-dir so an earlier weight bundle is not overwritten."
+        )
+    artifact_dir.mkdir(parents=True)
+    manifest_path = artifact_dir / "manifest.json"
+    manifest_path.write_text(json.dumps({
+        "status": "training",
+        "kind": "research_only_public_fraud_benchmark",
+        "servingEligible": False,
+        "servingNote": (
+            "IEEE-CIS card-transaction weights are not a loan-application "
+            "model and have no bank decision-log provenance."
+        ),
+        "dataset": state["dataset"],
+        "config": state["config"],
+        "featureColumns": cols,
+    }, indent=2) + "\n", encoding="utf-8")
+    _log(state, f"saving native model weights under {artifact_dir}")
+
     scratch = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "lh_fraud"
     scratch.mkdir(parents=True, exist_ok=True)
     X_train.to_pickle(scratch / "x.pkl")
@@ -486,7 +552,8 @@ def run(args) -> dict[str, Any]:
 
     payloads = [
         {"spec": s, "x_path": str(scratch / "x.pkl"), "y_path": str(scratch / "y.npy"),
-         "groups_path": str(scratch / "groups.npy"), "cols": cols, "folds": args.folds}
+         "groups_path": str(scratch / "groups.npy"), "cols": cols, "folds": args.folds,
+         "artifact_dir": str(artifact_dir)}
         for s in specs
     ]
 
@@ -570,6 +637,38 @@ def run(args) -> dict[str, Any]:
         },
         "alertBudget": [alert_profile(y, winner_scores, f) for f in (0.005, 0.01, 0.02, 0.05)],
     }
+    manifest = {
+        "status": "done",
+        "kind": "research_only_public_fraud_benchmark",
+        "servingEligible": False,
+        "servingNote": (
+            "These are cross-validation fold weights for the public IEEE-CIS "
+            "card-transaction benchmark. They are not registered, do not score "
+            "loan applications, and must not be used for customer decisions."
+        ),
+        "dataset": state["dataset"],
+        "config": state["config"],
+        "featureColumns": cols,
+        "baseModels": [
+            {
+                "name": result["name"],
+                "family": result["family"],
+                "weights": result["weights"],
+            }
+            for result in results
+        ],
+        "stack": {
+            "type": "logistic_regression_over_ranked_fold_predictions",
+            "classes": [int(value) for value in stack.classes_],
+            "coefficients": stack.coef_[0].tolist(),
+            "intercept": stack.intercept_.tolist(),
+            "memberOrder": [result["name"] for result in results],
+        },
+    }
+    tmp_manifest = manifest_path.with_suffix(".tmp")
+    tmp_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    tmp_manifest.replace(manifest_path)
+    state["artifactBundle"] = str(artifact_dir.relative_to(REPO))
     state["status"] = "done"
     state["finishedAt"] = time.time()
     state["elapsedSeconds"] = round(time.time() - started, 1)
@@ -600,6 +699,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--folds", type=int, default=6)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260903)
+    parser.add_argument(
+        "--artifact-dir", default=str(DEFAULT_ARTIFACT_DIR),
+        help="new directory for native research model weights and manifest",
+    )
     parser.add_argument("--quick", action="store_true")
     args = parser.parse_args(argv)
 
